@@ -109,7 +109,7 @@ var serveCmd = &cobra.Command{
 		}
 
 		if traceStdout {
-			shutdown, err := observability.SetupStdoutTracer(serviceName)
+			shutdown, err := observability.SetupStdoutTracer(serviceName, observability.StdoutTracerOptions{})
 			if err != nil {
 				return err
 			}

@@ -249,12 +249,16 @@ func WithPrometheus() Option {
 // App construction. The returned shutdown function will be stored on the App
 // and invoked during Shutdown so spans can be flushed. Errors during setup are
 // logged to the App logger.
-func WithStdoutTracer(serviceName string) Option {
+// WithStdoutTracer initializes a simple stdout OpenTelemetry tracer during
+// App construction. The returned shutdown function will be stored on the App
+// and invoked during Shutdown so spans can be flushed. Options allow tuning
+// sampling and batch exporter behaviour.
+func WithStdoutTracer(serviceName string, opts observability.StdoutTracerOptions) Option {
 	return func(a *App) {
 		if a == nil {
 			return
 		}
-		shutdown, err := observability.SetupStdoutTracer(serviceName)
+		shutdown, err := observability.SetupStdoutTracer(serviceName, opts)
 		if err != nil {
 			if a.logger != nil {
 				a.logger.Printf("failed to setup stdout tracer: %v", err)

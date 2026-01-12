@@ -16,7 +16,22 @@ import (
 
 // SetupStdoutTracer sets up a simple stdout tracer for local/dev use and returns a shutdown func.
 // It writes spans to stdout in a human-readable format. Use for local testing or CI dumps.
-func SetupStdoutTracer(serviceName string) (func(context.Context) error, error) {
+// StdoutTracerOptions configures the stdout tracer exporter behavior.
+type StdoutTracerOptions struct {
+	// Sampler can be "always", "never" or "probabilistic". When set to
+	// "probabilistic", Probability will be used.
+	Sampler     string
+	Probability float64
+
+	// Batch exporter options
+	MaxExportBatchSize int
+}
+
+// SetupStdoutTracer sets up a simple stdout tracer for local/dev use and returns
+// a shutdown func. It writes spans to stdout in a human-readable format. Use
+// for local testing or CI dumps. Options allow configuring sampling and batch
+// exporter behaviour.
+func SetupStdoutTracer(serviceName string, opts StdoutTracerOptions) (func(context.Context) error, error) {
 	exporter, err := stdouttrace.New(stdouttrace.WithPrettyPrint())
 	if err != nil {
 		return nil, err
@@ -26,9 +41,32 @@ func SetupStdoutTracer(serviceName string) (func(context.Context) error, error) 
 	if err != nil {
 		return nil, err
 	}
+
+	// choose sampler
+	var sampler sdktrace.Sampler
+	switch opts.Sampler {
+	case "never":
+		sampler = sdktrace.NeverSample()
+	case "probabilistic":
+		if opts.Probability > 0 && opts.Probability <= 1 {
+			sampler = sdktrace.TraceIDRatioBased(opts.Probability)
+		} else {
+			sampler = sdktrace.TraceIDRatioBased(0.1)
+		}
+	default:
+		sampler = sdktrace.AlwaysSample()
+	}
+
+	// build batcher options
+	batchOpts := []sdktrace.BatchSpanProcessorOption{}
+	if opts.MaxExportBatchSize > 0 {
+		batchOpts = append(batchOpts, sdktrace.WithMaxExportBatchSize(opts.MaxExportBatchSize))
+	}
+	// no exporter timeout option here; keep defaults
+
 	tp := sdktrace.NewTracerProvider(
-		sdktrace.WithSampler(sdktrace.AlwaysSample()),
-		sdktrace.WithBatcher(exporter),
+		sdktrace.WithSampler(sampler),
+		sdktrace.WithBatcher(exporter, batchOpts...),
 		sdktrace.WithResource(res),
 	)
 	otel.SetTracerProvider(tp)

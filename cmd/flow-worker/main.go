@@ -55,7 +55,7 @@ func main() {
 
 	var tracerShutdown func(context.Context) error
 	if *traceStdout {
-		shutdown, err := observability.SetupStdoutTracer(*serviceName)
+		shutdown, err := observability.SetupStdoutTracer(*serviceName, observability.StdoutTracerOptions{})
 		if err != nil {
 			logger.Printf("failed to setup tracer: %v", err)
 		} else {
