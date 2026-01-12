@@ -4,6 +4,6 @@ package router
 
 var Routes = map[string]string{
 	"users_index": "/users",
-	"users_show": "/users/:id",
-	"home_index": "/",
+	"users_show":  "/users/:id",
+	"home_index":  "/",
 }

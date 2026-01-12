@@ -2,27 +2,25 @@
 package models
 
 import (
-    "context"
-    "github.com/dministrator/flow/pkg/flow"
-
+	"context"
+	"github.com/dministrator/flow/pkg/flow"
 )
 
 // Post is a generated model using bun struct tags.
 type Post struct {
-    flow.Model
-    Title string `bun:"title" json:"title"`
-
+	flow.Model
+	Title string `bun:"title" json:"title"`
 }
 
 // Save persists the model. It inserts when ID==0 or updates otherwise.
 func (m *Post) Save(ctx context.Context, app *flow.App) error {
-    if m.ID == 0 {
-        return flow.Insert(ctx, app, m)
-    }
-    return flow.Update(ctx, app, m)
+	if m.ID == 0 {
+		return flow.Insert(ctx, app, m)
+	}
+	return flow.Update(ctx, app, m)
 }
 
 // Delete removes the model from the database.
 func (m *Post) Delete(ctx context.Context, app *flow.App) error {
-    return flow.Delete(ctx, app, m)
+	return flow.Delete(ctx, app, m)
 }
