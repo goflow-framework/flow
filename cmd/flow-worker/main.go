@@ -117,7 +117,9 @@ func exampleHandler(ctx context.Context, j *job.Job) error {
 // sleepHandler sleeps for a few milliseconds if payload contains a duration (ms).
 func sleepHandler(ctx context.Context, j *job.Job) error {
 	// payload expected: {"ms":100}
-	var p struct{ Ms int `json:"ms"` }
+	var p struct {
+		Ms int `json:"ms"`
+	}
 	if len(j.Payload) > 0 {
 		_ = jsonUnmarshal(j.Payload, &p)
 	}

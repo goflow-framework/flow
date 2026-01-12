@@ -24,9 +24,9 @@ func NewRedisQueue(opts *redis.Options, namespace string) *RedisQueue {
 	return &RedisQueue{client: redis.NewClient(opts), namespace: namespace}
 }
 
-func (rq *RedisQueue) listKey() string   { return rq.namespace + ":queue" }
+func (rq *RedisQueue) listKey() string    { return rq.namespace + ":queue" }
 func (rq *RedisQueue) delayedKey() string { return rq.namespace + ":delayed" }
-func (rq *RedisQueue) deadKey() string   { return rq.namespace + ":dead" }
+func (rq *RedisQueue) deadKey() string    { return rq.namespace + ":dead" }
 
 // Enqueue pushes a job to the immediate queue.
 func (rq *RedisQueue) Enqueue(ctx context.Context, j *Job) error {
@@ -274,4 +274,9 @@ func marshalQuiet(j *Job) []byte {
 	return b
 }
 
-func max(a, b int) int { if a > b { return a } ; return b }
+func max(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
+}

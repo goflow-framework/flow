@@ -11,8 +11,8 @@ var (
 )
 
 func metricsIncProcessed() { atomic.AddInt64(&processed, 1) }
-func metricsIncFailed() { atomic.AddInt64(&failed, 1) }
-func metricsIncRetried() { atomic.AddInt64(&retried, 1) }
+func metricsIncFailed()    { atomic.AddInt64(&failed, 1) }
+func metricsIncRetried()   { atomic.AddInt64(&retried, 1) }
 
 type MetricsSnapshot struct {
 	Processed int64
