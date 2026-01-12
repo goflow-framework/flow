@@ -49,3 +49,7 @@ coverage.out
 *.tmp
 
 # End of .gitignore
+
+# Generated example outputs
+gen-compile*/
+examples/gen-compile*/
