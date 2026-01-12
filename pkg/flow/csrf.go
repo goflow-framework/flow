@@ -11,23 +11,24 @@ import (
 const csrfSessionKey = "_csrf_token"
 
 // CSRFMiddleware ensures a per-session CSRF token exists and validates unsafe requests.
-func CSRFMiddleware() func(http.Handler) http.Handler {
+func CSRFMiddleware() Middleware {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// ensure token exists
 			sess := FromContext(r.Context())
 			var token string
 			if sess != nil {
-				if v, ok := sess.values[csrfSessionKey].(string); ok && v != "" {
-					token = v
+				if v, ok := sess.Get(csrfSessionKey); ok {
+					if s, ok := v.(string); ok {
+						token = s
+					}
 				}
 			}
 			if token == "" {
 				token = generateCSRFToken()
 				if sess != nil {
-					sess.values[csrfSessionKey] = token
-					// persist session on response
-					sess.Save()
+					// use Set which also persists via Save
+					_ = sess.Set(csrfSessionKey, token)
 				}
 			}
 
@@ -55,8 +56,10 @@ func CSRFMiddleware() func(http.Handler) http.Handler {
 // CSRFToken returns the CSRF token for the request's session, or empty string.
 func CSRFToken(r *http.Request) string {
 	if s := FromContext(r.Context()); s != nil {
-		if v, ok := s.values[csrfSessionKey].(string); ok {
-			return v
+		if v, ok := s.Get(csrfSessionKey); ok {
+			if st, ok := v.(string); ok {
+				return st
+			}
 		}
 	}
 	return ""

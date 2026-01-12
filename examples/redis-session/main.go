@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -23,9 +24,43 @@ func main() {
 
 	// Register the redis-backed session middleware so handlers receive a session
 	app.Use(rsm.Middleware())
+	// register CSRF middleware
+	app.Use(flow.CSRFMiddleware())
 
-	// You can still set router/views like other examples. For brevity we'll
-	// just start the server and rely on the default ServeMux.
+	// simple example handlers to demonstrate reading/writing sessions
+	mux := http.NewServeMux()
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		s := flow.FromContext(r.Context())
+		if s == nil {
+			http.Error(w, "no session", http.StatusInternalServerError)
+			return
+		}
+		v, _ := s.Get("count")
+		cnt, _ := v.(float64) // json numbers decode to float64
+		fmt.Fprintf(w, "count=%v\ncsrf=%v", cnt, flow.CSRFToken(r))
+	})
+
+	mux.HandleFunc("/inc", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "POST" {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		s := flow.FromContext(r.Context())
+		if s == nil {
+			http.Error(w, "no session", http.StatusInternalServerError)
+			return
+		}
+		v, _ := s.Get("count")
+		cnt, _ := v.(float64)
+		cnt++
+		_ = s.Set("count", cnt)
+		fmt.Fprintf(w, "ok count=%v", cnt)
+	})
+
+	app.SetRouter(mux)
+
+	// You can still set views like other examples. For brevity we'll
+	// just start the server.
 	if err := app.Start(); err != nil {
 		fmt.Fprintf(os.Stderr, "start error: %v\n", err)
 		os.Exit(1)
