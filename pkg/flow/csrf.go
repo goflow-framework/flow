@@ -1,6 +1,67 @@
 package flow
 
 import (
+    "crypto/rand"
+    "encoding/hex"
+    "net/http"
+    "strings"
+)
+
+// CSRF middleware uses a per-session token stored under the key "_csrf".
+// For unsafe methods it expects the client to send the token in the
+// X-CSRF-Token header (double-submit pattern is also possible).
+func CSRFMiddleware() Middleware {
+    return func(next http.Handler) http.Handler {
+        return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+            // retrieve session
+            s := FromContext(r.Context())
+            if s == nil {
+                // no session available — continue (handlers can opt-in)
+                next.ServeHTTP(w, r)
+                return
+            }
+            // ensure token exists
+            tokI, ok := s.Get("_csrf")
+            var token string
+            if !ok {
+                b := make([]byte, 16)
+                if _, err := rand.Read(b); err == nil {
+                    token = hex.EncodeToString(b)
+                    _ = s.Set("_csrf", token)
+                }
+            } else {
+                if ts, ok := tokI.(string); ok {
+                    token = ts
+                }
+            }
+
+            // verify for unsafe methods
+            if isUnsafeMethod(r.Method) {
+                // check header
+                hdr := r.Header.Get("X-CSRF-Token")
+                if hdr == "" || hdr != token {
+                    http.Error(w, "invalid csrf token", http.StatusForbidden)
+                    return
+                }
+            }
+
+            // attach helper header with token for convenience
+            if token != "" {
+                w.Header().Set("X-CSRF-Token", token)
+            }
+
+            next.ServeHTTP(w, r)
+        })
+    }
+}
+
+func isUnsafeMethod(m string) bool {
+    m = strings.ToUpper(m)
+    return m == "POST" || m == "PUT" || m == "PATCH" || m == "DELETE"
+}
+package flow
+
+import (
 	"crypto/rand"
 	"crypto/subtle"
 	"encoding/base64"
