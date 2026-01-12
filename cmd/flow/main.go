@@ -52,6 +52,9 @@ var serveAddr string
 var metricsAddr string
 var traceStdout bool
 var serviceName string
+var otlpEndpoint string
+var otlpInsecure bool
+var otlpHeaders string
 
 var serveCmd = &cobra.Command{
 	Use:   "serve",

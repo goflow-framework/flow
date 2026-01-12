@@ -33,6 +33,9 @@ func main() {
 	metricsAddr := flag.String("metrics-addr", "", "optional address to expose Prometheus /metrics (eg. :9090)")
 	traceStdout := flag.Bool("trace-stdout", false, "enable stdout OpenTelemetry tracer for local debugging")
 	serviceName := flag.String("service-name", "flow-worker", "service.name used by tracing exporter")
+	otlpEndpoint := flag.String("otlp-endpoint", "", "OTLP gRPC endpoint (e.g. otel-collector:4317)")
+	otlpInsecure := flag.Bool("otlp-insecure", false, "use insecure gRPC connection for OTLP (local collector)")
+	otlpHeaders := flag.String("otlp-headers", "", "comma-separated key=val headers for OTLP (e.g. api-key=foo)")
 	flag.Parse()
 
 	// logger
@@ -42,7 +45,7 @@ func main() {
 	q := job.NewRedisQueue(opts, *ns)
 	defer q.Close()
 
-	// optionally expose metrics endpoint and/or enable stdout tracer
+	// optionally expose metrics endpoint
 	if *metricsAddr != "" {
 		go func() {
 			mux := http.NewServeMux()
@@ -53,8 +56,18 @@ func main() {
 		}()
 	}
 
+	// Tracing: prefer OTLP exporter when endpoint provided, otherwise fall back to stdout tracer.
 	var tracerShutdown func(context.Context) error
-	if *traceStdout {
+	if *otlpEndpoint != "" {
+		headersMap := observability.ParseHeaders(*otlpHeaders)
+		shutdown, err := observability.SetupOTLPTracer(context.Background(), *otlpEndpoint, *otlpInsecure, headersMap, *serviceName)
+		if err != nil {
+			logger.Printf("failed to setup OTLP tracer: %v", err)
+		} else {
+			tracerShutdown = shutdown
+			defer func() { _ = tracerShutdown(context.Background()) }()
+		}
+	} else if *traceStdout {
 		shutdown, err := observability.SetupStdoutTracer(*serviceName, observability.StdoutTracerOptions{})
 		if err != nil {
 			logger.Printf("failed to setup tracer: %v", err)
