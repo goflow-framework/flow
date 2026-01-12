@@ -30,8 +30,8 @@ import (
 	"time"
 
 	orm "github.com/dministrator/flow/internal/orm"
-	"github.com/uptrace/bun"
 	"github.com/dministrator/flow/pkg/observability"
+	"github.com/uptrace/bun"
 )
 
 // Middleware is a function that wraps an http.Handler. Order matters: middleware
