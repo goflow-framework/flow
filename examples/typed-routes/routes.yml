@@ -1,0 +1,3 @@
+users_index: /users
+users_show: /users/:id
+home_index: /

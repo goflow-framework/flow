@@ -11,6 +11,7 @@ require (
 	github.com/uptrace/bun v1.1.0
 	github.com/uptrace/bun/dialect/sqlitedialect v1.1.0
 	golang.org/x/text v0.33.0
+	gopkg.in/yaml.v3 v3.0.1
 	modernc.org/sqlite v1.11.0
 )
 
