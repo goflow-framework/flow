@@ -2,7 +2,6 @@ package routegen
 
 import (
     "fmt"
-    "io/ioutil"
     "os"
     "path/filepath"
 
@@ -13,7 +12,7 @@ import (
 // writes a simple Go file at outPath with a map of routes. This is intentionally
 // small and robust to ensure the CLI can import the package during development.
 func GenerateFromFile(manifestPath, outPath string) error {
-    data, err := ioutil.ReadFile(manifestPath)
+    data, err := os.ReadFile(manifestPath)
     if err != nil {
         return fmt.Errorf("read manifest: %w", err)
     }
