@@ -3,6 +3,7 @@ package job
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -127,4 +128,80 @@ func TestDelayedScheduling(t *testing.T) {
 	if p2 == nil || p2.Type != "later" {
 		t.Fatalf("expected delayed job to be available, got %+v", p2)
 	}
+}
+
+func TestWorkerConcurrency(t *testing.T) {
+	resetMetrics()
+	m, err := miniredis.Run()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer m.Close()
+
+	opts := &redis.Options{Addr: m.Addr()}
+	q := NewRedisQueue(opts, "testjob-conc")
+	defer q.Close()
+
+	const total = 50
+	for i := 0; i < total; i++ {
+		j := &Job{ID: fmt.Sprintf("j-%d", i), Type: "noop", MaxAttempts: 1}
+		if err := q.Enqueue(context.Background(), j); err != nil {
+			t.Fatalf("enqueue: %v", err)
+		}
+	}
+
+	// handler that does minimal work
+	handlers := map[string]Handler{"noop": func(ctx context.Context, j *Job) error { return nil }}
+	w := NewWorker(q, handlers, WorkerOptions{PollInterval: 50 * time.Millisecond, BackoffBase: 10 * time.Millisecond, JitterMillis: 0, Concurrency: 5})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	go func() { _ = w.Start(ctx) }()
+
+	// wait until processed count reaches total
+	deadline := time.Now().Add(4 * time.Second)
+	for time.Now().Before(deadline) {
+		if Metrics().Processed >= total {
+			return
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	t.Fatalf("not all jobs processed: processed=%d", Metrics().Processed)
+}
+
+func TestWorkerLargeVolume(t *testing.T) {
+	resetMetrics()
+	m, err := miniredis.Run()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer m.Close()
+
+	opts := &redis.Options{Addr: m.Addr()}
+	q := NewRedisQueue(opts, "testjob-large")
+	defer q.Close()
+
+	const total = 200
+	for i := 0; i < total; i++ {
+		j := &Job{ID: fmt.Sprintf("jl-%d", i), Type: "noop", MaxAttempts: 1}
+		if err := q.Enqueue(context.Background(), j); err != nil {
+			t.Fatalf("enqueue: %v", err)
+		}
+	}
+
+	handlers := map[string]Handler{"noop": func(ctx context.Context, j *Job) error { return nil }}
+	w := NewWorker(q, handlers, WorkerOptions{PollInterval: 20 * time.Millisecond, BackoffBase: 10 * time.Millisecond, JitterMillis: 0, Concurrency: 10})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	go func() { _ = w.Start(ctx) }()
+
+	deadline := time.Now().Add(8 * time.Second)
+	for time.Now().Before(deadline) {
+		if Metrics().Processed >= total {
+			return
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	t.Fatalf("not all large-volume jobs processed: processed=%d", Metrics().Processed)
 }
