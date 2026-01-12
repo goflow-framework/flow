@@ -47,12 +47,12 @@ func SetupStdoutTracer(serviceName string) (func(context.Context) error, error) 
 	// credentials (useful for local collectors). headers may be used to supply
 	// authentication metadata like API keys. Returns a shutdown function that must
 	// be called to flush and stop the tracer provider.
-	func SetupOTLPTracer(ctx context.Context, endpoint string, insecure bool, headers map[string]string, serviceName string) (func(context.Context) error, error) {
+	func SetupOTLPTracer(ctx context.Context, endpoint string, insecureConn bool, headers map[string]string, serviceName string) (func(context.Context) error, error) {
 		opts := []otlptracegrpc.Option{}
 		if endpoint != "" {
 			opts = append(opts, otlptracegrpc.WithEndpoint(endpoint))
 		}
-		if insecure {
+		if insecureConn {
 			opts = append(opts, otlptracegrpc.WithDialOption(grpc.WithTransportCredentials(insecure.NewCredentials())))
 		}
 		if len(headers) > 0 {

@@ -265,6 +265,25 @@ func WithStdoutTracer(serviceName string) Option {
 	}
 }
 
+// WithOTLPExporter configures an OTLP/gRPC exporter. endpoint is the OTLP
+// collector address (host:port). If insecure is true TLS will be disabled
+// (useful for local testing). headers may include auth headers like API keys.
+func WithOTLPExporter(endpoint, serviceName string, insecure bool, headers map[string]string) Option {
+	return func(a *App) {
+		if a == nil {
+			return
+		}
+		shutdown, err := observability.SetupOTLPTracer(context.Background(), endpoint, insecure, headers, serviceName)
+		if err != nil {
+			if a.logger != nil {
+				a.logger.Printf("failed to setup OTLP tracer: %v", err)
+			}
+			return
+		}
+		a.tracerShutdown = shutdown
+	}
+}
+
 // New creates a configured App instance. It never starts network listeners.
 func New(name string, opts ...Option) *App {
 	// default logger
