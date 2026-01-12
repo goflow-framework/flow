@@ -51,6 +51,5 @@ coverage.out
 # End of .gitignore
 
 # Generated example outputs
-examples/
 gen-compile*/
 examples/gen-compile*/
