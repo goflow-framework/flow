@@ -146,6 +146,30 @@ CI enforces `gofmt` formatting. To format the repository locally you can run the
 
 The scripts run `gofmt -w .` (and `goimports -w .` if available) and print any remaining files that need formatting. After running, stage and commit the changes before pushing.
 
+Developer commands (quick)
+
+If you prefer running the commands directly instead of the scripts, here are common developer shortcuts you can use in WSL / Linux / macOS (run PowerShell variants on Windows as shown above).
+
+```bash
+# format all Go files in-place
+gofmt -w .
+
+# list files that would be reformatted (useful for CI validation)
+gofmt -l .
+
+# optionally run goimports if available to fix imports
+goimports -w .
+
+# run the full test suite (verbose)
+go test ./... -v
+
+# run tests for the public package only (faster during development)
+go test ./pkg/flow -v
+
+# run tests without cache (useful when editing test helpers)
+go test ./... -count=1
+```
+
 
 ## Key Concepts and Files
 
