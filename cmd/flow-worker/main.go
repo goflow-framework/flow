@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"os/signal"
 	"strings"
@@ -15,6 +16,8 @@ import (
 	"github.com/redis/go-redis/v9"
 
 	"github.com/dministrator/flow/pkg/job"
+	"github.com/dministrator/flow/pkg/observability"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 func main() {
@@ -27,6 +30,9 @@ func main() {
 	backoffMs := flag.Int("backoff-ms", 500, "base backoff in milliseconds")
 	jitter := flag.Int("jitter-ms", 50, "max jitter in milliseconds")
 	verbose := flag.Bool("verbose", false, "enable verbose logging")
+	metricsAddr := flag.String("metrics-addr", "", "optional address to expose Prometheus /metrics (eg. :9090)")
+	traceStdout := flag.Bool("trace-stdout", false, "enable stdout OpenTelemetry tracer for local debugging")
+	serviceName := flag.String("service-name", "flow-worker", "service.name used by tracing exporter")
 	flag.Parse()
 
 	// logger
@@ -35,6 +41,28 @@ func main() {
 	opts := &redis.Options{Addr: *addr}
 	q := job.NewRedisQueue(opts, *ns)
 	defer q.Close()
+
+	// optionally expose metrics endpoint and/or enable stdout tracer
+	if *metricsAddr != "" {
+		go func() {
+			mux := http.NewServeMux()
+			mux.Handle("/metrics", promhttp.Handler())
+			if err := http.ListenAndServe(*metricsAddr, mux); err != nil {
+				logger.Printf("metrics server error: %v", err)
+			}
+		}()
+	}
+
+	var tracerShutdown func(context.Context) error
+	if *traceStdout {
+		shutdown, err := observability.SetupStdoutTracer(*serviceName)
+		if err != nil {
+			logger.Printf("failed to setup tracer: %v", err)
+		} else {
+			tracerShutdown = shutdown
+			defer func() { _ = tracerShutdown(context.Background()) }()
+		}
+	}
 
 	// register selectable handlers
 	handlers := make(map[string]job.Handler)

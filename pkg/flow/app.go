@@ -31,6 +31,7 @@ import (
 
 	orm "github.com/dministrator/flow/internal/orm"
 	"github.com/uptrace/bun"
+	"github.com/dministrator/flow/pkg/observability"
 )
 
 // Middleware is a function that wraps an http.Handler. Order matters: middleware
@@ -75,6 +76,11 @@ type App struct {
 	// bunAdapter holds an optional Bun adapter for ORM operations. If set,
 	// App.Bun() returns the underlying *bun.DB for convenience.
 	bunAdapter *orm.BunAdapter
+
+	// tracerShutdown holds an optional shutdown function returned by a tracer
+	// initializer (eg. observability.SetupStdoutTracer). If non-nil it will be
+	// called during Shutdown to allow exporters to flush.
+	tracerShutdown func(context.Context) error
 
 	// state indicates whether the server is running: 0 = idle, 1 = running,
 	// 2 = shutting down/stopped.
@@ -227,6 +233,38 @@ func WithDefaultMiddleware() Option {
 	}
 }
 
+// WithPrometheus registers the Prometheus instrumentation middleware (from
+// pkg/observability). This should be used when the process also exposes a
+// /metrics HTTP endpoint so the recorded metrics can be scraped.
+func WithPrometheus() Option {
+	return func(a *App) {
+		if a == nil {
+			return
+		}
+		a.Use(observability.InstrumentHandler)
+	}
+}
+
+// WithStdoutTracer initializes a simple stdout OpenTelemetry tracer during
+// App construction. The returned shutdown function will be stored on the App
+// and invoked during Shutdown so spans can be flushed. Errors during setup are
+// logged to the App logger.
+func WithStdoutTracer(serviceName string) Option {
+	return func(a *App) {
+		if a == nil {
+			return
+		}
+		shutdown, err := observability.SetupStdoutTracer(serviceName)
+		if err != nil {
+			if a.logger != nil {
+				a.logger.Printf("failed to setup stdout tracer: %v", err)
+			}
+			return
+		}
+		a.tracerShutdown = shutdown
+	}
+}
+
 // New creates a configured App instance. It never starts network listeners.
 func New(name string, opts ...Option) *App {
 	// default logger
@@ -364,6 +402,10 @@ func (a *App) Shutdown(ctx context.Context) error {
 	}
 
 	a.logger.Printf("shutdown complete")
+	// allow tracer shutdown to flush/export spans if configured
+	if a.tracerShutdown != nil {
+		_ = a.tracerShutdown(ctx)
+	}
 	return nil
 }
 

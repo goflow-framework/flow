@@ -9,6 +9,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -18,7 +19,8 @@ import (
 	"database/sql"
 	routerpkg "github.com/dministrator/flow/internal/router"
 	flowpkg "github.com/dministrator/flow/pkg/flow"
-	"net/http"
+	"github.com/dministrator/flow/pkg/observability"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	gen "github.com/dministrator/flow/internal/generator"
 	mig "github.com/dministrator/flow/internal/migrations"
@@ -47,6 +49,9 @@ func init() {
 }
 
 var serveAddr string
+var metricsAddr string
+var traceStdout bool
+var serviceName string
 
 var serveCmd = &cobra.Command{
 	Use:   "serve",
@@ -91,6 +96,26 @@ var serveCmd = &cobra.Command{
 
 		app.SetRouter(r)
 
+		// wire Prometheus middleware and optional tracer
+		if metricsAddr != "" {
+			app.Use(observability.InstrumentHandler)
+			go func() {
+				mux := http.NewServeMux()
+				mux.Handle("/metrics", promhttp.Handler())
+				if err := http.ListenAndServe(metricsAddr, mux); err != nil {
+					fmt.Fprintln(os.Stderr, "metrics server error:", err)
+				}
+			}()
+		}
+
+		if traceStdout {
+			shutdown, err := observability.SetupStdoutTracer(serviceName)
+			if err != nil {
+				return err
+			}
+			defer func() { _ = shutdown(context.Background()) }()
+		}
+
 		// start and block until signal
 		if err := app.Start(); err != nil {
 			return err
@@ -107,6 +132,9 @@ var serveCmd = &cobra.Command{
 
 func init() {
 	serveCmd.Flags().StringVar(&serveAddr, "addr", ":3000", "listen address for the server")
+	serveCmd.Flags().StringVar(&metricsAddr, "metrics-addr", "", "optional address to expose Prometheus /metrics (eg. :9090)")
+	serveCmd.Flags().BoolVar(&traceStdout, "trace-stdout", false, "enable stdout OpenTelemetry tracer for local debugging")
+	serveCmd.Flags().StringVar(&serviceName, "service-name", "flow", "service.name used by tracing exporter")
 	serveCmd.Flags().Bool("watch", false, "watch files and auto-restart server on changes")
 	// internal flag used by watcher to avoid recursive watch
 	serveCmd.Flags().Bool("no-watch", false, "(internal) do not start file watcher")
