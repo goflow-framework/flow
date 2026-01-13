@@ -546,4 +546,3 @@ auth:
 common:
   hello: "Hello"
 `
-
