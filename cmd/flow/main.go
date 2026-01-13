@@ -111,12 +111,25 @@ var serveCmd = &cobra.Command{
 			}()
 		}
 
-		if traceStdout {
+		// Tracing: prefer OTLP exporter when endpoint provided, otherwise fall back to stdout tracer.
+		var tracerShutdown func(context.Context) error
+		if otlpEndpoint != "" {
+			headersMap := observability.ParseHeaders(otlpHeaders)
+			shutdown, err := observability.SetupOTLPTracer(context.Background(), otlpEndpoint, otlpInsecure, headersMap, serviceName)
+			if err != nil {
+				fmt.Fprintln(os.Stderr, "failed to setup OTLP tracer:", err)
+			} else {
+				tracerShutdown = shutdown
+				defer func() { _ = tracerShutdown(context.Background()) }()
+			}
+		} else if traceStdout {
 			shutdown, err := observability.SetupStdoutTracer(serviceName, observability.StdoutTracerOptions{})
 			if err != nil {
-				return err
+				fmt.Fprintln(os.Stderr, "failed to setup tracer:", err)
+			} else {
+				tracerShutdown = shutdown
+				defer func() { _ = tracerShutdown(context.Background()) }()
 			}
-			defer func() { _ = shutdown(context.Background()) }()
 		}
 
 		// start and block until signal
@@ -144,6 +157,10 @@ func init() {
 	serveCmd.Flags().StringSlice("watch-paths", []string{"."}, "paths to watch (comma-separated)")
 	serveCmd.Flags().StringSlice("watch-ignore", []string{".git", "vendor", "node_modules"}, "paths or patterns to ignore (comma-separated)")
 	serveCmd.Flags().StringSlice("watch-ext", []string{".go", ".tmpl", ".html", ".sql"}, "file extensions to trigger restarts (e.g. .go,.tmpl). Empty => watch all files")
+	// OTLP flags (match behavior in flow-worker)
+	serveCmd.Flags().StringVar(&otlpEndpoint, "otlp-endpoint", "", "OTLP gRPC endpoint (e.g. otel-collector:4317)")
+	serveCmd.Flags().BoolVar(&otlpInsecure, "otlp-insecure", false, "use insecure gRPC connection for OTLP (local collector)")
+	serveCmd.Flags().StringVar(&otlpHeaders, "otlp-headers", "", "comma-separated key=val headers for OTLP (e.g. api-key=foo)")
 }
 
 var versionCmd = &cobra.Command{
