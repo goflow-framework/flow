@@ -112,8 +112,20 @@ func TestCLI_GenerateAuth_Compiles(t *testing.T) {
 		t.Fatalf("patch controller import: %v", err)
 	}
 
+	// patch generated middleware import to use the module path as well
+	mwPath := filepath.Join(tmpProj, "app", "middleware", "auth.go")
+	if mb, err := os.ReadFile(mwPath); err == nil {
+		msrc := strings.Replace(string(mb), "REPLACE_WITH_MODULE_PATH/app/models", modelsImport, 1)
+		if err := os.WriteFile(mwPath, []byte(msrc), 0o644); err != nil {
+			t.Fatalf("patch middleware import: %v", err)
+		}
+	} else {
+		t.Fatalf("read generated middleware: %v", err)
+	}
+
 	// write a main.go that imports controllers (blank import) and uses models.User
 	controllersImport := modName + "/" + filepath.ToSlash(filepath.Join(rel, "app", "controllers"))
+	middlewareImport := modName + "/" + filepath.ToSlash(filepath.Join(rel, "app", "middleware"))
 	mainSrc := `package main
 
 import (
@@ -124,6 +136,7 @@ import (
     orm "` + modName + `/internal/orm"
     models "` + modelsImport + `"
     _ "` + controllersImport + `"
+    middleware "` + middlewareImport + `"
     _ "modernc.org/sqlite"
     "golang.org/x/crypto/bcrypt"
 )
@@ -145,6 +158,9 @@ func main() {
     if err := u.Save(ctx, app); err != nil {
         log.Fatal(err)
     }
+
+    // ensure middleware helper symbol compiles
+    _ = middleware.GetCurrentUser
 }
 `
 	// write main.go

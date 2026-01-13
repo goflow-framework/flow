@@ -306,31 +306,49 @@ import (
     "net/http"
     "strconv"
     flow "github.com/undiegomejia/flow/pkg/flow"
+    // NOTE: the generated middleware imports your app's models package so it
+    // can attach a typed *models.User to the request context. When generating
+    // into a standalone project replace the placeholder below with your module
+    // path. Tests will patch this placeholder during compile checks.
+    models "REPLACE_WITH_MODULE_PATH/app/models"
 )
 
-// User is a lightweight user representation used by the generated middleware.
-type User struct {
-    ID    int64
-    Email string
-    Role  string
+// GetSessionUserID converts the session-stored user_id (string) into an int64.
+func GetSessionUserID(s *flow.Session) (int64, bool) {
+    if s == nil {
+        return 0, false
+    }
+    v, ok := s.Get("user_id")
+    if !ok {
+        return 0, false
+    }
+    vs, ok := v.(string)
+    if !ok {
+        return 0, false
+    }
+    id, err := strconv.ParseInt(vs, 10, 64)
+    if err != nil {
+        return 0, false
+    }
+    return id, true
 }
 
-type userCtxKey struct{}
-
-// getUserFromContext returns the User stored in the request context.
-func getUserFromContext(r *http.Request) (*User, bool) {
+// GetCurrentUser returns the typed *models.User attached to the request by the
+// generated middleware, if any.
+func GetCurrentUser(r *http.Request) (*models.User, bool) {
     if v := r.Context().Value(userCtxKey{}); v != nil {
-        if u, ok := v.(*User); ok {
+        if u, ok := v.(*models.User); ok {
             return u, true
         }
     }
     return nil, false
 }
 
+type userCtxKey struct{}
+
 // RequireLogin redirects unauthenticated requests to /login. It relies on
-// session keys set by the login controller (user_id). It will attempt to load
-// the user from the database when Bun is configured and attach a User to the
-// request context for downstream handlers.
+// session keys set by the login controller (user_id). It will attach a
+// typed *models.User to the request context constructed from session data.
 func RequireLogin() flow.Middleware {
     return func(next http.Handler) http.Handler {
         return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -339,35 +357,25 @@ func RequireLogin() flow.Middleware {
                 http.Redirect(w, r, "/login", http.StatusFound)
                 return
             }
-            uidv, ok := s.Get("user_id")
-            if !ok {
-                http.Redirect(w, r, "/login", http.StatusFound)
-                return
-            }
-            // user_id stored as a string to avoid JSON number issues
-            uidStr, ok := uidv.(string)
-            if !ok {
+
+            id, ok := GetSessionUserID(s)
+            if !ok || id == 0 {
                 http.Redirect(w, r, "/login", http.StatusFound)
                 return
             }
 
-            // attempt DB lookup if Bun is configured
-            if app := r.Context().Value(flowCtxKey{}); app != nil {
-                // flowCtxKey is internal; instead, try to use flow.FromContext via request
-            }
-
-            // attach basic user with ID only; DB-backed lookup is optional and
-            // only performed when app.Bun() is available - generated controller
-            // already stores user_role in session so we can attach it here.
+            // construct a minimal models.User from session data. This avoids
+            // requiring a DB lookup in middleware; controllers that need full
+            // user data can still fetch from DB using ctx.App.
             var role string
             if rv, ok := s.Get("user_role"); ok {
                 if rs, ok2 := rv.(string); ok2 {
                     role = rs
                 }
             }
-            id, _ := strconv.ParseInt(uidStr, 10, 64)
-            u := &User{ID: id, Role: role}
-            ctx := context.WithValue(r.Context(), userCtxKey{}, u)
+            mu := &models.User{ID: id, Role: role}
+
+            ctx := context.WithValue(r.Context(), userCtxKey{}, mu)
             next.ServeHTTP(w, r.WithContext(ctx))
         })
     }
