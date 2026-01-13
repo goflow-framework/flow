@@ -19,6 +19,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 )
 
 // ctxParamsKey is the context key used to store path parameters on requests.
@@ -208,6 +209,38 @@ func (r *Router) Resources(base string, c ResourceController) error {
 	return nil
 }
 
+// UseParamsPool controls whether parameter maps are reused from a pool.
+// Tests/benchmarks can toggle this to compare behavior.
+var UseParamsPool = true
+
+var paramsPool sync.Pool
+
+func getParams() map[string]string {
+	if !UseParamsPool {
+		return make(map[string]string)
+	}
+	if v := paramsPool.Get(); v != nil {
+		m := v.(map[string]string)
+		// clear
+		for k := range m {
+			delete(m, k)
+		}
+		return m
+	}
+	return make(map[string]string)
+}
+
+func putParams(m map[string]string) {
+	if !UseParamsPool {
+		return
+	}
+	// clear before putting back
+	for k := range m {
+		delete(m, k)
+	}
+	paramsPool.Put(m)
+}
+
 // ServeHTTP implements http.Handler. It finds the first matching route
 // (in registration order), injects params into the request context, and
 // invokes the handler. If no route matches, NotFound is called. If a path
@@ -232,6 +265,16 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		var final http.Handler = http.HandlerFunc(rt.handler)
 		for i := len(rt.middleware) - 1; i >= 0; i-- {
 			final = rt.middleware[i](final)
+		}
+		// If params were allocated from the pool we must return them after
+		// the handler finished. We only wrap when params is non-empty to
+		// avoid extra allocations on routes without params.
+		if len(params) > 0 {
+			orig := final
+			final = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				orig.ServeHTTP(w, r)
+				putParams(params)
+			})
 		}
 		final.ServeHTTP(w, req.WithContext(ctx))
 		return
@@ -313,37 +356,73 @@ func matchRoute(segs []string, path string) (bool, map[string]string) {
 		return path == "/", map[string]string{}
 	}
 
-	trimmed := strings.Trim(path, "/")
-	if trimmed == "" {
-		return false, nil
+	// trim leading and trailing slashes without allocating
+	start := 0
+	end := len(path)
+	if end > 0 && path[0] == '/' {
+		start = 1
 	}
-	parts := strings.Split(trimmed, "/")
-	if len(parts) != len(segs) {
+	if end > 0 && path[end-1] == '/' {
+		end--
+	}
+	if start >= end {
 		return false, nil
 	}
 
-	params := map[string]string{}
-	for i := 0; i < len(segs); i++ {
-		s := segs[i]
-		p := parts[i]
+	// iterate over segments in-place to avoid allocating a []string via strings.Split
+	var params map[string]string
+	pstart := start
+	segIndex := 0
+	for segIndex < len(segs) {
+		// find end of this part
+		pend := pstart
+		for pend < end && path[pend] != '/' {
+			pend++
+		}
+		part := path[pstart:pend]
+
+		s := segs[segIndex]
 		if s == "" {
-			if p != "" {
+			if part != "" {
 				return false, nil
 			}
+			// advance
+			segIndex++
+			pstart = pend + 1
 			continue
 		}
 		if strings.HasPrefix(s, ":") {
-			// parameter
 			name := strings.TrimPrefix(s, ":")
 			if name == "" {
 				return false, nil
 			}
-			params[name] = p
-			continue
+			if params == nil {
+				params = getParams()
+			}
+			params[name] = part
+		} else {
+			if s != part {
+				return false, nil
+			}
 		}
-		if s != p {
+		segIndex++
+		pstart = pend + 1
+		// if we've consumed the path but there are still segments left, fail
+		if pstart-1 > end && segIndex < len(segs) {
 			return false, nil
 		}
+	}
+
+	// ensure there are no leftover parts in path
+	if pstart <= end {
+		// if there are non-empty trailing parts, fail
+		if pstart <= end-1 {
+			return false, nil
+		}
+	}
+
+	if params == nil {
+		return true, map[string]string{}
 	}
 	return true, params
 }
