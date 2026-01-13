@@ -270,11 +270,8 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 
 		// inject params into context
 		ctx := context.WithValue(req.Context(), ctxParamsKey{}, params)
-		// build handler with route middleware (first registered is outer-most)
-		var final http.Handler = http.HandlerFunc(rt.handler)
-		for i := len(rt.middleware) - 1; i >= 0; i-- {
-			final = rt.middleware[i](final)
-		}
+		// use precompiled handler
+		var final http.Handler = rt.compiled
 		// If params were allocated from the pool we must return them after
 		// the handler finished. We only wrap when params is non-empty to
 		// avoid extra allocations on routes without params.

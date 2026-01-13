@@ -38,6 +38,7 @@ func (c *Controller) WithContext(w http.ResponseWriter, r *http.Request) *Contex
 func (c *Controller) Handler(action func(*Context)) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := NewContext(c.App, w, r)
+		defer PutContext(ctx)
 		action(ctx)
 	}
 }
@@ -82,36 +83,43 @@ func MakeResourceAdapter(app *App, r Resource) routerpkg.ResourceController {
 
 func (a *resourceAdapter) Index(w http.ResponseWriter, req *http.Request) {
 	ctx := NewContext(a.app, w, req)
+	defer PutContext(ctx)
 	a.r.Index(ctx)
 }
 
 func (a *resourceAdapter) New(w http.ResponseWriter, req *http.Request) {
 	ctx := NewContext(a.app, w, req)
+	defer PutContext(ctx)
 	a.r.New(ctx)
 }
 
 func (a *resourceAdapter) Create(w http.ResponseWriter, req *http.Request) {
 	ctx := NewContext(a.app, w, req)
+	defer PutContext(ctx)
 	a.r.Create(ctx)
 }
 
 func (a *resourceAdapter) Show(w http.ResponseWriter, req *http.Request) {
 	ctx := NewContext(a.app, w, req)
+	defer PutContext(ctx)
 	a.r.Show(ctx)
 }
 
 func (a *resourceAdapter) Edit(w http.ResponseWriter, req *http.Request) {
 	ctx := NewContext(a.app, w, req)
+	defer PutContext(ctx)
 	a.r.Edit(ctx)
 }
 
 func (a *resourceAdapter) Update(w http.ResponseWriter, req *http.Request) {
 	ctx := NewContext(a.app, w, req)
+	defer PutContext(ctx)
 	a.r.Update(ctx)
 }
 
 func (a *resourceAdapter) Destroy(w http.ResponseWriter, req *http.Request) {
 	ctx := NewContext(a.app, w, req)
+	defer PutContext(ctx)
 	a.r.Destroy(ctx)
 }
 

@@ -23,6 +23,7 @@ import (
 	"html/template"
 	"io"
 	"net/http"
+	"sync"
 
 	routerpkg "github.com/dministrator/flow/internal/router"
 )
@@ -48,9 +49,37 @@ type Context struct {
 }
 
 // NewContext constructs a Context. App may be nil for tests or simple
-// handlers.
+// handlers. It retrieves instances from an internal pool to reduce per-
+// request allocations. Callers should return pooled Contexts with
+// PutContext when the request is finished (framework adapters do this for
+// you in the hot path).
 func NewContext(app *App, w http.ResponseWriter, r *http.Request) *Context {
+	if v := contextPool.Get(); v != nil {
+		c := v.(*Context)
+		c.App = app
+		c.W = w
+		c.R = r
+		c.status = 0
+		return c
+	}
 	return &Context{App: app, W: w, R: r}
+}
+
+var contextPool sync.Pool
+
+// PutContext returns a Context to the internal pool. Call this after the
+// request has been processed to allow the instance to be reused. It clears
+// references to avoid leaking request-local data.
+func PutContext(c *Context) {
+	if c == nil {
+		return
+	}
+	// clear references
+	c.App = nil
+	c.W = nil
+	c.R = nil
+	c.status = 0
+	contextPool.Put(c)
 }
 
 // Params returns the path parameters extracted by the router for this request.

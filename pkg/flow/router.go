@@ -34,6 +34,7 @@ func NewRouter(app *App) *Router {
 func (r *Router) Get(pattern string, h func(*Context)) {
 	wrapped := func(w http.ResponseWriter, req *http.Request) {
 		ctx := NewContext(r.app, w, req)
+		defer PutContext(ctx)
 		h(ctx)
 	}
 	r.inner.Get(pattern, wrapped)
@@ -43,6 +44,7 @@ func (r *Router) Get(pattern string, h func(*Context)) {
 func (r *Router) Post(pattern string, h func(*Context)) {
 	wrapped := func(w http.ResponseWriter, req *http.Request) {
 		ctx := NewContext(r.app, w, req)
+		defer PutContext(ctx)
 		h(ctx)
 	}
 	r.inner.Post(pattern, wrapped)
@@ -52,6 +54,7 @@ func (r *Router) Post(pattern string, h func(*Context)) {
 func (r *Router) Put(pattern string, h func(*Context)) {
 	wrapped := func(w http.ResponseWriter, req *http.Request) {
 		ctx := NewContext(r.app, w, req)
+		defer PutContext(ctx)
 		h(ctx)
 	}
 	r.inner.Put(pattern, wrapped)
@@ -61,6 +64,7 @@ func (r *Router) Put(pattern string, h func(*Context)) {
 func (r *Router) Patch(pattern string, h func(*Context)) {
 	wrapped := func(w http.ResponseWriter, req *http.Request) {
 		ctx := NewContext(r.app, w, req)
+		defer PutContext(ctx)
 		h(ctx)
 	}
 	r.inner.Patch(pattern, wrapped)
@@ -70,6 +74,7 @@ func (r *Router) Patch(pattern string, h func(*Context)) {
 func (r *Router) Delete(pattern string, h func(*Context)) {
 	wrapped := func(w http.ResponseWriter, req *http.Request) {
 		ctx := NewContext(r.app, w, req)
+		defer PutContext(ctx)
 		h(ctx)
 	}
 	r.inner.Delete(pattern, wrapped)
@@ -80,6 +85,7 @@ func (r *Router) Delete(pattern string, h func(*Context)) {
 func (r *Router) GetWith(pattern string, h func(*Context), mws ...Middleware) {
 	wrapped := func(w http.ResponseWriter, req *http.Request) {
 		ctx := NewContext(r.app, w, req)
+		defer PutContext(ctx)
 		h(ctx)
 	}
 	// convert flow.Middleware to routerpkg.Middleware
@@ -93,6 +99,7 @@ func (r *Router) GetWith(pattern string, h func(*Context), mws ...Middleware) {
 func (r *Router) PostWith(pattern string, h func(*Context), mws ...Middleware) {
 	wrapped := func(w http.ResponseWriter, req *http.Request) {
 		ctx := NewContext(r.app, w, req)
+		defer PutContext(ctx)
 		h(ctx)
 	}
 	conv := make([]routerpkg.Middleware, 0, len(mws))
@@ -105,6 +112,7 @@ func (r *Router) PostWith(pattern string, h func(*Context), mws ...Middleware) {
 func (r *Router) PutWith(pattern string, h func(*Context), mws ...Middleware) {
 	wrapped := func(w http.ResponseWriter, req *http.Request) {
 		ctx := NewContext(r.app, w, req)
+		defer PutContext(ctx)
 		h(ctx)
 	}
 	conv := make([]routerpkg.Middleware, 0, len(mws))
@@ -117,6 +125,7 @@ func (r *Router) PutWith(pattern string, h func(*Context), mws ...Middleware) {
 func (r *Router) PatchWith(pattern string, h func(*Context), mws ...Middleware) {
 	wrapped := func(w http.ResponseWriter, req *http.Request) {
 		ctx := NewContext(r.app, w, req)
+		defer PutContext(ctx)
 		h(ctx)
 	}
 	conv := make([]routerpkg.Middleware, 0, len(mws))
@@ -129,6 +138,7 @@ func (r *Router) PatchWith(pattern string, h func(*Context), mws ...Middleware) 
 func (r *Router) DeleteWith(pattern string, h func(*Context), mws ...Middleware) {
 	wrapped := func(w http.ResponseWriter, req *http.Request) {
 		ctx := NewContext(r.app, w, req)
+		defer PutContext(ctx)
 		h(ctx)
 	}
 	conv := make([]routerpkg.Middleware, 0, len(mws))
