@@ -9,7 +9,6 @@
 
 # Common build/output directories
 /bin/
-tools/*/bin/
 /build/
 /dist/
 /obj/
