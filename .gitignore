@@ -1,4 +1,6 @@
-# Ignore build artifacts and binaries
+# === Flow .gitignore ===
+
+# Binaries and build artifacts
 *.exe
 *.dll
 *.so
@@ -7,6 +9,9 @@
 *.out
 *.test
 
+# Go-specific build outputs
+*_test
+
 # Common build/output directories
 /bin/
 /build/
@@ -14,42 +19,65 @@
 /obj/
 /target/
 
-# Go vendor directory (if used)
+# Local temp/cache
+/tmp/
+/.cache/
+
+# Vendor (if you vendor dependencies locally)
 /vendor/
 
-# Example and CLI binaries
+# Example and CLI binaries (built outputs)
 cmd/*/flow
-examples/*/flow
+**/flow
 
-# Editor and OS files
-.idea/
-.vscode/
-*.swp
-*~
-.DS_Store
+# Profiling, benchmark and coverage outputs
+*.prof
+*.pprof
+*.cov
+coverage.out
+bench-output/
+*.svg
+flame*.svg
 
-# Logs and database files
+# Logs and runtime artifacts
 *.log
+nohup.out
+pprof_client.log
+pprof_server.log
+
+# Databases
 *.db
 *.sqlite
 *.sqlite3
 
-# Environment files
+# Environment files (secrets)
 .env
 .env.*
 
 # Node
 node_modules/
 
-# Coverage and cache
-coverage.out
+# Editors/IDEs
+.idea/
+.vscode/
+*.swp
+*~
+*.iml
+.project
 
-# Ignore temporary and backup files
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Generated/example outputs and large artifacts
+gen-compile*/
+examples/gen-compile*/
+
+# Misc
 *.bak
 *.tmp
 
-# End of .gitignore
+# Ignore any prof files anywhere
+**/*.prof
 
-# Generated example outputs
-gen-compile*/
-examples/gen-compile*/
+# End of .gitignore
