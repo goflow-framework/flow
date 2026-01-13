@@ -7,9 +7,9 @@ import (
 	"os/signal"
 	"syscall"
 
-	controllers "github.com/dministrator/flow/examples/simple/app/controllers"
-	flow "github.com/dministrator/flow/pkg/flow"
-	"github.com/dministrator/flow/pkg/plugins"
+	controllers "github.com/undiegomejia/flow/examples/simple/app/controllers"
+	flow "github.com/undiegomejia/flow/pkg/flow"
+	"github.com/undiegomejia/flow/pkg/plugins"
 )
 
 func main() {

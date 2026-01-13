@@ -29,8 +29,8 @@ import (
 	"syscall"
 	"time"
 
-	orm "github.com/dministrator/flow/internal/orm"
-	"github.com/dministrator/flow/pkg/observability"
+	orm "github.com/undiegomejia/flow/internal/orm"
+	"github.com/undiegomejia/flow/pkg/observability"
 	"github.com/uptrace/bun"
 )
 

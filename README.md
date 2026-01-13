@@ -90,7 +90,7 @@ Example — enable the default middleware stack:
 ```go
 import (
 	"time"
-	"github.com/dministrator/flow/pkg/flow"
+	"github.com/undiegomejia/flow/pkg/flow"
 )
 
 app := flow.New("my-app",
@@ -232,6 +232,31 @@ Flow includes a minimal cookie-based signed session manager with helpers attache
 - `ctx.Flashes()` reads and clears flash messages.
 
 The implementation is intentionally small and dependency-free to keep things portable and testable.
+
+Accessing the session-stored user id
+
+If you use the generated auth scaffolding, the middleware and controller helpers store the
+authenticated user's id in the session. The generated middleware exposes a helper
+`GetSessionUserID` that converts the stored session value into an int64 safely.
+
+Example usage inside a handler (replace the middleware import path with your module path):
+
+```go
+import (
+    middleware "github.com/your/module/path/app/middleware" // replace with your module
+    flow "github.com/undiegomejia/flow/pkg/flow"
+)
+
+func (c *SomeController) Show(ctx *flow.Context) {
+    if s := ctx.Session(); s != nil {
+        if id, ok := middleware.GetSessionUserID(s); ok {
+            // id is the authenticated user's ID (int64)
+            _ = id // use it (e.g. fetch full user from DB if needed)
+        }
+    }
+    // ...handler logic
+}
+```
 
 ### Migrations & Generators
 

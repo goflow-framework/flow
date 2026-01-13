@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dministrator/flow/pkg/flow"
+	"github.com/undiegomejia/flow/pkg/flow"
 )
 
 func main() {

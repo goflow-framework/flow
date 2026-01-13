@@ -6,8 +6,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	controllers "github.com/dministrator/flow/examples/simple/app/controllers"
-	flow "github.com/dministrator/flow/pkg/flow"
+	controllers "github.com/undiegomejia/flow/examples/simple/app/controllers"
+	flow "github.com/undiegomejia/flow/pkg/flow"
 )
 
 func TestExampleRenderShow(t *testing.T) {

@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"time"
 
-	orm "github.com/dministrator/flow/internal/orm"
-	flow "github.com/dministrator/flow/pkg/flow"
+	orm "github.com/undiegomejia/flow/internal/orm"
+	flow "github.com/undiegomejia/flow/pkg/flow"
 	"github.com/uptrace/bun"
 	_ "modernc.org/sqlite"
 )
