@@ -37,7 +37,12 @@ func TestGeneratedModelCompilesAndRuns(t *testing.T) {
 	projDir := t.TempDir()
 	uid := filepath.Base(projDir)
 	moduleName := modName + "/examples/" + uid
-	if err := os.WriteFile(filepath.Join(projDir, "go.mod"), []byte("module "+moduleName+"\n\ngo 1.20\n"), 0o644); err != nil {
+	// write go.mod and add a replace directive so the temp module can
+	// resolve the local repository packages without network access.
+	goMod := "module " + moduleName + "\n\n" +
+		"go 1.20\n\n" +
+		"replace " + modName + " => " + repo + "\n"
+	if err := os.WriteFile(filepath.Join(projDir, "go.mod"), []byte(goMod), 0o644); err != nil {
 		t.Fatalf("write go.mod: %v", err)
 	}
 
