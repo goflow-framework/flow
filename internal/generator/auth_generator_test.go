@@ -84,6 +84,7 @@ func TestCLI_GenerateAuth_Compiles(t *testing.T) {
 	// resolve the local repository packages.
 	goMod := "module " + moduleName + "\n\n" +
 		"go 1.20\n\n" +
+		"require " + modName + " v0.0.0\n\n" +
 		"replace " + modName + " => " + repo + "\n"
 	if err := os.WriteFile(filepath.Join(tmpProj, "go.mod"), []byte(goMod), 0o644); err != nil {
 		t.Fatalf("write go.mod: %v", err)
