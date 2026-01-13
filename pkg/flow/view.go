@@ -12,6 +12,8 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+
+	"github.com/undiegomejia/flow/pkg/i18n"
 )
 
 // ViewManager holds template loading configuration and a simple cache.
@@ -56,7 +58,20 @@ func (v *ViewManager) Render(name string, data interface{}, ctx *Context) error 
 	if tpl.Lookup(execName) == nil {
 		execName = filepath.Base(name) + ".html"
 	}
-	return ctx.RenderTemplate(tpl, execName, data)
+	// Clone template so we can safely register a per-request FuncMap without
+	// mutating the cached parsed templates. Provide a convenient template
+	// function T(key, ...) that resolves translations from the request
+	// context using pkg/i18n.
+	clone, err := tpl.Clone()
+	if err != nil {
+		return fmt.Errorf("clone template: %w", err)
+	}
+	clone = clone.Funcs(template.FuncMap{
+		"T": func(key string, args ...interface{}) string {
+			return i18n.TFromContext(ctx.R.Context(), key, args...)
+		},
+	})
+	return ctx.RenderTemplate(clone, execName, data)
 }
 
 func (v *ViewManager) loadTemplate(name string) (*template.Template, error) {
@@ -108,8 +123,20 @@ func (v *ViewManager) loadTemplate(name string) (*template.Template, error) {
 
 	// parse template set and register FuncMap if provided
 	tpl := template.New(filepath.Base(viewPath))
+	// Ensure a baseline FuncMap exists and include a noop T function so templates
+	// that reference T can be parsed. The per-request Render() will clone and
+	// override T with a real implementation.
+	baseFuncs := template.FuncMap{}
 	if v.FuncMap != nil {
-		tpl = tpl.Funcs(v.FuncMap)
+		for k, f := range v.FuncMap {
+			baseFuncs[k] = f
+		}
+	}
+	if _, ok := baseFuncs["T"]; !ok {
+		baseFuncs["T"] = func(key string, args ...interface{}) string { return key }
+	}
+	if baseFuncs != nil {
+		tpl = tpl.Funcs(baseFuncs)
 	}
 	parsed, err := tpl.ParseFiles(files...)
 	if err != nil {
