@@ -1,11 +1,11 @@
 package generator
 
 import (
-    "os"
-    "os/exec"
-    "path/filepath"
-    "strings"
-    "testing"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
+	"testing"
 )
 
 // TestCLI_GenerateAdmin_Smoke generates admin scaffolding into a temporary
@@ -13,52 +13,52 @@ import (
 // a small program that mounts the admin routes and performs an HTTP GET to
 // /admin/posts to assert the handler is reachable.
 func TestCLI_GenerateAdmin_Smoke(t *testing.T) {
-    repo := findRepoRoot()
-    modName, err := readModuleName(repo)
-    if err != nil {
-        t.Fatalf("read module name: %v", err)
-    }
+	repo := findRepoRoot()
+	modName, err := readModuleName(repo)
+	if err != nil {
+		t.Fatalf("read module name: %v", err)
+	}
 
-    tmpProj := t.TempDir()
-    uid := filepath.Base(tmpProj)
-    moduleName := modName + "/examples/" + uid
-    goMod := "module " + moduleName + "\n\n" +
-        "go 1.20\n\n" +
-        "require " + modName + " v0.0.0\n\n" +
-        "replace " + modName + " => " + repo + "\n"
-    if err := os.WriteFile(filepath.Join(tmpProj, "go.mod"), []byte(goMod), 0o644); err != nil {
-        t.Fatalf("write go.mod: %v", err)
-    }
+	tmpProj := t.TempDir()
+	uid := filepath.Base(tmpProj)
+	moduleName := modName + "/examples/" + uid
+	goMod := "module " + moduleName + "\n\n" +
+		"go 1.20\n\n" +
+		"require " + modName + " v0.0.0\n\n" +
+		"replace " + modName + " => " + repo + "\n"
+	if err := os.WriteFile(filepath.Join(tmpProj, "go.mod"), []byte(goMod), 0o644); err != nil {
+		t.Fatalf("write go.mod: %v", err)
+	}
 
-    // build CLI binary
-    bin := filepath.Join(tmpProj, "flow-cli")
-    build := exec.Command("go", "build", "-o", bin, "./cmd/flow")
-    build.Dir = repo
-    if bout, err := build.CombinedOutput(); err != nil {
-        t.Fatalf("build cli failed: %v\noutput: %s", err, string(bout))
-    }
+	// build CLI binary
+	bin := filepath.Join(tmpProj, "flow-cli")
+	build := exec.Command("go", "build", "-o", bin, "./cmd/flow")
+	build.Dir = repo
+	if bout, err := build.CombinedOutput(); err != nil {
+		t.Fatalf("build cli failed: %v\noutput: %s", err, string(bout))
+	}
 
-    // generate admin scaffolding for 'posts'
-    gen := exec.Command(bin, "generate", "admin", "posts", "--target", tmpProj)
-    gen.Dir = repo
-    if out, err := gen.CombinedOutput(); err != nil {
-        t.Fatalf("generate admin failed: %v\n%s", err, string(out))
-    }
+	// generate admin scaffolding for 'posts'
+	gen := exec.Command(bin, "generate", "admin", "posts", "--target", tmpProj)
+	gen.Dir = repo
+	if out, err := gen.CombinedOutput(); err != nil {
+		t.Fatalf("generate admin failed: %v\n%s", err, string(out))
+	}
 
-    // patch generated controller to use app.SetRouter(r.Handler()) instead of app.Mount(r)
-    ctrlPath := filepath.Join(tmpProj, "app", "controllers", "admin", "posts_admin_controller.go")
-    b, err := os.ReadFile(ctrlPath)
-    if err != nil {
-        t.Fatalf("read generated admin controller: %v", err)
-    }
-    src := strings.Replace(string(b), "app.Mount(r)", "app.SetRouter(r.Handler())", 1)
-    if err := os.WriteFile(ctrlPath, []byte(src), 0o644); err != nil {
-        t.Fatalf("patch admin controller mount call: %v", err)
-    }
+	// patch generated controller to use app.SetRouter(r.Handler()) instead of app.Mount(r)
+	ctrlPath := filepath.Join(tmpProj, "app", "controllers", "admin", "posts_admin_controller.go")
+	b, err := os.ReadFile(ctrlPath)
+	if err != nil {
+		t.Fatalf("read generated admin controller: %v", err)
+	}
+	src := strings.Replace(string(b), "app.Mount(r)", "app.SetRouter(r.Handler())", 1)
+	if err := os.WriteFile(ctrlPath, []byte(src), 0o644); err != nil {
+		t.Fatalf("patch admin controller mount call: %v", err)
+	}
 
-    // write a main.go that mounts the generated admin routes and issues a GET to /admin/posts
-    controllersImport := moduleName + "/app/controllers"
-    mainSrc := `package main
+	// write a main.go that mounts the generated admin routes and issues a GET to /admin/posts
+	controllersImport := moduleName + "/app/controllers"
+	mainSrc := `package main
 
 import (
     "fmt"
@@ -87,25 +87,25 @@ func main() {
 }
 `
 
-    if err := os.WriteFile(filepath.Join(tmpProj, "main.go"), []byte(mainSrc), 0o644); err != nil {
-        t.Fatalf("write main.go: %v", err)
-    }
+	if err := os.WriteFile(filepath.Join(tmpProj, "main.go"), []byte(mainSrc), 0o644); err != nil {
+		t.Fatalf("write main.go: %v", err)
+	}
 
-    // tidy and run
-    tidy := exec.Command("go", "mod", "tidy")
-    tidy.Dir = tmpProj
-    if out, err := tidy.CombinedOutput(); err != nil {
-        t.Fatalf("go mod tidy failed: %v\n%s", err, string(out))
-    }
+	// tidy and run
+	tidy := exec.Command("go", "mod", "tidy")
+	tidy.Dir = tmpProj
+	if out, err := tidy.CombinedOutput(); err != nil {
+		t.Fatalf("go mod tidy failed: %v\n%s", err, string(out))
+	}
 
-    cmd := exec.Command("go", "run", "main.go")
-    cmd.Dir = tmpProj
-    out, err := cmd.CombinedOutput()
-    t.Logf("run output: %s", string(out))
-    if err != nil {
-        t.Fatalf("run failed: %v\n%s", err, string(out))
-    }
-    if !strings.Contains(string(out), "STATUS:200") {
-        t.Fatalf("unexpected output, expected STATUS:200, got: %s", string(out))
-    }
+	cmd := exec.Command("go", "run", "main.go")
+	cmd.Dir = tmpProj
+	out, err := cmd.CombinedOutput()
+	t.Logf("run output: %s", string(out))
+	if err != nil {
+		t.Fatalf("run failed: %v\n%s", err, string(out))
+	}
+	if !strings.Contains(string(out), "STATUS:200") {
+		t.Fatalf("unexpected output, expected STATUS:200, got: %s", string(out))
+	}
 }
