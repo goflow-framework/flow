@@ -218,7 +218,19 @@ var serveCmd = &cobra.Command{
                 signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
                 <-sig
 
-                return app.Shutdown(context.Background())
+                // First shut down the app (stop accepting requests, flush
+                // internal resources). After the app is shut down, run any
+                // plugin shutdown hooks so plugins can clean up their own
+                // resources.
+                if err := app.Shutdown(context.Background()); err != nil {
+                        return err
+                }
+
+                if err := plugins.ShutdownAll(context.Background()); err != nil {
+                        return err
+                }
+
+                return nil
         },
 }
 

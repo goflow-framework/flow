@@ -1,6 +1,7 @@
 package plugins
 
 import (
+    "context"
     "errors"
     "sync"
 
@@ -114,5 +115,42 @@ func ApplyAll(a *flow.App) error {
         }
     }
 
+    return nil
+}
+
+// Reset clears the plugin registry. Useful for tests that register plugins
+// during execution. It is safe to call concurrently with Register, but
+// callers should avoid racing with ApplyAll.
+func Reset() {
+    mu.Lock()
+    defer mu.Unlock()
+    registry = make(map[string]Plugin)
+    order = make([]string, 0)
+}
+
+// ShutdownAll invokes optional shutdown hooks on registered plugins in the
+// reverse of registration order. A plugin may implement an OnShutdown
+// method with the signature `OnShutdown(context.Context) error` — if present
+// it will be called. ShutdownAll returns the first error encountered.
+func ShutdownAll(ctx context.Context) error {
+    mu.RLock()
+    names := make([]string, len(order))
+    copy(names, order)
+    mu.RUnlock()
+
+    // iterate in reverse order for shutdown
+    for i := len(names) - 1; i >= 0; i-- {
+        name := names[i]
+        p := Get(name)
+        if p == nil {
+            continue
+        }
+        // optional shutdown hook
+        if sh, ok := p.(interface{ OnShutdown(context.Context) error }); ok {
+            if err := sh.OnShutdown(ctx); err != nil {
+                return err
+            }
+        }
+    }
     return nil
 }
