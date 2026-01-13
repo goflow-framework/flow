@@ -310,3 +310,58 @@ func GenerateAdminWithOptions(projectRoot, name string, opts GenOptions, fields 
 
 	return created, nil
 }
+
+// GenerateAuthWithOptions generates auth scaffolding: User model (via model
+// generator), auth controller, views, middleware and a small README.
+func GenerateAuthWithOptions(projectRoot string, opts GenOptions, fields ...string) ([]string, error) {
+	var created []string
+
+	// default fields if none provided
+	if len(fields) == 0 {
+		fields = []string{"email:string,unique", "password_hash:string", "role:string"}
+	}
+
+	// create User model (uses existing model generator which also creates migrations)
+	mpath, err := GenerateModelWithOptions(projectRoot, "User", opts, fields...)
+	if err != nil {
+		return created, err
+	}
+	created = append(created, mpath)
+
+	// controller
+	dst := filepath.Join(projectRoot, "app", "controllers", "auth_controller.go")
+	data := map[string]string{"Package": "controllers", "Name": "auth", "Title": "Auth"}
+	if err := generateFile(authControllerTmpl, data, dst, opts.Force); err != nil {
+		return created, err
+	}
+	created = append(created, dst)
+
+	// views
+	viewsDir := filepath.Join(projectRoot, "app", "views", "auth")
+	if err := os.MkdirAll(viewsDir, 0o755); err != nil {
+		return created, err
+	}
+	loginPath := filepath.Join(viewsDir, "login.html")
+	_ = generateFile(viewAuthLoginTmpl, map[string]string{"Title": "Login"}, loginPath, opts.Force)
+	created = append(created, loginPath)
+
+	// middleware
+	mwDir := filepath.Join(projectRoot, "app", "middleware")
+	if err := os.MkdirAll(mwDir, 0o755); err != nil {
+		return created, err
+	}
+	mwPath := filepath.Join(mwDir, "auth.go")
+	_ = generateFile(authMiddlewareTmpl, nil, mwPath, opts.Force)
+	created = append(created, mwPath)
+
+	// README
+	adminDir := filepath.Join(projectRoot, "app", "auth")
+	if err := os.MkdirAll(adminDir, 0o755); err != nil {
+		return created, err
+	}
+	readmePath := filepath.Join(adminDir, "README.md")
+	_ = generateFile(authReadmeTmpl, map[string]string{"Title": "Auth"}, readmePath, opts.Force)
+	created = append(created, readmePath)
+
+	return created, nil
+}

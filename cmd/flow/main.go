@@ -179,6 +179,32 @@ var genAdminCmd = &cobra.Command{
 	},
 }
 
+var genAuthCmd = &cobra.Command{
+	Use:   "auth",
+	Short: "Generate auth scaffold (User model, controller, middleware)",
+	Args:  cobra.NoArgs,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		root := generateTarget
+		if root == "" {
+			var err error
+			root, err = os.Getwd()
+			if err != nil {
+				return err
+			}
+		}
+		force, _ := cmd.Flags().GetBool("force")
+		opts := gen.GenOptions{Force: force}
+		created, err := gen.GenerateAuthWithOptions(root, opts)
+		if err != nil {
+			return err
+		}
+		for _, c := range created {
+			fmt.Println("created", c)
+		}
+		return nil
+	},
+}
+
 var serveCmd = &cobra.Command{
 	Use:   "serve",
 	Short: "Start the development server",
@@ -270,11 +296,13 @@ func init() {
 	generateCmd.AddCommand(genModelCmd)
 	generateCmd.AddCommand(genScaffoldCmd)
 	generateCmd.AddCommand(genAdminCmd)
+	generateCmd.AddCommand(genAuthCmd)
 	genControllerCmd.Flags().Bool("force", false, "overwrite existing files")
 	genModelCmd.Flags().Bool("force", false, "overwrite existing files")
 	// genRoutesCmd is defined in gen_routes.go
 	genScaffoldCmd.Flags().Bool("force", false, "overwrite existing files")
 	genAdminCmd.Flags().Bool("force", false, "overwrite existing files")
+	genAuthCmd.Flags().Bool("force", false, "overwrite existing files")
 	genScaffoldCmd.Flags().Bool("skip-migrations", false, "do not create migration files")
 	genScaffoldCmd.Flags().Bool("no-views", false, "do not generate view files")
 	generateCmd.PersistentFlags().StringVar(&generateTarget, "target", "", "target project root (defaults to cwd)")
