@@ -9,6 +9,7 @@ import (
 
 	controllers "github.com/dministrator/flow/examples/simple/app/controllers"
 	flow "github.com/dministrator/flow/pkg/flow"
+	"github.com/dministrator/flow/pkg/plugins"
 )
 
 func main() {
@@ -26,6 +27,12 @@ func main() {
 	}
 
 	app.SetRouter(r.Handler())
+
+	// apply registered plugins before starting
+	if err := plugins.ApplyAll(app); err != nil {
+		fmt.Fprintf(os.Stderr, "apply plugins: %v\n", err)
+		os.Exit(1)
+	}
 
 	// start server
 	if err := app.Start(); err != nil {

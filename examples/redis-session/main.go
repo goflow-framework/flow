@@ -10,6 +10,7 @@ import (
 	"time"
 
 	flow "github.com/dministrator/flow/pkg/flow"
+	"github.com/dministrator/flow/pkg/plugins"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -58,6 +59,12 @@ func main() {
 	})
 
 	app.SetRouter(mux)
+
+	// apply registered plugins before starting
+	if err := plugins.ApplyAll(app); err != nil {
+		fmt.Fprintf(os.Stderr, "apply plugins: %v\n", err)
+		os.Exit(1)
+	}
 
 	// You can still set views like other examples. For brevity we'll
 	// just start the server.
