@@ -87,11 +87,15 @@ var genControllerCmd = &cobra.Command{
 }
 
 var genModelCmd = &cobra.Command{
-	Use:   "model [name]",
+	Use:   "model [name] [fields...]",
 	Short: "Generate a new model",
-	Args:  cobra.ExactArgs(1),
+	Args:  cobra.MinimumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		name := args[0]
+		fields := []string{}
+		if len(args) > 1 {
+			fields = args[1:]
+		}
 		root := generateTarget
 		if root == "" {
 			var err error
@@ -102,7 +106,7 @@ var genModelCmd = &cobra.Command{
 		}
 		force, _ := cmd.Flags().GetBool("force")
 		opts := gen.GenOptions{Force: force}
-		dst, err := gen.GenerateModelWithOptions(root, name, opts)
+		dst, err := gen.GenerateModelWithOptions(root, name, opts, fields...)
 		if err != nil {
 			return err
 		}
@@ -134,6 +138,37 @@ var genScaffoldCmd = &cobra.Command{
 		noViews, _ := cmd.Flags().GetBool("no-views")
 		opts := gen.GenOptions{Force: force, SkipMigrations: skipMigs, NoViews: noViews}
 		created, err := gen.GenerateScaffoldWithOptions(root, name, opts, fields...)
+		if err != nil {
+			return err
+		}
+		for _, c := range created {
+			fmt.Println("created", c)
+		}
+		return nil
+	},
+}
+
+var genAdminCmd = &cobra.Command{
+	Use:   "admin [name] [fields...]",
+	Short: "Generate admin UI for a resource",
+	Args:  cobra.MinimumNArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		name := args[0]
+		fields := []string{}
+		if len(args) > 1 {
+			fields = args[1:]
+		}
+		root := generateTarget
+		if root == "" {
+			var err error
+			root, err = os.Getwd()
+			if err != nil {
+				return err
+			}
+		}
+		force, _ := cmd.Flags().GetBool("force")
+		opts := gen.GenOptions{Force: force}
+		created, err := gen.GenerateAdminWithOptions(root, name, opts, fields...)
 		if err != nil {
 			return err
 		}
@@ -234,10 +269,12 @@ func init() {
 	generateCmd.AddCommand(genControllerCmd)
 	generateCmd.AddCommand(genModelCmd)
 	generateCmd.AddCommand(genScaffoldCmd)
+	generateCmd.AddCommand(genAdminCmd)
 	genControllerCmd.Flags().Bool("force", false, "overwrite existing files")
 	genModelCmd.Flags().Bool("force", false, "overwrite existing files")
 	// genRoutesCmd is defined in gen_routes.go
 	genScaffoldCmd.Flags().Bool("force", false, "overwrite existing files")
+	genAdminCmd.Flags().Bool("force", false, "overwrite existing files")
 	genScaffoldCmd.Flags().Bool("skip-migrations", false, "do not create migration files")
 	genScaffoldCmd.Flags().Bool("no-views", false, "do not generate view files")
 	generateCmd.PersistentFlags().StringVar(&generateTarget, "target", "", "target project root (defaults to cwd)")

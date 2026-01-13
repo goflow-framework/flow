@@ -244,3 +244,69 @@ func GenerateScaffoldWithOptions(projectRoot, name string, opts GenOptions, fiel
 	time.Sleep(1 * time.Second)
 	return created, nil
 }
+
+// GenerateAdminWithOptions generates admin controller, views, layout, CSS and a small README.
+func GenerateAdminWithOptions(projectRoot, name string, opts GenOptions, fields ...string) ([]string, error) {
+	var created []string
+
+	// controller
+	cname := Title(name) + "AdminController"
+	dst := filepath.Join(projectRoot, "app", "controllers", "admin", strings.ToLower(name)+"_admin_controller.go")
+	data := map[string]string{
+		"Package":    "controllers",
+		"Controller": cname,
+		"Name":       name,
+		"Title":      Title(name),
+	}
+	if err := generateFile(adminControllerTmpl, data, dst, opts.Force); err != nil {
+		return created, err
+	}
+	created = append(created, dst)
+
+	// views directory
+	viewsDir := filepath.Join(projectRoot, "app", "views", "admin", name)
+	if err := os.MkdirAll(viewsDir, 0o755); err != nil {
+		return created, err
+	}
+	idxPath := filepath.Join(viewsDir, "index.html")
+	showPath := filepath.Join(viewsDir, "show.html")
+	newPath := filepath.Join(viewsDir, "new.html")
+	editPath := filepath.Join(viewsDir, "edit.html")
+	_ = generateFile(viewAdminIndexTmpl, map[string]string{"Title": Title(name), "Name": name}, idxPath, opts.Force)
+	_ = generateFile(viewAdminShowTmpl, map[string]string{"Title": Title(name), "Name": name}, showPath, opts.Force)
+	_ = generateFile(viewAdminNewTmpl, map[string]string{"Title": Title(name), "Name": name}, newPath, opts.Force)
+	_ = generateFile(viewAdminEditTmpl, map[string]string{"Title": Title(name), "Name": name}, editPath, opts.Force)
+	created = append(created, idxPath, showPath, newPath, editPath)
+
+	// layout
+	layoutsDir := filepath.Join(projectRoot, "app", "views", "admin", "layouts")
+	if err := os.MkdirAll(layoutsDir, 0o755); err != nil {
+		return created, err
+	}
+	layoutPath := filepath.Join(layoutsDir, "admin.html")
+	// some layout templates may reference a "content" sub-template; ensure execution
+	// succeeds by providing an empty definition for it when rendering for the generator.
+	layoutTmpl := adminLayoutTmpl + "{{define \"content\"}}{{end}}"
+	_ = generateFile(layoutTmpl, map[string]string{"Title": Title(name)}, layoutPath, opts.Force)
+	created = append(created, layoutPath)
+
+	// assets (css)
+	assetsDir := filepath.Join(projectRoot, "app", "assets", "admin")
+	if err := os.MkdirAll(assetsDir, 0o755); err != nil {
+		return created, err
+	}
+	cssPath := filepath.Join(assetsDir, "admin.css")
+	_ = generateFile(adminCSSTmpl, nil, cssPath, opts.Force)
+	created = append(created, cssPath)
+
+	// README
+	adminDir := filepath.Join(projectRoot, "app", "admin")
+	if err := os.MkdirAll(adminDir, 0o755); err != nil {
+		return created, err
+	}
+	readmePath := filepath.Join(adminDir, "README.md")
+	_ = generateFile(adminReadmeTmpl, map[string]string{"Title": Title(name)}, readmePath, opts.Force)
+	created = append(created, readmePath)
+
+	return created, nil
+}
