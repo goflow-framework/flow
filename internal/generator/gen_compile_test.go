@@ -38,6 +38,9 @@ func TestGeneratedModelCompilesAndRuns(t *testing.T) {
 	if err != nil {
 		t.Fatalf("mktemp proj dir: %v", err)
 	}
+	// remove the generated temp project when the test finishes to avoid
+	// leaving many gen-compile-* folders under examples/ from repeated runs.
+	defer func() { _ = os.RemoveAll(projDir) }()
 
 	// build CLI
 	bin := filepath.Join(projDir, "flow-cli")
