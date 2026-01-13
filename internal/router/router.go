@@ -356,27 +356,42 @@ func matchRoute(segs []string, path string) (bool, map[string]string) {
 		return path == "/", map[string]string{}
 	}
 
-	trimmed := strings.Trim(path, "/")
-	if trimmed == "" {
-		return false, nil
+	// trim leading and trailing slashes without allocating
+	start := 0
+	end := len(path)
+	if end > 0 && path[0] == '/' {
+		start = 1
 	}
-	parts := strings.Split(trimmed, "/")
-	if len(parts) != len(segs) {
+	if end > 0 && path[end-1] == '/' {
+		end--
+	}
+	if start >= end {
 		return false, nil
 	}
 
+	// iterate over segments in-place to avoid allocating a []string via strings.Split
 	var params map[string]string
-	for i := 0; i < len(segs); i++ {
-		s := segs[i]
-		p := parts[i]
+	pstart := start
+	segIndex := 0
+	for segIndex < len(segs) {
+		// find end of this part
+		pend := pstart
+		for pend < end && path[pend] != '/' {
+			pend++
+		}
+		part := path[pstart:pend]
+
+		s := segs[segIndex]
 		if s == "" {
-			if p != "" {
+			if part != "" {
 				return false, nil
 			}
+			// advance
+			segIndex++
+			pstart = pend + 1
 			continue
 		}
 		if strings.HasPrefix(s, ":") {
-			// parameter
 			name := strings.TrimPrefix(s, ":")
 			if name == "" {
 				return false, nil
@@ -384,15 +399,29 @@ func matchRoute(segs []string, path string) (bool, map[string]string) {
 			if params == nil {
 				params = getParams()
 			}
-			params[name] = p
-			continue
+			params[name] = part
+		} else {
+			if s != part {
+				return false, nil
+			}
 		}
-		if s != p {
+		segIndex++
+		pstart = pend + 1
+		// if we've consumed the path but there are still segments left, fail
+		if pstart-1 > end && segIndex < len(segs) {
 			return false, nil
 		}
 	}
+
+	// ensure there are no leftover parts in path
+	if pstart <= end {
+		// if there are non-empty trailing parts, fail
+		if pstart <= end-1 {
+			return false, nil
+		}
+	}
+
 	if params == nil {
-		// no params used
 		return true, map[string]string{}
 	}
 	return true, params
