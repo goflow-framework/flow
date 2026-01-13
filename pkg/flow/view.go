@@ -135,7 +135,7 @@ func (v *ViewManager) loadTemplate(name string) (*template.Template, error) {
 	if _, ok := baseFuncs["T"]; !ok {
 		baseFuncs["T"] = func(key string, args ...interface{}) string { return key }
 	}
-	if baseFuncs != nil {
+	if len(baseFuncs) > 0 {
 		tpl = tpl.Funcs(baseFuncs)
 	}
 	parsed, err := tpl.ParseFiles(files...)
