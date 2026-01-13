@@ -54,13 +54,15 @@ type Context struct {
 // PutContext when the request is finished (framework adapters do this for
 // you in the hot path).
 func NewContext(app *App, w http.ResponseWriter, r *http.Request) *Context {
-	if v := contextPool.Get(); v != nil {
-		c := v.(*Context)
-		c.App = app
-		c.W = w
-		c.R = r
-		c.status = 0
-		return c
+	if UseContextPool {
+		if v := contextPool.Get(); v != nil {
+			c := v.(*Context)
+			c.App = app
+			c.W = w
+			c.R = r
+			c.status = 0
+			return c
+		}
 	}
 	return &Context{App: app, W: w, R: r}
 }
