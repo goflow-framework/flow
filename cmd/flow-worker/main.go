@@ -15,9 +15,9 @@ import (
 
 	"github.com/redis/go-redis/v9"
 
-	"github.com/dministrator/flow/pkg/job"
-	"github.com/dministrator/flow/pkg/observability"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/undiegomejia/flow/pkg/job"
+	"github.com/undiegomejia/flow/pkg/observability"
 )
 
 func main() {

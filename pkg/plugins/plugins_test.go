@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dministrator/flow/pkg/flow"
+	"github.com/undiegomejia/flow/pkg/flow"
 )
 
 type dummyPlugin struct {

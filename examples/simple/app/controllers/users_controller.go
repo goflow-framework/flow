@@ -1,7 +1,7 @@
 package controllers
 
 import (
-	flow "github.com/dministrator/flow/pkg/flow"
+	flow "github.com/undiegomejia/flow/pkg/flow"
 )
 
 // UsersController demonstrates basic controller actions for the example app.

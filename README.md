@@ -90,7 +90,7 @@ Example — enable the default middleware stack:
 ```go
 import (
 	"time"
-	"github.com/dministrator/flow/pkg/flow"
+	"github.com/undiegomejia/flow/pkg/flow"
 )
 
 app := flow.New("my-app",

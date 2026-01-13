@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -61,5 +62,100 @@ func TestCLI_GenerateAuth_CreatesFiles(t *testing.T) {
 		if _, err := os.Stat(p); err != nil {
 			t.Fatalf("expected generated file %s to exist: %v", p, err)
 		}
+	}
+}
+
+// TestCLI_GenerateAuth_Compiles generates auth into a new examples project,
+// patches the placeholder model import in the generated controller to the
+// repository module path, and runs a small main.go that imports the generated
+// controllers and models to ensure the generated controller compiles.
+func TestCLI_GenerateAuth_Compiles(t *testing.T) {
+	repo := findRepoRoot()
+	tmpProj, err := os.MkdirTemp(filepath.Join(repo, "examples"), "gen-compile-auth-*")
+	if err != nil {
+		t.Fatalf("mktemp proj dir: %v", err)
+	}
+
+	// build CLI
+	bin := filepath.Join(tmpProj, "flow-cli")
+	build := exec.Command("go", "build", "-o", bin, "./cmd/flow")
+	build.Dir = repo
+	if bout, err := build.CombinedOutput(); err != nil {
+		t.Fatalf("build cli failed: %v\noutput: %s", err, string(bout))
+	}
+
+	// generate auth into the project
+	gen := exec.Command(bin, "generate", "auth", "--target", tmpProj)
+	gen.Dir = repo
+	if out, err := gen.CombinedOutput(); err != nil {
+		t.Fatalf("generate auth failed: %v\n%s", err, string(out))
+	}
+
+	// compute module path and relative import prefix
+	modName, err := readModuleName(repo)
+	if err != nil {
+		t.Fatalf("read module name: %v", err)
+	}
+	rel := strings.TrimPrefix(tmpProj, repo+string(os.PathSeparator))
+	modelsImport := modName + "/" + filepath.ToSlash(filepath.Join(rel, "app", "models"))
+
+	// patch generated controller to replace placeholder import path
+	ctrlPath := filepath.Join(tmpProj, "app", "controllers", "auth_controller.go")
+	b, err := os.ReadFile(ctrlPath)
+	if err != nil {
+		t.Fatalf("read generated controller: %v", err)
+	}
+	src := strings.Replace(string(b), "REPLACE_WITH_MODULE_PATH/app/models", modelsImport, 1)
+	if err := os.WriteFile(ctrlPath, []byte(src), 0o644); err != nil {
+		t.Fatalf("patch controller import: %v", err)
+	}
+
+	// write a main.go that imports controllers (blank import) and uses models.User
+	controllersImport := modName + "/" + filepath.ToSlash(filepath.Join(rel, "app", "controllers"))
+	mainSrc := `package main
+
+import (
+    "context"
+    "log"
+
+    flow "` + modName + `/pkg/flow"
+    orm "` + modName + `/internal/orm"
+    models "` + modelsImport + `"
+    _ "` + controllersImport + `"
+    _ "modernc.org/sqlite"
+    "golang.org/x/crypto/bcrypt"
+)
+
+func main() {
+    ctx := context.Background()
+    adapter, err := orm.Connect("file::memory:?cache=shared")
+    if err != nil {
+        log.Fatal(err)
+    }
+    defer adapter.Close()
+
+    app := flow.New("gen-compile-auth", flow.WithBun(adapter))
+    if err := flow.AutoMigrate(ctx, app, (*models.User)(nil)); err != nil {
+        log.Fatal(err)
+    }
+    pw, _ := bcrypt.GenerateFromPassword([]byte("secret123"), bcrypt.DefaultCost)
+    u := &models.User{Email: "admin@example.com", Password_hash: string(pw), Role: "admin"}
+    if err := u.Save(ctx, app); err != nil {
+        log.Fatal(err)
+    }
+}
+`
+	// write main.go
+	if err := os.WriteFile(filepath.Join(tmpProj, "main.go"), []byte(mainSrc), 0o644); err != nil {
+		t.Fatalf("write main.go: %v", err)
+	}
+
+	// run
+	cmd := exec.Command("go", "run", "main.go")
+	cmd.Dir = tmpProj
+	out, err := cmd.CombinedOutput()
+	t.Logf("run output: %s", string(out))
+	if err != nil {
+		t.Fatalf("run failed: %v\n%s", err, string(out))
 	}
 }

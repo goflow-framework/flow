@@ -3,7 +3,7 @@ package models
 
 import (
 	"context"
-	"github.com/dministrator/flow/pkg/flow"
+	"github.com/undiegomejia/flow/pkg/flow"
 )
 
 // Post is a generated model using bun struct tags.

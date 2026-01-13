@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"log"
 
-	models "github.com/dministrator/flow/examples/gen-compile-1848388655/app/models"
-	orm "github.com/dministrator/flow/internal/orm"
-	flow "github.com/dministrator/flow/pkg/flow"
+	models "github.com/undiegomejia/flow/examples/gen-compile-1848388655/app/models"
+	orm "github.com/undiegomejia/flow/internal/orm"
+	flow "github.com/undiegomejia/flow/pkg/flow"
 	_ "modernc.org/sqlite"
 )
 

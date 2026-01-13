@@ -9,9 +9,9 @@ import (
 	"syscall"
 	"time"
 
-	flow "github.com/dministrator/flow/pkg/flow"
-	"github.com/dministrator/flow/pkg/plugins"
 	"github.com/redis/go-redis/v9"
+	flow "github.com/undiegomejia/flow/pkg/flow"
+	"github.com/undiegomejia/flow/pkg/plugins"
 )
 
 func main() {

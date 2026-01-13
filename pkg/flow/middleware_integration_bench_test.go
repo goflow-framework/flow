@@ -7,7 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	internalrouter "github.com/dministrator/flow/internal/router"
+	internalrouter "github.com/undiegomejia/flow/internal/router"
 )
 
 func runAppServeBM(b *testing.B, a *App, req *http.Request) {

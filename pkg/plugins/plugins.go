@@ -7,7 +7,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/dministrator/flow/pkg/flow"
+	"github.com/undiegomejia/flow/pkg/flow"
 )
 
 // Plugin is the minimal interface a Flow plugin should implement.

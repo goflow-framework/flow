@@ -8,8 +8,8 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/dministrator/flow/pkg/flow"
-	"github.com/dministrator/flow/pkg/plugins"
+	"github.com/undiegomejia/flow/pkg/flow"
+	"github.com/undiegomejia/flow/pkg/plugins"
 )
 
 func main() {
