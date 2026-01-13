@@ -171,6 +171,15 @@ func GenerateScaffoldWithOptions(projectRoot, name string, opts GenOptions, fiel
 		created = append(created, idxPath, showPath, newPath, editPath)
 	}
 
+	// scaffold i18n translations (minimal en.yaml)
+	i18nDir := filepath.Join(projectRoot, "app", "i18n")
+	if err := os.MkdirAll(i18nDir, 0o755); err != nil {
+		return created, err
+	}
+	i18nPath := filepath.Join(i18nDir, "en.yaml")
+	_ = generateFile(i18nEnTmpl, nil, i18nPath, opts.Force)
+	created = append(created, i18nPath)
+
 	// migrations
 	if !opts.SkipMigrations {
 		migDir := filepath.Join(projectRoot, "db", "migrate")
@@ -277,6 +286,15 @@ func GenerateAdminWithOptions(projectRoot, name string, opts GenOptions, fields 
 	_ = generateFile(viewAdminNewTmpl, map[string]string{"Title": Title(name), "Name": name}, newPath, opts.Force)
 	_ = generateFile(viewAdminEditTmpl, map[string]string{"Title": Title(name), "Name": name}, editPath, opts.Force)
 	created = append(created, idxPath, showPath, newPath, editPath)
+
+	// scaffold i18n translations (minimal en.yaml)
+	i18nDir := filepath.Join(projectRoot, "app", "i18n")
+	if err := os.MkdirAll(i18nDir, 0o755); err != nil {
+		return created, err
+	}
+	i18nPath := filepath.Join(i18nDir, "en.yaml")
+	_ = generateFile(i18nEnTmpl, nil, i18nPath, opts.Force)
+	created = append(created, i18nPath)
 
 	// layout
 	layoutsDir := filepath.Join(projectRoot, "app", "views", "admin", "layouts")

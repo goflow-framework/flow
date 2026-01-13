@@ -492,3 +492,17 @@ ID in your handlers. Example:
         // ...handler logic
     }
 `
+
+var i18nEnTmpl = `# English translations
+admin:
+  posts:
+    index: "Posts"
+    new: "New Post"
+    edit: "Edit Post"
+auth:
+  login: "Login"
+  logout: "Logout"
+common:
+  hello: "Hello"
+`
+
