@@ -284,7 +284,10 @@ func GenerateAdminWithOptions(projectRoot, name string, opts GenOptions, fields 
 		return created, err
 	}
 	layoutPath := filepath.Join(layoutsDir, "admin.html")
-	_ = generateFile(adminLayoutTmpl, map[string]string{"Title": Title(name)}, layoutPath, opts.Force)
+	// some layout templates may reference a "content" sub-template; ensure execution
+	// succeeds by providing an empty definition for it when rendering for the generator.
+	layoutTmpl := adminLayoutTmpl + "{{define \"content\"}}{{end}}"
+	_ = generateFile(layoutTmpl, map[string]string{"Title": Title(name)}, layoutPath, opts.Force)
 	created = append(created, layoutPath)
 
 	// assets (css)
