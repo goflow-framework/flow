@@ -67,6 +67,11 @@ func NewContext(app *App, w http.ResponseWriter, r *http.Request) *Context {
 
 var contextPool sync.Pool
 
+// UseContextPool toggles whether NewContext/PutContext use the internal
+// pool. Tests and benchmarks can set this to false to measure baseline
+// behavior without pooling.
+var UseContextPool = true
+
 // PutContext returns a Context to the internal pool. Call this after the
 // request has been processed to allow the instance to be reused. It clears
 // references to avoid leaking request-local data.
@@ -79,7 +84,9 @@ func PutContext(c *Context) {
 	c.W = nil
 	c.R = nil
 	c.status = 0
-	contextPool.Put(c)
+	if UseContextPool {
+		contextPool.Put(c)
+	}
 }
 
 // Params returns the path parameters extracted by the router for this request.
