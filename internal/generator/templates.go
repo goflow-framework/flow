@@ -373,7 +373,7 @@ func RequireLogin() flow.Middleware {
                     role = rs
                 }
             }
-            mu := &models.User{ID: id, Role: role}
+            mu := &models.User{Model: flow.Model{ID: id}, Role: role}
 
             ctx := context.WithValue(r.Context(), userCtxKey{}, mu)
             next.ServeHTTP(w, r.WithContext(ctx))
