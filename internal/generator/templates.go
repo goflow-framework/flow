@@ -505,4 +505,3 @@ auth:
 common:
   hello: "Hello"
 `
-
