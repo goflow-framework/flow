@@ -30,6 +30,7 @@ import (
 	"time"
 
 	orm "github.com/dministrator/flow/internal/orm"
+	"github.com/dministrator/flow/pkg/observability"
 	"github.com/uptrace/bun"
 )
 
@@ -75,6 +76,11 @@ type App struct {
 	// bunAdapter holds an optional Bun adapter for ORM operations. If set,
 	// App.Bun() returns the underlying *bun.DB for convenience.
 	bunAdapter *orm.BunAdapter
+
+	// tracerShutdown holds an optional shutdown function returned by a tracer
+	// initializer (eg. observability.SetupStdoutTracer). If non-nil it will be
+	// called during Shutdown to allow exporters to flush.
+	tracerShutdown func(context.Context) error
 
 	// state indicates whether the server is running: 0 = idle, 1 = running,
 	// 2 = shutting down/stopped.
@@ -227,6 +233,61 @@ func WithDefaultMiddleware() Option {
 	}
 }
 
+// WithPrometheus registers the Prometheus instrumentation middleware (from
+// pkg/observability). This should be used when the process also exposes a
+// /metrics HTTP endpoint so the recorded metrics can be scraped.
+func WithPrometheus() Option {
+	return func(a *App) {
+		if a == nil {
+			return
+		}
+		a.Use(observability.InstrumentHandler)
+	}
+}
+
+// WithStdoutTracer initializes a simple stdout OpenTelemetry tracer during
+// App construction. The returned shutdown function will be stored on the App
+// and invoked during Shutdown so spans can be flushed. Errors during setup are
+// logged to the App logger.
+// WithStdoutTracer initializes a simple stdout OpenTelemetry tracer during
+// App construction. The returned shutdown function will be stored on the App
+// and invoked during Shutdown so spans can be flushed. Options allow tuning
+// sampling and batch exporter behaviour.
+func WithStdoutTracer(serviceName string, opts observability.StdoutTracerOptions) Option {
+	return func(a *App) {
+		if a == nil {
+			return
+		}
+		shutdown, err := observability.SetupStdoutTracer(serviceName, opts)
+		if err != nil {
+			if a.logger != nil {
+				a.logger.Printf("failed to setup stdout tracer: %v", err)
+			}
+			return
+		}
+		a.tracerShutdown = shutdown
+	}
+}
+
+// WithOTLPExporter configures an OTLP/gRPC exporter. endpoint is the OTLP
+// collector address (host:port). If insecure is true TLS will be disabled
+// (useful for local testing). headers may include auth headers like API keys.
+func WithOTLPExporter(endpoint, serviceName string, insecure bool, headers map[string]string) Option {
+	return func(a *App) {
+		if a == nil {
+			return
+		}
+		shutdown, err := observability.SetupOTLPTracer(context.Background(), endpoint, insecure, headers, serviceName)
+		if err != nil {
+			if a.logger != nil {
+				a.logger.Printf("failed to setup OTLP tracer: %v", err)
+			}
+			return
+		}
+		a.tracerShutdown = shutdown
+	}
+}
+
 // New creates a configured App instance. It never starts network listeners.
 func New(name string, opts ...Option) *App {
 	// default logger
@@ -364,6 +425,10 @@ func (a *App) Shutdown(ctx context.Context) error {
 	}
 
 	a.logger.Printf("shutdown complete")
+	// allow tracer shutdown to flush/export spans if configured
+	if a.tracerShutdown != nil {
+		_ = a.tracerShutdown(ctx)
+	}
 	return nil
 }
 
