@@ -69,14 +69,14 @@ Mounting contract
   ```go
   package admin
 
-  import "github.com/undiegomejia/flow/pkg/flow"
+  import "github.com/dministrator/flow/pkg/flow"
 
   func MountAdminRoutes(app *flow.App) {
       r := flow.NewRouter(app)
       r.Get("/admin/posts", postsController.Index)
       r.Get("/admin/posts/:id", postsController.Show)
       // etc.
-      app.Mount(r)
+      app.SetRouter(r.Handler())
   }
   ```
 
