@@ -173,6 +173,13 @@ func main() {
 		t.Fatalf("write main.go: %v", err)
 	}
 
+	// ensure module deps are tidy before running
+	tidy := exec.Command("go", "mod", "tidy")
+	tidy.Dir = tmpProj
+	if out, err := tidy.CombinedOutput(); err != nil {
+		t.Fatalf("go mod tidy failed: %v\n%s", err, string(out))
+	}
+
 	// run
 	cmd := exec.Command("go", "run", "main.go")
 	cmd.Dir = tmpProj

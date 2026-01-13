@@ -446,4 +446,28 @@ Creating an initial user (example):
 
 The generated auth controller uses bcrypt for password verification and Bun
 for DB lookups. Ensure your App is configured with Bun (app.SetBun(...)) before using the login handlers.
+
+Using GetCurrentUser in handlers
+
+The generated middleware attaches a typed *models.User into the request
+context. You can access it from handlers using the exported helper
+GetCurrentUser. Replace the module path imports below with your module
+path if needed.
+
+    // inside a controller handler
+    import (
+        middleware "github.com/your/module/path/app/middleware" // replace
+        models "github.com/your/module/path/app/models"        // replace
+        flow "github.com/undiegomejia/flow/pkg/flow"
+    )
+
+    func (c *DashboardController) Index(ctx *flow.Context) {
+        if u, ok := middleware.GetCurrentUser(ctx.R); ok {
+            // u is *models.User — you can inspect fields such as u.Email or u.Role
+            ctx.Render("dashboard/index", map[string]interface{}{"User": u}, ctx)
+            return
+        }
+        // not authenticated — redirect to login
+        ctx.Redirect("/login", 302)
+    }
 `

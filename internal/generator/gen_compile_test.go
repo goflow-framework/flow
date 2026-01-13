@@ -37,8 +37,6 @@ func TestGeneratedModelCompilesAndRuns(t *testing.T) {
 	projDir := t.TempDir()
 	uid := filepath.Base(projDir)
 	moduleName := modName + "/examples/" + uid
-	// write go.mod and add a replace directive so the temp module can
-	// resolve the local repository packages without network access.
 	goMod := "module " + moduleName + "\n\n" +
 		"go 1.20\n\n" +
 		"require " + modName + " v0.0.0\n\n" +
@@ -67,47 +65,54 @@ func TestGeneratedModelCompilesAndRuns(t *testing.T) {
 	mainSrc := `package main
 
 import (
-    "context"
-    "fmt"
-    "log"
+	"context"
+	"fmt"
+	"log"
 
-    flow "` + modName + `/pkg/flow"
-    orm "` + modName + `/internal/orm"
-    models "` + modelsImport + `"
-    _ "modernc.org/sqlite"
+	flow "` + modName + `/pkg/flow"
+	orm "` + modName + `/internal/orm"
+	models "` + modelsImport + `"
+	_ "modernc.org/sqlite"
 )
 
 func main() {
-    ctx := context.Background()
-    adapter, err := orm.Connect("file::memory:?cache=shared")
-    if err != nil {
-        log.Fatalf("connect: %v", err)
-    }
-    defer adapter.Close()
+	ctx := context.Background()
+	adapter, err := orm.Connect("file::memory:?cache=shared")
+	if err != nil {
+		log.Fatalf("connect: %v", err)
+	}
+	defer adapter.Close()
 
-    app := flow.New("gen-compile", flow.WithBun(adapter))
-    if err := flow.AutoMigrate(ctx, app, (*models.Post)(nil)); err != nil {
-        log.Fatalf("migrate: %v", err)
-    }
+	app := flow.New("gen-compile", flow.WithBun(adapter))
+	if err := flow.AutoMigrate(ctx, app, (*models.Post)(nil)); err != nil {
+		log.Fatalf("migrate: %v", err)
+	}
 
-    p := &models.Post{Title: "compile-test-hello"}
-    if err := p.Save(ctx, app); err != nil {
-        log.Fatalf("save: %v", err)
-    }
-    var got models.Post
-    if err := flow.FindByPK(ctx, app, &got, p.ID); err != nil {
-        log.Fatalf("find: %v", err)
-    }
-    fmt.Println("FOUND:", got.Title)
+	p := &models.Post{Title: "compile-test-hello"}
+	if err := p.Save(ctx, app); err != nil {
+		log.Fatalf("save: %v", err)
+	}
+	var got models.Post
+	if err := flow.FindByPK(ctx, app, &got, p.ID); err != nil {
+		log.Fatalf("find: %v", err)
+	}
+	fmt.Println("FOUND:", got.Title)
 
-    if err := p.Delete(ctx, app); err != nil {
-        log.Fatalf("delete: %v", err)
-    }
+	if err := p.Delete(ctx, app); err != nil {
+		log.Fatalf("delete: %v", err)
+	}
 }
 `
 
 	if err := os.WriteFile(filepath.Join(projDir, "main.go"), []byte(mainSrc), 0o644); err != nil {
 		t.Fatalf("write main.go: %v", err)
+	}
+
+	// tidy deps before running so the temp module resolves local repo packages
+	tidy := exec.Command("go", "mod", "tidy")
+	tidy.Dir = projDir
+	if out, err := tidy.CombinedOutput(); err != nil {
+		t.Fatalf("go mod tidy failed: %v\n%s", err, string(out))
 	}
 
 	// build and run
@@ -116,7 +121,7 @@ func main() {
 	out, err := cmd.CombinedOutput()
 	t.Logf("run output: %s", string(out))
 	if err != nil {
-		t.Fatalf("run failed: %v", err)
+		t.Fatalf("run failed: %v\n%s", err, string(out))
 	}
 	if !strings.Contains(string(out), "FOUND: compile-test-hello") {
 		t.Fatalf("unexpected output: %s", string(out))
