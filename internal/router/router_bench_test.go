@@ -126,7 +126,10 @@ func BenchmarkIntegration_MiddlewareAndHandlerReadingParams(b *testing.B) {
 
 // Integration benchmark: simulate default middleware stack (RequestID, Logging, Metrics)
 func BenchmarkIntegration_DefaultMiddlewareStack(b *testing.B) {
-	types := []struct{ name string; usePool bool }{{"pool", true}, {"nopool", false}}
+	types := []struct {
+		name    string
+		usePool bool
+	}{{"pool", true}, {"nopool", false}}
 	for _, tt := range types {
 		b.Run(tt.name, func(b *testing.B) {
 			UseParamsPool = tt.usePool

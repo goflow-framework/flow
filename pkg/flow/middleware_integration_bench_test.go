@@ -22,7 +22,10 @@ func runAppServeBM(b *testing.B, a *App, req *http.Request) {
 // Benchmark using the real App middleware stack (Recovery, RequestID, Logging, Metrics)
 // and the public Router adapter. Compares behavior with and without params pooling.
 func BenchmarkApp_DefaultMiddleware_Integration(b *testing.B) {
-	types := []struct{ name string; usePool bool }{{"pool", true}, {"nopool", false}}
+	types := []struct {
+		name    string
+		usePool bool
+	}{{"pool", true}, {"nopool", false}}
 	for _, tt := range types {
 		b.Run(tt.name, func(b *testing.B) {
 			// toggle internal router pooling
