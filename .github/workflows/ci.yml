@@ -71,6 +71,18 @@ jobs:
       - name: Run benchmarks (basic)
         run: go test -bench=. -run=^$ ./... || true
 
+      - name: Run RequestID microbenchmark (pkg/flow)
+        run: |
+          mkdir -p .ci/bench
+          # Run only the microbenchmarks for request id generators and save output
+          go test ./pkg/flow -bench Benchmark -benchmem -run TestFastRequestIDFormat > .ci/bench/requestid_bench.txt || true
+
+      - name: Upload requestid benchmark artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: requestid-benchmark
+          path: .ci/bench/requestid_bench.txt
+
   build-binaries:
     name: Build cross-platform binaries
     runs-on: ubuntu-latest
