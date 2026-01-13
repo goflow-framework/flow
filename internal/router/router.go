@@ -67,6 +67,10 @@ type route struct {
 	handler    http.HandlerFunc
 	name       string
 	middleware []Middleware
+	// compiled is the pre-wrapped handler including per-route middleware.
+	// It's constructed at route registration time to avoid rebuilding the
+	// middleware chain on every request.
+	compiled http.Handler
 }
 
 // Router is a simple HTTP router that supports path parameters using the
@@ -93,6 +97,8 @@ func (r *Router) Handle(method, pattern string, h http.HandlerFunc) {
 	}
 	segs := splitPath(pattern)
 	rt := &route{method: strings.ToUpper(method), pattern: pattern, segments: segs, handler: h}
+	// compile middleware chain at registration time
+	rt.compiled = compileHandler(h, nil)
 	r.routes = append(r.routes, rt)
 }
 
@@ -103,6 +109,7 @@ func (r *Router) HandleWith(method, pattern string, h http.HandlerFunc, mws ...M
 	}
 	segs := splitPath(pattern)
 	rt := &route{method: strings.ToUpper(method), pattern: pattern, segments: segs, handler: h, middleware: mws}
+	rt.compiled = compileHandler(h, mws)
 	r.routes = append(r.routes, rt)
 }
 
@@ -122,6 +129,7 @@ func (r *Router) HandleNamed(name, method, pattern string, h http.HandlerFunc) {
 	}
 	segs := splitPath(pattern)
 	rt := &route{method: strings.ToUpper(method), pattern: pattern, segments: segs, handler: h, name: name}
+	rt.compiled = compileHandler(h, nil)
 	r.routes = append(r.routes, rt)
 }
 
@@ -140,6 +148,7 @@ func (r *Router) HandleNamedWith(name, method, pattern string, h http.HandlerFun
 	}
 	segs := splitPath(pattern)
 	rt := &route{method: strings.ToUpper(method), pattern: pattern, segments: segs, handler: h, name: name, middleware: mws}
+	rt.compiled = compileHandler(h, mws)
 	r.routes = append(r.routes, rt)
 }
 
@@ -305,6 +314,18 @@ func splitPath(p string) []string {
 	}
 	parts := strings.Split(p, "/")
 	return parts
+}
+
+// compileHandler applies middleware (in registration order) to a base handler
+// and returns the final http.Handler. This is used to pre-build per-route
+// handlers at registration time so we don't rewrap the chain for every
+// incoming request.
+func compileHandler(h http.HandlerFunc, mws []Middleware) http.Handler {
+	var final http.Handler = h
+	for i := len(mws) - 1; i >= 0; i-- {
+		final = mws[i](final)
+	}
+	return final
 }
 
 // URL builds a path for a named route by substituting params into the
