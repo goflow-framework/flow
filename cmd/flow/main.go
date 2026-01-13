@@ -14,14 +14,14 @@ import (
 	"os/signal"
 	"syscall"
 
+	routerpkg "github.com/dministrator/flow/internal/router"
+	flowpkg "github.com/dministrator/flow/pkg/flow"
+	"github.com/dministrator/flow/pkg/observability"
+	"github.com/dministrator/flow/pkg/plugins"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/cobra"
-	routerpkg "github.com/undiegomejia/flow/internal/router"
-	flowpkg "github.com/undiegomejia/flow/pkg/flow"
-	"github.com/undiegomejia/flow/pkg/observability"
-	"github.com/undiegomejia/flow/pkg/plugins"
 
-	gen "github.com/undiegomejia/flow/internal/generator"
+	gen "github.com/dministrator/flow/internal/generator"
 )
 
 var (
@@ -136,7 +136,9 @@ var genScaffoldCmd = &cobra.Command{
 		force, _ := cmd.Flags().GetBool("force")
 		skipMigs, _ := cmd.Flags().GetBool("skip-migrations")
 		noViews, _ := cmd.Flags().GetBool("no-views")
+		noI18n, _ := cmd.Flags().GetBool("no-i18n")
 		opts := gen.GenOptions{Force: force, SkipMigrations: skipMigs, NoViews: noViews}
+		opts.NoI18n = noI18n
 		created, err := gen.GenerateScaffoldWithOptions(root, name, opts, fields...)
 		if err != nil {
 			return err
@@ -167,7 +169,8 @@ var genAdminCmd = &cobra.Command{
 			}
 		}
 		force, _ := cmd.Flags().GetBool("force")
-		opts := gen.GenOptions{Force: force}
+		noI18n, _ := cmd.Flags().GetBool("no-i18n")
+		opts := gen.GenOptions{Force: force, NoI18n: noI18n}
 		created, err := gen.GenerateAdminWithOptions(root, name, opts, fields...)
 		if err != nil {
 			return err
@@ -193,7 +196,8 @@ var genAuthCmd = &cobra.Command{
 			}
 		}
 		force, _ := cmd.Flags().GetBool("force")
-		opts := gen.GenOptions{Force: force}
+		noI18n, _ := cmd.Flags().GetBool("no-i18n")
+		opts := gen.GenOptions{Force: force, NoI18n: noI18n}
 		created, err := gen.GenerateAuthWithOptions(root, opts)
 		if err != nil {
 			return err
@@ -301,8 +305,11 @@ func init() {
 	genModelCmd.Flags().Bool("force", false, "overwrite existing files")
 	// genRoutesCmd is defined in gen_routes.go
 	genScaffoldCmd.Flags().Bool("force", false, "overwrite existing files")
+	genScaffoldCmd.Flags().Bool("no-i18n", false, "do not generate i18n translation files")
 	genAdminCmd.Flags().Bool("force", false, "overwrite existing files")
+	genAdminCmd.Flags().Bool("no-i18n", false, "do not generate i18n translation files")
 	genAuthCmd.Flags().Bool("force", false, "overwrite existing files")
+	genAuthCmd.Flags().Bool("no-i18n", false, "do not generate i18n translation files")
 	genScaffoldCmd.Flags().Bool("skip-migrations", false, "do not create migration files")
 	genScaffoldCmd.Flags().Bool("no-views", false, "do not generate view files")
 	generateCmd.PersistentFlags().StringVar(&generateTarget, "target", "", "target project root (defaults to cwd)")
