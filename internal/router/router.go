@@ -267,9 +267,9 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 			final = rt.middleware[i](final)
 		}
 		// If params were allocated from the pool we must return them after
-		// the handler finished. We only wrap when params is non-nil and
-		// non-empty to avoid extra allocations on routes without params.
-		if params != nil && len(params) > 0 {
+		// the handler finished. We only wrap when params is non-empty to
+		// avoid extra allocations on routes without params.
+		if len(params) > 0 {
 			orig := final
 			final = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				orig.ServeHTTP(w, r)
