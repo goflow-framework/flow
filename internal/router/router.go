@@ -19,6 +19,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 )
 
 // ctxParamsKey is the context key used to store path parameters on requests.
@@ -208,6 +209,38 @@ func (r *Router) Resources(base string, c ResourceController) error {
 	return nil
 }
 
+// UseParamsPool controls whether parameter maps are reused from a pool.
+// Tests/benchmarks can toggle this to compare behavior.
+var UseParamsPool = true
+
+var paramsPool sync.Pool
+
+func getParams() map[string]string {
+	if !UseParamsPool {
+		return make(map[string]string)
+	}
+	if v := paramsPool.Get(); v != nil {
+		m := v.(map[string]string)
+		// clear
+		for k := range m {
+			delete(m, k)
+		}
+		return m
+	}
+	return make(map[string]string)
+}
+
+func putParams(m map[string]string) {
+	if !UseParamsPool {
+		return
+	}
+	// clear before putting back
+	for k := range m {
+		delete(m, k)
+	}
+	paramsPool.Put(m)
+}
+
 // ServeHTTP implements http.Handler. It finds the first matching route
 // (in registration order), injects params into the request context, and
 // invokes the handler. If no route matches, NotFound is called. If a path
@@ -232,6 +265,16 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		var final http.Handler = http.HandlerFunc(rt.handler)
 		for i := len(rt.middleware) - 1; i >= 0; i-- {
 			final = rt.middleware[i](final)
+		}
+		// If params were allocated from the pool we must return them after
+		// the handler finished. We only wrap when params is non-nil and
+		// non-empty to avoid extra allocations on routes without params.
+		if params != nil && len(params) > 0 {
+			orig := final
+			final = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				orig.ServeHTTP(w, r)
+				putParams(params)
+			})
 		}
 		final.ServeHTTP(w, req.WithContext(ctx))
 		return
@@ -322,7 +365,7 @@ func matchRoute(segs []string, path string) (bool, map[string]string) {
 		return false, nil
 	}
 
-	params := map[string]string{}
+	var params map[string]string
 	for i := 0; i < len(segs); i++ {
 		s := segs[i]
 		p := parts[i]
@@ -338,12 +381,19 @@ func matchRoute(segs []string, path string) (bool, map[string]string) {
 			if name == "" {
 				return false, nil
 			}
+			if params == nil {
+				params = getParams()
+			}
 			params[name] = p
 			continue
 		}
 		if s != p {
 			return false, nil
 		}
+	}
+	if params == nil {
+		// no params used
+		return true, map[string]string{}
 	}
 	return true, params
 }
