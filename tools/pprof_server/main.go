@@ -40,7 +40,7 @@ func main() {
 		// simple CPU-bound loop (no allocations) to create measurable CPU usage.
 		sum := 0
 		for i := 0; i < iters; i++ {
-			sum += i*i
+			sum += i * i
 		}
 		_ = sum
 
