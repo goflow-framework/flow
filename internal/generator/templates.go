@@ -470,4 +470,26 @@ path if needed.
         // not authenticated — redirect to login
         ctx.Redirect("/login", 302)
     }
+
+Using GetSessionUserID in handlers
+
+The generated middleware stores user_id as a string in the session. Use the
+exported GetSessionUserID helper to parse it safely when you need the numeric
+ID in your handlers. Example:
+
+    import (
+        middleware "github.com/your/module/path/app/middleware" // replace
+        flow "github.com/undiegomejia/flow/pkg/flow"
+    )
+
+    func (c *SomeController) Show(ctx *flow.Context) {
+        if s := ctx.Session(); s != nil {
+            if id, ok := middleware.GetSessionUserID(s); ok {
+                // id is the authenticated user's ID (int64)
+                _ = id // use it, e.g. fetch full user from DB via app.Bun()
+            }
+        }
+        // ...handler logic
+    }
 `
+
