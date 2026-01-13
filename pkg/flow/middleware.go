@@ -4,10 +4,25 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strconv"
+	"sync/atomic"
 	"time"
-
-	"github.com/google/uuid"
 )
+
+// reqIDCounter is an atomically-incremented counter used by fastRequestID.
+// It's intentionally simple and non-cryptographic — suitable for logs/tracing
+// but not for security-sensitive identifiers.
+var reqIDCounter uint64
+
+// fastRequestID returns a short, fast request id using the current timestamp
+// (base36) plus an atomically-incremented counter (base36). This avoids
+// per-request crypto/syscall work from uuid generation while keeping ids
+// reasonably unique and human-readable.
+func fastRequestID() string {
+	ts := strconv.FormatInt(time.Now().UnixNano(), 36)
+	cnt := atomic.AddUint64(&reqIDCounter, 1)
+	return ts + "-" + strconv.FormatUint(cnt, 36)
+}
 
 // LoggingMiddleware logs basic request info using the provided Logger.
 func LoggingMiddleware(logger Logger) Middleware {
@@ -30,7 +45,7 @@ func RequestIDMiddleware(headerName string) Middleware {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			id := r.Header.Get(headerName)
 			if id == "" {
-				id = uuid.New().String()
+				id = fastRequestID()
 				r.Header.Set(headerName, id)
 			}
 			w.Header().Set(headerName, id)
