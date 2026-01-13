@@ -9,6 +9,7 @@ import (
 	"strconv"
 
 	"github.com/dministrator/flow/pkg/flow"
+	"github.com/dministrator/flow/pkg/plugins"
 )
 
 func main() {
@@ -48,6 +49,11 @@ func main() {
 	})
 
 	app.SetRouter(r.Handler())
+
+	// apply registered plugins before starting
+	if err := plugins.ApplyAll(app); err != nil {
+		log.Fatalf("apply plugins: %v", err)
+	}
 
 	// start pprof on :6060 (default mux)
 	go func() {
