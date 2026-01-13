@@ -15,8 +15,6 @@ import (
 	"syscall"
 
 	"github.com/spf13/cobra"
-
-	"database/sql"
 	routerpkg "github.com/dministrator/flow/internal/router"
 	flowpkg "github.com/dministrator/flow/pkg/flow"
 	"github.com/dministrator/flow/pkg/observability"
@@ -27,7 +25,6 @@ import (
 )
 
 var (
-	db             *sql.DB
 	generateTarget string
 	serveAddr      string
 	metricsAddr    string
