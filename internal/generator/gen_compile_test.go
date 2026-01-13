@@ -33,16 +33,15 @@ func TestGeneratedModelCompilesAndRuns(t *testing.T) {
 		t.Fatalf("read module name: %v", err)
 	}
 
-	// create a project dir under examples so it is inside the module
-	projDir, err := os.MkdirTemp(filepath.Join(repo, "examples"), "gen-compile-*")
-	if err != nil {
-		t.Fatalf("mktemp proj dir: %v", err)
+	// create an isolated temporary module so tests don't modify repo/examples
+	projDir := t.TempDir()
+	uid := filepath.Base(projDir)
+	moduleName := modName + "/examples/" + uid
+	if err := os.WriteFile(filepath.Join(projDir, "go.mod"), []byte("module "+moduleName+"\n\ngo 1.20\n"), 0o644); err != nil {
+		t.Fatalf("write go.mod: %v", err)
 	}
-	// remove the generated temp project when the test finishes to avoid
-	// leaving many gen-compile-* folders under examples/ from repeated runs.
-	defer func() { _ = os.RemoveAll(projDir) }()
 
-	// build CLI
+	// build CLI (binary written into the temp project)
 	bin := filepath.Join(projDir, "flow-cli")
 	build := exec.Command("go", "build", "-o", bin, "./cmd/flow")
 	build.Dir = repo
@@ -58,8 +57,7 @@ func TestGeneratedModelCompilesAndRuns(t *testing.T) {
 	}
 
 	// create main.go that uses the generated model's Save/Delete
-	rel := strings.TrimPrefix(projDir, repo+string(os.PathSeparator))
-	modelsImport := modName + "/" + filepath.ToSlash(filepath.Join(rel, "app", "models"))
+	modelsImport := moduleName + "/app/models"
 	mainSrc := `package main
 
 import (

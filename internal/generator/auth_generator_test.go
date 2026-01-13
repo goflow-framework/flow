@@ -65,18 +65,24 @@ func TestCLI_GenerateAuth_CreatesFiles(t *testing.T) {
 	}
 }
 
-// TestCLI_GenerateAuth_Compiles generates auth into a new examples project,
-// patches the placeholder model import in the generated controller to the
-// repository module path, and runs a small main.go that imports the generated
-// controllers and models to ensure the generated controller compiles.
+// TestCLI_GenerateAuth_Compiles generates auth into a new temporary module,
+// patches the placeholder model import in the generated controller and
+// middleware to the temp module path, and runs a small main.go that imports
+// the generated controllers and models to ensure compilation.
 func TestCLI_GenerateAuth_Compiles(t *testing.T) {
 	repo := findRepoRoot()
-	tmpProj, err := os.MkdirTemp(filepath.Join(repo, "examples"), "gen-compile-auth-*")
+
+	modName, err := readModuleName(repo)
 	if err != nil {
-		t.Fatalf("mktemp proj dir: %v", err)
+		t.Fatalf("read module name: %v", err)
 	}
-	// clean up generated temp project to avoid leaving lots of gen-compile-auth-* folders
-	defer func() { _ = os.RemoveAll(tmpProj) }()
+
+	tmpProj := t.TempDir()
+	uid := filepath.Base(tmpProj)
+	moduleName := modName + "/examples/" + uid
+	if err := os.WriteFile(filepath.Join(tmpProj, "go.mod"), []byte("module "+moduleName+"\n\ngo 1.20\n"), 0o644); err != nil {
+		t.Fatalf("write go.mod: %v", err)
+	}
 
 	// build CLI
 	bin := filepath.Join(tmpProj, "flow-cli")
@@ -93,15 +99,8 @@ func TestCLI_GenerateAuth_Compiles(t *testing.T) {
 		t.Fatalf("generate auth failed: %v\n%s", err, string(out))
 	}
 
-	// compute module path and relative import prefix
-	modName, err := readModuleName(repo)
-	if err != nil {
-		t.Fatalf("read module name: %v", err)
-	}
-	rel := strings.TrimPrefix(tmpProj, repo+string(os.PathSeparator))
-	modelsImport := modName + "/" + filepath.ToSlash(filepath.Join(rel, "app", "models"))
-
 	// patch generated controller to replace placeholder import path
+	modelsImport := moduleName + "/app/models"
 	ctrlPath := filepath.Join(tmpProj, "app", "controllers", "auth_controller.go")
 	b, err := os.ReadFile(ctrlPath)
 	if err != nil {
@@ -124,8 +123,8 @@ func TestCLI_GenerateAuth_Compiles(t *testing.T) {
 	}
 
 	// write a main.go that imports controllers (blank import) and uses models.User
-	controllersImport := modName + "/" + filepath.ToSlash(filepath.Join(rel, "app", "controllers"))
-	middlewareImport := modName + "/" + filepath.ToSlash(filepath.Join(rel, "app", "middleware"))
+	controllersImport := moduleName + "/app/controllers"
+	middlewareImport := moduleName + "/app/middleware"
 	mainSrc := `package main
 
 import (
