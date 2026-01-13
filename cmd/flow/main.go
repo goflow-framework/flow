@@ -14,14 +14,14 @@ import (
 	"os/signal"
 	"syscall"
 
-	routerpkg "github.com/dministrator/flow/internal/router"
-	flowpkg "github.com/dministrator/flow/pkg/flow"
-	"github.com/dministrator/flow/pkg/observability"
-	"github.com/dministrator/flow/pkg/plugins"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/cobra"
+	routerpkg "github.com/undiegomejia/flow/internal/router"
+	flowpkg "github.com/undiegomejia/flow/pkg/flow"
+	"github.com/undiegomejia/flow/pkg/observability"
+	"github.com/undiegomejia/flow/pkg/plugins"
 
-	gen "github.com/dministrator/flow/internal/generator"
+	gen "github.com/undiegomejia/flow/internal/generator"
 )
 
 var (
