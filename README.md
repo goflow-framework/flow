@@ -267,10 +267,14 @@ Check `internal/migrations` and `internal/generator` for the implementation and 
 New generator features:
 
 - `flow generate model NAME [fields...]` — generate a model with optional field definitions (eg. `title:string published_at:datetime`). The generator will emit Bun struct tags (`bun:"field_name"`) and a migration SQL with the specified columns.
-- `flow generate scaffold NAME [fields...]` — generate controller, model and views and add migration files; fields are forwarded to the model generator.
+- `flow generate scaffold NAME [fields...]` — generate controller, model, views and migrations; fields are forwarded to the model generator.
 - CLI: `cmd/flow` updated so `generate model` and `generate scaffold` accept variadic field args.
  - Generated models now include small convenience methods (`Save(ctx, app)` and `Delete(ctx, app)`) which call into the `flow` CRUD helpers. This makes generated code immediately usable with the Bun PoC adapter.
- - Generator integration tests: the repo contains CLI integration tests that build the CLI, run generators into a temp project, and assert generated files and migration SQL. There's also a compile-and-run test that builds a tiny program against the generated model to ensure the generated code compiles and runs.
+ - Generator integration tests: the repo contains CLI integration tests that build the CLI, run the generator into a temp project, and assert generated files and migration SQL. There's also a compile-and-run test that builds a tiny program against the generated model to ensure the generated code compiles and runs.
+
+New generator flags:
+
+- `--no-i18n` — when provided to scaffold/admin/auth generators, the generator will skip creating the minimal `app/i18n/en.yaml` translation file. This is useful for projects that don't need built-in i18n scaffolding.
 
 See `docs/generator.md` for detailed generator flag documentation, field syntax and examples.
 
