@@ -156,7 +156,7 @@ func MountAdmin{{.Controller}}Routes(app *flow.App) {
     r.Get(base+"/:id/edit", ctrl.Edit)
     r.Post(base+"/:id", ctrl.Update)
     r.Post(base+"/:id/delete", ctrl.Delete)
-    app.Mount(r)
+    app.SetRouter(r.Handler())
 }
 `
 
@@ -492,3 +492,4 @@ ID in your handlers. Example:
         // ...handler logic
     }
 `
+
