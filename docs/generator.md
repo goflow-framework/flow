@@ -10,6 +10,7 @@ specification syntax for describing model columns.
 - `--force` — overwrite existing files when generating (default: false).
 - `--skip-migrations` — do not create migration files when generating scaffolds.
 - `--no-views` — do not create view templates when generating scaffolds.
+- `--no-i18n` — do not create i18n translation files (app/i18n/en.yaml) when generating scaffolds.
 - `--target` — target project root (defaults to current working directory).
 
 These flags are available on the `flow generate` subcommands. The CLI builds
@@ -75,6 +76,12 @@ Generate a scaffold but skip migrations and do not create views:
 flow generate scaffold post title:string --skip-migrations --no-views
 ```
 
+Generate a scaffold but do not generate i18n translation files:
+
+```bash
+flow generate scaffold post title:string --no-i18n
+```
+
 Force overwriting existing files when regenerating:
 
 ```bash
@@ -85,5 +92,5 @@ flow generate model Post title:string --force
 
 The repository includes CLI integration tests under `internal/generator` that
 build the CLI and run the generator into temporary directories. Those tests
-exercise the flags (`--force`, `--skip-migrations`, `--no-views`) and verify
+exercise the flags (`--force`, `--skip-migrations`, `--no-views`, `--no-i18n`) and verify
 the generated files and migration SQL contents.
