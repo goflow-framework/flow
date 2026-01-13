@@ -6,6 +6,7 @@ import (
 	"net/http"
 	_ "net/http/pprof"
 	"os"
+	"strconv"
 
 	"github.com/dministrator/flow/pkg/flow"
 )
@@ -28,8 +29,21 @@ func main() {
 	r.Get("/users/:id/profile", func(c *flow.Context) {
 		// read param
 		_ = c.Param("id")
-		// do a tiny bit of work to create measurable CPU and allocs
-		_ = make([]byte, 128)
+
+		// configurable CPU work to amplify samples for pprof; default to 50k iterations.
+		iters := 50000
+		if v := os.Getenv("PPROF_WORK"); v != "" {
+			if n, err := strconv.Atoi(v); err == nil && n > 0 {
+				iters = n
+			}
+		}
+		// simple CPU-bound loop (no allocations) to create measurable CPU usage.
+		sum := 0
+		for i := 0; i < iters; i++ {
+			sum += i*i
+		}
+		_ = sum
+
 		c.Status(200)
 	})
 
