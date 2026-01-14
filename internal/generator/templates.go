@@ -145,18 +145,18 @@ func (c *{{.Controller}}) Delete(ctx *flow.Context) {
 }
 
 // MountAdminRoutes registers admin routes for this resource.
-func MountAdmin{{.Controller}}Routes(app *flow.App) {
-    r := flow.NewRouter(app)
-    ctrl := New{{.Controller}}(app)
-    base := "/admin/{{.Name}}"
-    r.Get(base, ctrl.Index)
-    r.Get(base+"/new", ctrl.New)
-    r.Post(base, ctrl.Create)
-    r.Get(base+"/:id", ctrl.Show)
-    r.Get(base+"/:id/edit", ctrl.Edit)
-    r.Post(base+"/:id", ctrl.Update)
-    r.Post(base+"/:id/delete", ctrl.Delete)
-    app.SetRouter(r.Handler())
+func MountAdmin{{.Title}}Routes(app *flow.App) {
+     r := flow.NewRouter(app)
+     ctrl := New{{.Controller}}(app)
+     base := "/admin/{{.Name}}"
+     r.Get(base, ctrl.Index)
+     r.Get(base+"/new", ctrl.New)
+     r.Post(base, ctrl.Create)
+     r.Get(base+"/:id", ctrl.Show)
+     r.Get(base+"/:id/edit", ctrl.Edit)
+     r.Post(base+"/:id", ctrl.Update)
+     r.Post(base+"/:id/delete", ctrl.Delete)
+     app.SetRouter(r.Handler())
 }
 `
 
@@ -176,33 +176,6 @@ var viewAdminNewTmpl = `<h1>New {{.Title}}</h1>
     <!-- TODO: form fields -->
     <button type="submit">Create</button>
 </form>`
-
-var viewAdminEditTmpl = `<h1>Edit {{.Title}}</h1>
-<form method="post" action="/admin/{{.Name}}/{{.ID}}">
-    <!-- TODO: form fields -->
-    <button type="submit">Save</button>
-</form>`
-
-var adminLayoutTmpl = `<!doctype html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <title>Admin - {{.Title}}</title>
-  <link rel="stylesheet" href="/assets/admin/admin.css">
-  <style>body{font-family:Arial,Helvetica,sans-serif;padding:20px}</style>
-</head>
-<body>
-  <nav><a href="/admin">Admin</a> | <a href="/">Home</a></nav>
-  <div id="flash">{{/* TODO: flash messages */}}</div>
-  <main>{{ template "content" . }}</main>
-</body>
-</html>`
-
-var adminCSSTmpl = `/* Minimal admin CSS */
-body { background:#f7f7f7; color:#111 }
-nav { margin-bottom: 1em }
-main { background:#fff; padding:1em; border-radius:6px }
-`
 
 var adminReadmeTmpl = `# Admin scaffold
 
@@ -546,3 +519,28 @@ auth:
 common:
   hello: "Hello"
 `
+var adminCSSTmpl = `/* Minimal admin CSS */
+body { background:#f7f7f7; color:#111 }
+nav { margin-bottom: 1em }
+main { background:#fff; padding:1em; border-radius:6px }
+`
+var viewAdminEditTmpl = `<h1>Edit {{.Title}}</h1>
+<form method="post" action="/admin/{{.Name}}/{{.ID}}">
+    <!-- TODO: form fields -->
+    <button type="submit">Save</button>
+</form>`
+
+var adminLayoutTmpl = `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Admin - {{.Title}}</title>
+  <link rel="stylesheet" href="/assets/admin/admin.css">
+  <style>body{font-family:Arial,Helvetica,sans-serif;padding:20px}</style>
+</head>
+<body>
+  <nav><a href="/admin">Admin</a> | <a href="/">Home</a></nav>
+  <div id="flash">{{/* TODO: flash messages */}}</div>
+  <main>{{ template "content" . }}</main>
+</body>
+</html>`

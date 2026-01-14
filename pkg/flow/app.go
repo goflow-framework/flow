@@ -23,6 +23,8 @@ import (
 	"html/template"
 	"log"
 	"net/http"
+	"net/http/httputil"
+	"net/url"
 	"os"
 	"os/signal"
 	"sync/atomic"
@@ -436,6 +438,51 @@ func (a *App) Shutdown(ctx context.Context) error {
 // It dispatches to the composed handler (router + middleware).
 func (a *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	a.Handler().ServeHTTP(w, r)
+}
+
+// MountAssets mounts a handler on the given prefix to serve static assets.
+// If devProxy is non-empty it will proxy requests to the provided URL (eg
+// http://localhost:8000) which is useful when running a local bundler/dev
+// server. When devProxy is empty the provided fs is served via http.FileServer.
+//
+// prefix should include leading and trailing slash, e.g. "/assets/".
+func (a *App) MountAssets(prefix string, fs http.FileSystem, devProxy string) error {
+	if a == nil {
+		return fmt.Errorf("app is nil")
+	}
+	if prefix == "" {
+		prefix = "/assets/"
+	}
+
+	var h http.Handler
+	if devProxy != "" {
+		u, err := url.Parse(devProxy)
+		if err != nil {
+			return fmt.Errorf("invalid devProxy url: %w", err)
+		}
+		proxy := httputil.NewSingleHostReverseProxy(u)
+		// strip prefix before proxying
+		h = http.StripPrefix(prefix, proxy)
+	} else {
+		h = http.StripPrefix(prefix, http.FileServer(fs))
+	}
+
+	// If underlying router is a *http.ServeMux we can register the handler
+	// directly. Otherwise wrap the existing router into a new ServeMux so
+	// the mounted path takes precedence and the previous router handles the
+	// rest.
+	if mux, ok := a.router.(*http.ServeMux); ok {
+		mux.Handle(prefix, h)
+	} else {
+		newMux := http.NewServeMux()
+		newMux.Handle(prefix, h)
+		// fallback to previous router for other paths
+		newMux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+			a.router.ServeHTTP(w, r)
+		})
+		a.router = newMux
+	}
+	return nil
 }
 
 // Default middleware helpers
