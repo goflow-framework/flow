@@ -9,9 +9,6 @@
 *.out
 *.test
 
-# Go-specific build outputs
-*_test
-
 # Common build/output directories
 /bin/
 /build/
