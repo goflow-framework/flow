@@ -69,3 +69,13 @@ func (g *RequestGroup) Wait() error {
 	}
 	return fmt.Errorf("%d errors: %v", len(g.errs), g.errs)
 }
+
+// Cancel cancels the group's context. It is safe to call multiple times and
+// is provided so callers (for example, the framework) can signal goroutines
+// to stop if the request finishes before Wait is called.
+func (g *RequestGroup) Cancel() {
+	if g == nil {
+		return
+	}
+	g.cancel()
+}
