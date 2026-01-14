@@ -1,6 +1,7 @@
 package plugins
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
