@@ -5,22 +5,63 @@ on:
     branches: [ main, add-plugin-api-serviceRegistry-skeleton ]
   pull_request:
     branches: [ main ]
+  workflow_dispatch:
 
 jobs:
   build-and-run-examples:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        go-version: [ '1.22', '1.23', '1.24' ]
+        include:
+          - go-version: '1.24'
+            run-race: true
     steps:
       - uses: actions/checkout@v4
+
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/go-build
+            ${{ env.GOMODCACHE }}
+            ${{ env.GOCACHE }}
+          key: ${{ runner.os }}-go-${{ matrix.go-version }}-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-${{ matrix.go-version }}-
+
       - name: Set up Go
         uses: actions/setup-go@v4
         with:
-          # Use Go 1.24 to match the repository's go.mod (toolchain directive).
-          go-version: '1.24.11'
+          go-version: ${{ matrix.go-version }}
+
       - name: Install deps
         run: go mod download
+
+      - name: gofmt check
+        run: |
+          if [ -n "$(gofmt -l .)" ]; then echo "gofmt differences:"; gofmt -l .; exit 1; fi
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: staticcheck
+        run: |
+          go install honnef.co/go/tools/cmd/staticcheck@latest
+          staticcheck ./...
+
       - name: Run tests
-        run: go test ./... -v
+        run: |
+          if [ "${{ matrix.go-version }}" = "1.24" ]; then
+            go test ./... -v -race
+          else
+            go test ./... -v
+          fi
+
       - name: Run runtime example (smoke)
+        if: matrix.go-version == '1.24'
         run: go run ./examples/plugins/runtime
+
       - name: Run middleware example (smoke)
+        if: matrix.go-version == '1.24'
         run: go run ./examples/plugins/middleware
