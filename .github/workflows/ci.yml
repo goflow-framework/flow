@@ -141,3 +141,54 @@ jobs:
         with:
           name: generator-integration
           path: .ci/integration/generator_tests.txt
+  test:
+    name: Test (Go ${{ matrix.go-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        go-version: [1.22, 1.23, 1.24]
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: ${{ matrix.go-version }}
+
+      - name: Cache Go build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ matrix.go-version }}-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-${{ matrix.go-version }}-
+
+      - name: Print go env
+        run: |
+          go version
+          go env
+
+      - name: Install dependencies
+        run: go mod download
+
+      - name: Check formatting
+        run: |
+          set -e
+          out=$(gofmt -l .)
+          if [ -n "$out" ]; then
+            echo "Files need formatting:"; echo "$out"; exit 1
+          fi
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Run tests (verbose)
+        run: go test ./... -v
+
+      - name: Run tests (no cache)
+        run: go test ./... -count=1
+

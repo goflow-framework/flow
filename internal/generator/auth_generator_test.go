@@ -340,6 +340,63 @@ func main() {
 	}
 }
 
+func TestAuthGenerator(t *testing.T) {
+	repo := findRepoRoot()
+	modName, err := readModuleName(repo)
+	if err != nil {
+		t.Fatalf("read module name: %v", err)
+	}
+	gov, err := readGoVersion(repo)
+	if err != nil {
+		gov = "1.20"
+	}
+	absRepo, _ := filepath.Abs(repo)
+
+	proj := t.TempDir()
+	uid := filepath.Base(proj)
+	moduleName := modName + "/examples/" + uid
+
+	goMod := "module " + moduleName + "\n\n" +
+		"go " + gov + "\n\n" +
+		"require " + modName + " v0.0.0\n\n" +
+		"replace " + modName + " => " + absRepo + "\n"
+	if err := os.WriteFile(filepath.Join(proj, "go.mod"), []byte(goMod), 0o644); err != nil {
+		t.Fatalf("write go.mod: %v", err)
+	}
+
+	// tidy
+	tidy := exec.Command("go", "mod", "tidy")
+	tidy.Dir = proj
+	if out, err := tidy.CombinedOutput(); err != nil {
+		if envOut, e2 := exec.Command("go", "env").CombinedOutput(); e2 == nil {
+			t.Fatalf("go mod tidy failed: %v\n%s\n--- go env ---\n%s", err, string(out), string(envOut))
+		}
+		t.Fatalf("go mod tidy failed: %v\n%s", err, string(out))
+	}
+
+	// run generator binary
+	bin := filepath.Join(repo, "bin", "flow-gen")
+	if _, err := os.Stat(bin); os.IsNotExist(err) {
+		b := exec.Command("go", "build", "-o", bin, "./cmd/flow")
+		b.Dir = repo
+		if out, err := b.CombinedOutput(); err != nil {
+			if envOut, e2 := exec.Command("go", "env").CombinedOutput(); e2 == nil {
+				t.Fatalf("build generator failed: %v\n%s\n--- go env ---\n%s", err, string(out), string(envOut))
+			}
+			t.Fatalf("build generator failed: %v\n%s", err, string(out))
+		}
+	}
+
+	ren := exec.Command(bin, "generate", "auth", "--target", proj)
+	ren.Dir = repo
+	if out, err := ren.CombinedOutput(); err != nil {
+		if envOut, e2 := exec.Command("go", "env").CombinedOutput(); e2 == nil {
+			t.Fatalf("auth generate failed: %v\n%s\n--- go env ---\n%s", err, string(out), string(envOut))
+		}
+		t.Fatalf("auth generate failed: %v\n%s", err, string(out))
+	}
+}
+
 func TestGeneratedMiddleware_Unit_GetSessionUserID(t *testing.T) {
 	repo := findRepoRoot()
 	modName, err := readModuleName(repo)

@@ -8,24 +8,7 @@ import (
 	"testing"
 )
 
-// findRepoRoot walks up from cwd until it finds a go.mod file.
-func findRepoRoot() string {
-	dir, err := os.Getwd()
-	if err != nil {
-		return "."
-	}
-	for {
-		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
-			return dir
-		}
-		parent := filepath.Dir(dir)
-		if parent == dir {
-			break
-		}
-		dir = parent
-	}
-	return "."
-}
+// findRepoRoot helper moved to testutil.go
 
 func TestCLI_GenerateModel_WritesBunTaggedModel(t *testing.T) {
 	repo := findRepoRoot()
