@@ -10,7 +10,6 @@ import (
 
 // findRepoRoot helper moved to testutil.go
 
-
 func TestCLI_GenerateModel_WritesBunTaggedModel(t *testing.T) {
 	repo := findRepoRoot()
 	tmp := t.TempDir()
