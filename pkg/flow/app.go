@@ -27,6 +27,7 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+	"sync"
 	"sync/atomic"
 	"syscall"
 	"time"
@@ -34,6 +35,8 @@ import (
 	orm "github.com/undiegomejia/flow/internal/orm"
 	"github.com/undiegomejia/flow/pkg/assets"
 	"github.com/undiegomejia/flow/pkg/observability"
+	"github.com/undiegomejia/flow/pkg/job"
+	execpkg "github.com/undiegomejia/flow/pkg/exec"
 	"github.com/uptrace/bun"
 )
 
@@ -92,6 +95,21 @@ type App struct {
 	// state indicates whether the server is running: 0 = idle, 1 = running,
 	// 2 = shutting down/stopped.
 	state int32
+
+	// executor is an optional application-level executor for background work.
+	executor execpkg.Executor
+	// executorShutdown is called during App.Shutdown if non-nil.
+	executorShutdown func(context.Context) error
+
+	// workerHandles tracks started job workers so we can stop them during
+	// shutdown. Protected by workersMu.
+	workers   []workerHandle
+	workersMu sync.Mutex
+}
+
+type workerHandle struct {
+	w    *job.Worker
+	done chan struct{}
 }
 
 // SetBun attaches a BunAdapter to the App and also sets the underlying *sql.DB
@@ -332,6 +350,31 @@ func WithOTLPExporter(endpoint, serviceName string, insecure bool, headers map[s
 	}
 }
 
+// WithExecutor sets a custom Executor on the App. The provided Executor's
+// lifecycle is not managed by the App unless WithBoundedExecutor is used.
+func WithExecutor(e execpkg.Executor) Option {
+	return func(a *App) {
+		if a == nil {
+			return
+		}
+		a.executor = e
+	}
+}
+
+// WithBoundedExecutor creates a bounded executor with n workers and queueSize
+// and wires it into the App. The App will call Shutdown on the executor
+// during App.Shutdown.
+func WithBoundedExecutor(n, queueSize int) Option {
+	return func(a *App) {
+		if a == nil {
+			return
+		}
+		be := NewBoundedExecutor(n, queueSize)
+		a.executor = be
+		a.executorShutdown = be.Shutdown
+	}
+}
+
 // New creates a configured App instance. It never starts network listeners.
 func New(name string, opts ...Option) *App {
 	// default logger
@@ -357,6 +400,28 @@ func New(name string, opts ...Option) *App {
 	}
 
 	return a
+}
+
+// StartWorker starts a background job.Worker using the provided RedisQueue and
+// handlers. If the App has an Executor configured it will be attached to the
+// worker so job handlers run via the executor. StartWorker returns the
+// started *job.Worker so callers may interact with it; the App will also
+// manage shutdown of started workers.
+func (a *App) StartWorker(q *job.RedisQueue, handlers map[string]job.Handler, opts job.WorkerOptions) *job.Worker {
+	w := job.NewWorker(q, handlers, opts)
+	if a.executor != nil {
+		w.SetExecutor(a.executor)
+	}
+	// record handle and start worker in background
+	done := make(chan struct{})
+	a.workersMu.Lock()
+	a.workers = append(a.workers, workerHandle{w: w, done: done})
+	a.workersMu.Unlock()
+	go func() {
+		_ = w.Start(context.Background())
+		close(done)
+	}()
+	return w
 }
 
 // Use appends middleware to the middleware stack.
@@ -487,10 +552,38 @@ func (a *App) Shutdown(ctx context.Context) error {
 	}
 
 	a.logger.Printf("shutdown complete")
+
+	// stop any started job workers and wait for them to exit
+	if len(a.workers) > 0 {
+		a.workersMu.Lock()
+		handles := make([]workerHandle, len(a.workers))
+		copy(handles, a.workers)
+		a.workersMu.Unlock()
+		for _, h := range handles {
+			// signal worker to stop
+			h.w.Stop()
+		}
+		// wait for each worker's done channel or context cancellation
+		for _, h := range handles {
+			select {
+			case <-h.done:
+				// worker finished
+			case <-ctx.Done():
+				return ctx.Err()
+			}
+		}
+	}
+
+	// shutdown executor if App created/owns one
+	if a.executorShutdown != nil {
+		_ = a.executorShutdown(ctx)
+	}
+
 	// allow tracer shutdown to flush/export spans if configured
 	if a.tracerShutdown != nil {
 		_ = a.tracerShutdown(ctx)
 	}
+
 	return nil
 }
 

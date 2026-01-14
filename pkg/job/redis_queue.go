@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/redis/go-redis/v9"
-	"github.com/undiegomejia/flow/pkg/flow"
+	"github.com/undiegomejia/flow/pkg/exec"
 )
 
 // RedisQueue is a small Redis-backed queue using LIST for immediate jobs and ZSET for delayed jobs.
@@ -136,7 +136,7 @@ type Worker struct {
 	cancel    context.CancelFunc
 	// exec is an optional executor for dispatching job handlers. If nil the
 	// worker will execute handlers synchronously in the worker goroutine.
-	exec flow.Executor
+	exec exec.Executor
 }
 
 // NewWorker constructs a new Worker.
@@ -156,7 +156,7 @@ func NewWorker(q *RedisQueue, handlers map[string]Handler, opts WorkerOptions) *
 
 // SetExecutor sets an Executor to be used for running job handlers. This is
 // optional; if not set handlers run synchronously in worker goroutines.
-func (w *Worker) SetExecutor(e flow.Executor) {
+func (w *Worker) SetExecutor(e exec.Executor) {
 	w.exec = e
 }
 

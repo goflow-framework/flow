@@ -2,27 +2,13 @@ package flow
 
 import (
     "context"
-    "errors"
+    execpkg "github.com/undiegomejia/flow/pkg/exec"
     "sync/atomic"
     "time"
 )
 
-// Executor is an abstraction for submitting background work. Implementations
-// may choose to bound concurrency and queue size.
-type Executor interface {
-    // Submit schedules fn to run with the provided context. It returns an
-    // error if the executor is closed or the task cannot be accepted.
-    Submit(ctx context.Context, fn func(context.Context)) error
-    // Shutdown gracefully stops accepting new tasks and waits for running
-    // tasks to complete until ctx is done. Implementations should return
-    // nil if shutdown completes successfully or ctx.Err() otherwise.
-    Shutdown(ctx context.Context) error
-}
-
-// ErrExecutorClosed is returned when submitting to a closed executor.
-var ErrExecutorClosed = errors.New("executor: closed")
-
 // BoundedExecutor is a simple bounded worker pool with a buffered task queue.
+// It implements the shared exec.Executor interface.
 type BoundedExecutor struct {
     tasks     chan task
     stopOnce  atomic.Bool
@@ -69,7 +55,7 @@ func (be *BoundedExecutor) Submit(ctx context.Context, fn func(context.Context))
     // if closed, return right away
     select {
     case <-be.closed:
-        return ErrExecutorClosed
+        return execpkg.ErrExecutorClosed
     default:
     }
     t := task{ctx: ctx, fn: fn}
@@ -77,7 +63,7 @@ func (be *BoundedExecutor) Submit(ctx context.Context, fn func(context.Context))
     case be.tasks <- t:
         return nil
     case <-be.closed:
-        return ErrExecutorClosed
+        return execpkg.ErrExecutorClosed
     case <-ctx.Done():
         return ctx.Err()
     }
