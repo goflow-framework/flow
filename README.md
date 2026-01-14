@@ -1,5 +1,8 @@
 # Flow — A Minimal MVC Framework for Go
 
+[![CI](https://github.com/undiegomejia/flow/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/undiegomejia/flow/actions/workflows/ci.yml)
+[![Go Report Card](https://goreportcard.com/badge/github.com/undiegomejia/flow)](https://goreportcard.com/report/github.com/undiegomejia/flow)
+
 > Flow is an opinionated, small, and developer-friendly MVC framework for Go. It provides a tiny routing DSL, controller/context helpers, a simple view manager with layouts/partials, cookie sessions, a migrations runner, and generators to scaffold controllers, models, views and migrations. Flow's design favors explicitness, testability and a pleasant developer loop — similar in spirit to Rails, but idiomatic Go.
 
 This README gives a concise introduction, quickstart, and reference for the main building blocks so you (or contributors) can get started quickly.
