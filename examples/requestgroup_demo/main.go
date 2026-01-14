@@ -56,7 +56,6 @@ func main() {
 	// returns an error which cancels the group's context; the other task
 	// should observe cancellation and not complete its work.
 	r.Get("/cancel", func(ctx *flow.Context) {
-		var cancelledTask = 0
 
 		ctx.Go(func(cctx context.Context) error {
 			// erroring task
@@ -68,7 +67,6 @@ func main() {
 			select {
 			case <-time.After(200 * time.Millisecond):
 				// would have completed
-				cancelledTask = 1
 				return nil
 			case <-cctx.Done():
 				// expected path when cancelled
