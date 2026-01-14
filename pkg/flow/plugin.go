@@ -2,6 +2,7 @@ package flow
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -34,6 +35,15 @@ func NewServiceRegistry() *ServiceRegistry {
 	return &ServiceRegistry{services: make(map[string]interface{})}
 }
 
+// Sentinel errors related to plugin version validation. These make it easy
+// for callers to detect specific failure modes (empty version, invalid
+// format, or incompatible major version).
+var (
+	ErrPluginVersionEmpty      = errors.New("plugin: empty version")
+	ErrPluginVersionInvalid    = errors.New("plugin: invalid version")
+	ErrPluginIncompatibleMajor = errors.New("plugin: incompatible major version")
+)
+
 // Register registers a service under the provided name. If a service is
 // already registered with the same name an error is returned.
 func (r *ServiceRegistry) Register(name string, svc interface{}) error {
@@ -59,13 +69,9 @@ func (r *ServiceRegistry) Get(name string) (interface{}, bool) {
 
 // GetAs returns the service registered under name cast to the requested type T.
 // If the service is not found or cannot be asserted to T the zero value and
-// false are returned. This is a convenience wrapper that avoids repeating
-// type assertions at call sites.
-// GetAs returns the service registered under name cast to the requested type T.
-// It is implemented as a generic package-level helper because Go does not
-// allow methods with independent type parameters on non-generic receiver
-// types. If the service is not found or cannot be asserted to T the zero
-// value and false are returned.
+// false are returned. Implemented as a package-level generic helper because
+// Go does not allow methods with independent type parameters on non-generic
+// receiver types.
 func GetAs[T any](r *ServiceRegistry, name string) (T, bool) {
 	var zero T
 	r.mu.RLock()
@@ -93,6 +99,33 @@ func (r *ServiceRegistry) ListServices() []string {
 	return out
 }
 
+// Unregister removes a named service from the registry. It returns true if
+// a service was removed, or false if no service existed with that name.
+func (r *ServiceRegistry) Unregister(name string) bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if _, ok := r.services[name]; !ok {
+		return false
+	}
+	delete(r.services, name)
+	return true
+}
+
+// Replace replaces the service registered under name. It returns an error if
+// the name is empty or if no service was previously registered under name.
+func (r *ServiceRegistry) Replace(name string, svc interface{}) error {
+	if name == "" {
+		return fmt.Errorf("service name cannot be empty")
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if _, ok := r.services[name]; !ok {
+		return fmt.Errorf("service not registered: %s", name)
+	}
+	r.services[name] = svc
+	return nil
+}
+
 // PluginAPIMajor is the major version of the plugin API expected by this
 // version of the framework. Plugins with a differing major semantic version
 // should be considered incompatible.
@@ -100,24 +133,24 @@ const PluginAPIMajor = 0
 
 // ValidatePluginVersion checks whether a plugin version string (eg "v0.1.2"
 // or "0.1.2") is compatible with the framework PluginAPIMajor. It returns
-// an error if the version cannot be parsed or the major version doesn't
-// match PluginAPIMajor.
+// a sentinel error when the version is empty, invalid, or has an incompatible
+// major version so callers can handle specific cases.
 func ValidatePluginVersion(v string) error {
 	if v == "" {
-		return fmt.Errorf("empty plugin version")
+		return ErrPluginVersionEmpty
 	}
 	// strip optional leading 'v'
 	v = strings.TrimPrefix(v, "v")
 	parts := strings.Split(v, ".")
 	if len(parts) == 0 {
-		return fmt.Errorf("invalid plugin version: %q", v)
+		return fmt.Errorf("%w: %q", ErrPluginVersionInvalid, v)
 	}
 	maj, err := strconv.Atoi(parts[0])
 	if err != nil {
-		return fmt.Errorf("invalid major version in %q: %w", v, err)
+		return fmt.Errorf("%w: %v", ErrPluginVersionInvalid, err)
 	}
 	if maj != PluginAPIMajor {
-		return fmt.Errorf("incompatible plugin major version %d (expected %d)", maj, PluginAPIMajor)
+		return fmt.Errorf("%w: got %d expected %d", ErrPluginIncompatibleMajor, maj, PluginAPIMajor)
 	}
 	return nil
 }
