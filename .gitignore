@@ -78,3 +78,15 @@ examples/gen-compile*/
 **/*.prof
 
 # End of .gitignore
+
+
+# Ignore repo-level built executables
+/flow
+/flow-cli
+/flow-worker
+/pprof_client
+/pprof_server
+
+# Ignore tool-built binaries
+/tools/**/bin/
+/tools/**/bin/*
