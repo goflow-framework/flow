@@ -205,6 +205,8 @@ app.SetRouter(r.Handler())
 
 The `MakeResourceAdapter(app, res)` adapts a `flow.Resource` (methods that accept `*Context`) to the internal router.
 
+See also: Executor & background workers (docs/executor.md) for guidance on running background tasks and wiring job workers to the App.
+
 ### Views and Templates
 
 Flow uses `html/template` and a `ViewManager` with a small convention:
