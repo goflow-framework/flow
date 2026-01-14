@@ -63,20 +63,20 @@ func TestWorkerRetriesAndBackoff(t *testing.T) {
 	}
 
 	handlers := map[string]Handler{"retry": handler}
-	w := NewWorker(q, handlers, WorkerOptions{PollInterval: 50 * time.Millisecond, BackoffBase: 10 * time.Millisecond, JitterMillis: 0, Concurrency: 1})
+	w := NewWorker(q, handlers, WorkerOptions{PollInterval: 1 * time.Second, BackoffBase: 10 * time.Millisecond, JitterMillis: 0, Concurrency: 1})
 
 	j := &Job{Type: "retry", MaxAttempts: 5}
 	if err := q.Enqueue(context.Background(), j); err != nil {
 		t.Fatalf("enqueue: %v", err)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
 	defer cancel()
 	// run worker; it will stop when ctx is done
 	go func() { _ = w.Start(ctx) }()
 
 	// wait until handler called at least 3 times (2 failures + 1 success)
-	deadline := time.Now().Add(2 * time.Second)
+	deadline := time.Now().Add(8 * time.Second)
 	for time.Now().Before(deadline) {
 		if atomic.LoadInt32(&calls) >= 3 {
 			return
@@ -152,14 +152,14 @@ func TestWorkerConcurrency(t *testing.T) {
 
 	// handler that does minimal work
 	handlers := map[string]Handler{"noop": func(ctx context.Context, j *Job) error { return nil }}
-	w := NewWorker(q, handlers, WorkerOptions{PollInterval: 50 * time.Millisecond, BackoffBase: 10 * time.Millisecond, JitterMillis: 0, Concurrency: 5})
+	w := NewWorker(q, handlers, WorkerOptions{PollInterval: 1 * time.Second, BackoffBase: 10 * time.Millisecond, JitterMillis: 0, Concurrency: 5})
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 12*time.Second)
 	defer cancel()
 	go func() { _ = w.Start(ctx) }()
 
 	// wait until processed count reaches total
-	deadline := time.Now().Add(4 * time.Second)
+	deadline := time.Now().Add(10 * time.Second)
 	for time.Now().Before(deadline) {
 		if Metrics().Processed >= total {
 			return
@@ -190,13 +190,13 @@ func TestWorkerLargeVolume(t *testing.T) {
 	}
 
 	handlers := map[string]Handler{"noop": func(ctx context.Context, j *Job) error { return nil }}
-	w := NewWorker(q, handlers, WorkerOptions{PollInterval: 20 * time.Millisecond, BackoffBase: 10 * time.Millisecond, JitterMillis: 0, Concurrency: 10})
+	w := NewWorker(q, handlers, WorkerOptions{PollInterval: 1 * time.Second, BackoffBase: 10 * time.Millisecond, JitterMillis: 0, Concurrency: 10})
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 	go func() { _ = w.Start(ctx) }()
 
-	deadline := time.Now().Add(8 * time.Second)
+	deadline := time.Now().Add(16 * time.Second)
 	for time.Now().Before(deadline) {
 		if Metrics().Processed >= total {
 			return

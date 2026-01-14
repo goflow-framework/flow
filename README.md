@@ -1,5 +1,8 @@
 # Flow — A Minimal MVC Framework for Go
 
+[![CI](https://github.com/undiegomejia/flow/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/undiegomejia/flow/actions/workflows/ci.yml)
+[![Go Report Card](https://goreportcard.com/badge/github.com/undiegomejia/flow)](https://goreportcard.com/report/github.com/undiegomejia/flow)
+
 > Flow is an opinionated, small, and developer-friendly MVC framework for Go. It provides a tiny routing DSL, controller/context helpers, a simple view manager with layouts/partials, cookie sessions, a migrations runner, and generators to scaffold controllers, models, views and migrations. Flow's design favors explicitness, testability and a pleasant developer loop — similar in spirit to Rails, but idiomatic Go.
 
 This README gives a concise introduction, quickstart, and reference for the main building blocks so you (or contributors) can get started quickly.
@@ -205,6 +208,8 @@ app.SetRouter(r.Handler())
 
 The `MakeResourceAdapter(app, res)` adapts a `flow.Resource` (methods that accept `*Context`) to the internal router.
 
+See also: Executor & background workers (docs/executor.md) for guidance on running background tasks and wiring job workers to the App.
+
 ### Views and Templates
 
 Flow uses `html/template` and a `ViewManager` with a small convention:
@@ -311,6 +316,18 @@ Planned improvements:
 - a `flow migrate` CLI wrapper for applying migrations,
 - CI workflow and developer DX improvements (hot-reload integration),
 - fuller documentation and more examples.
+
+## Executor & Background Workers (brief)
+
+Flow exposes a minimal Executor abstraction for running background work and integrating job workers with the App lifecycle. Key points:
+
+- The shared Executor interface lives in `pkg/exec` and is intentionally tiny: `Submit(ctx, fn)` and `Shutdown(ctx)`.
+- You can provide your own Executor to the App with `flow.WithExecutor(myExec)`; in this case the App will use it but will not manage its lifecycle (Start/Shutdown) unless you also provide an explicit shutdown function.
+- To have the App create and manage a bounded executor for you, use `flow.WithBoundedExecutor(n, queueSize)` — the App will call `Shutdown(ctx)` on that executor during `App.Shutdown`.
+- Use `App.StartWorker(queue, handlers, opts)` to start a `pkg/job` `Worker` that processes a `RedisQueue`. If the App has an Executor configured the worker will submit job handler executions to that executor; otherwise handlers run synchronously in worker goroutines.
+- The App records workers started via `StartWorker` and will call `Stop()` on them and wait for them to finish during `App.Shutdown` so background work is drained before process exit.
+
+This design keeps the runtime small and explicit: provide an executor when you want centralized, bounded concurrency and let the App manage shutdown for executors it created.
 
 ## License
 

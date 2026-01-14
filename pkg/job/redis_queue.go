@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/redis/go-redis/v9"
+	"github.com/undiegomejia/flow/pkg/exec"
 )
 
 // RedisQueue is a small Redis-backed queue using LIST for immediate jobs and ZSET for delayed jobs.
@@ -133,6 +134,9 @@ type Worker struct {
 	wg        *sync.WaitGroup
 	workersWg *sync.WaitGroup
 	cancel    context.CancelFunc
+	// exec is an optional executor for dispatching job handlers. If nil the
+	// worker will execute handlers synchronously in the worker goroutine.
+	exec exec.Executor
 }
 
 // NewWorker constructs a new Worker.
@@ -148,6 +152,12 @@ func NewWorker(q *RedisQueue, handlers map[string]Handler, opts WorkerOptions) *
 		wg:        new(sync.WaitGroup),
 		workersWg: new(sync.WaitGroup),
 	}
+}
+
+// SetExecutor sets an Executor to be used for running job handlers. This is
+// optional; if not set handlers run synchronously in worker goroutines.
+func (w *Worker) SetExecutor(e exec.Executor) {
+	w.exec = e
 }
 
 // Start runs the worker loop. It returns when the workers have exited and all inflight jobs are done.
@@ -206,7 +216,23 @@ func (w *Worker) Start(ctx context.Context) error {
 					return
 				}
 
-				// process job (synchronously in this worker goroutine)
+				// process job: either dispatch via executor or run synchronously
+				if w.exec != nil {
+					// try to submit; if executor rejects, re-enqueue and continue
+					err := w.exec.Submit(context.Background(), func(ctx context.Context) {
+						_ = w.handleJob(ctx, j)
+					})
+					if err != nil {
+						// requeue job for later
+						_ = w.queue.Enqueue(context.Background(), j)
+						// small backoff to avoid tight loop
+						time.Sleep(10 * time.Millisecond)
+						continue
+					}
+					continue
+				}
+
+				// synchronous processing in worker goroutine
 				w.wg.Add(1)
 				_ = w.handleJob(context.Background(), j)
 				w.wg.Done()

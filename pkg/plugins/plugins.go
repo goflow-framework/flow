@@ -38,7 +38,9 @@ func Register(p Plugin) error {
 		return errors.New("plugin: empty name")
 	}
 
-	// Validate compatible plugin API version before registering
+	// Validate compatible plugin API version before registering. Use errors.Is
+	// to allow callers to detect specific failure kinds (empty, invalid,
+	// incompatible) via the framework sentinel errors.
 	if err := flow.ValidatePluginVersion(p.Version()); err != nil {
 		return fmt.Errorf("plugin %s: %w", name, err)
 	}
