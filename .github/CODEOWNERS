@@ -1,4 +1,4 @@
-# Set you as the code owner for the entire repository so branch protection
-# can require your review before merges. Replace with a team or other users
-# if desired.
+# Specify code owners who will be automatically requested for review
+# Format: <path> <owner>
+
 * @undiegomejia
