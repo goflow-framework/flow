@@ -23,10 +23,6 @@
 # Vendor (if you vendor dependencies locally)
 /vendor/
 
-# Example and CLI binaries (built outputs)
-cmd/*/flow
-**/flow
-
 # Profiling, benchmark and coverage outputs
 *.prof
 *.pprof
@@ -65,10 +61,6 @@ node_modules/
 # OS junk
 .DS_Store
 Thumbs.db
-
-# Generated/example outputs and large artifacts
-gen-compile*/
-examples/gen-compile*/
 
 # Misc
 *.bak

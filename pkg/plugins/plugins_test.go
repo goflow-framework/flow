@@ -26,13 +26,12 @@ func (d *dummyPlugin) Mount(a *flow.App) error {
 	d.mountCalled = true
 	return nil
 }
-func (d *dummyPlugin) Middlewares() []flow.Middleware { return nil }
+func (d *dummyPlugin) Middlewares() []flow.Middleware  { return nil }
+func (d *dummyPlugin) Version() string                 { return "v0" }
+func (d *dummyPlugin) Start(ctx context.Context) error { return nil }
+func (d *dummyPlugin) Stop(ctx context.Context) error  { return nil }
 
 func TestRegisterAndApplyAll(t *testing.T) {
-	// ensure clean registry for test
-	Reset()
-	defer Reset()
-
 	app := flow.New("foo")
 	name := fmt.Sprintf("dummy-%d", time.Now().UnixNano())
 	p := &dummyPlugin{name: name}
@@ -68,43 +67,5 @@ func TestRegisterAndApplyAll(t *testing.T) {
 
 	if app.Name != "inited-"+name {
 		t.Fatalf("expected app name mutated by plugin Init, got %q", app.Name)
-	}
-}
-
-type shutdownPlugin struct {
-	dummyPlugin
-	shutdownCalled bool
-}
-
-// Implement the expected method via type with correct signature for the
-// test: provide OnShutdown(context.Context) error so ShutdownAll can detect it.
-func (s *shutdownPlugin) OnShutdown(ctx context.Context) error {
-	s.shutdownCalled = true
-	return nil
-}
-
-func TestShutdownAll(t *testing.T) {
-	Reset()
-	defer Reset()
-
-	app := flow.New("foo")
-	name := fmt.Sprintf("shutdown-%d", time.Now().UnixNano())
-	sp := &shutdownPlugin{dummyPlugin: dummyPlugin{name: name}}
-
-	if err := Register(sp); err != nil {
-		t.Fatalf("register shutdown plugin: %v", err)
-	}
-
-	// apply so mount/init are called (not strictly required for shutdown)
-	if err := ApplyAll(app); err != nil {
-		t.Fatalf("ApplyAll: %v", err)
-	}
-
-	if err := ShutdownAll(context.Background()); err != nil {
-		t.Fatalf("ShutdownAll: %v", err)
-	}
-
-	if !sp.shutdownCalled {
-		t.Fatalf("expected shutdown hook called")
 	}
 }
