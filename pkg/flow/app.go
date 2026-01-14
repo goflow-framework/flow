@@ -32,6 +32,7 @@ import (
 	"time"
 
 	orm "github.com/undiegomejia/flow/internal/orm"
+	"github.com/undiegomejia/flow/pkg/assets"
 	"github.com/undiegomejia/flow/pkg/observability"
 	"github.com/uptrace/bun"
 )
@@ -78,6 +79,10 @@ type App struct {
 	// bunAdapter holds an optional Bun adapter for ORM operations. If set,
 	// App.Bun() returns the underlying *bun.DB for convenience.
 	bunAdapter *orm.BunAdapter
+
+	// services is an application-scoped registry for sharing services between
+	// components and plugins. Use App.RegisterService/GetService to access it.
+	services *ServiceRegistry
 
 	// tracerShutdown holds an optional shutdown function returned by a tracer
 	// initializer (eg. observability.SetupStdoutTracer). If non-nil it will be
@@ -176,6 +181,43 @@ func WithViewsFuncMap(m template.FuncMap) Option {
 			a.Views = NewViewManager("views")
 		}
 		a.Views.SetFuncMap(m)
+	}
+}
+
+// WithEmbeddedAssets wires embedded built assets into the App. It mounts the
+// embedded asset filesystem under prefix (eg "/assets/") and registers an
+// "asset" template function that resolves logical asset paths to their
+// fingerprinted counterparts when a manifest is present at dist/manifest.json.
+// If no manifest is found the function returns prefix+path.
+func WithEmbeddedAssets(prefix string) Option {
+	return func(a *App) {
+		if a == nil {
+			return
+		}
+		if a.Views == nil {
+			a.Views = NewViewManager("views")
+		}
+
+		// mount embedded assets (production)
+		_ = a.MountAssets(prefix, assets.Assets(), "")
+
+		// load manifest if present
+		man, err := assets.LoadManifest("dist/manifest.json")
+
+		// merge existing FuncMap preserving previous entries
+		fm := template.FuncMap{}
+		if a.Views.FuncMap != nil {
+			for k, v := range a.Views.FuncMap {
+				fm[k] = v
+			}
+		}
+
+		if err == nil && man != nil {
+			fm["asset"] = assets.AssetFuncFromManifest(man, prefix)
+		} else {
+			fm["asset"] = func(s string) string { return prefix + s }
+		}
+		a.Views.SetFuncMap(fm)
 	}
 }
 
@@ -307,6 +349,7 @@ func New(name string, opts ...Option) *App {
 		Views:           NewViewManager("views"),
 		Sessions:        DefaultSessionManager(),
 		middleware:      make([]Middleware, 0),
+		services:        NewServiceRegistry(), // Initialize services registry
 	}
 
 	for _, opt := range opts {
@@ -340,6 +383,23 @@ func (a *App) Handler() http.Handler {
 		h = a.middleware[i](h)
 	}
 	return h
+}
+
+// RegisterService registers a named service in the App's ServiceRegistry.
+// It returns an error if the service name is invalid or already registered.
+func (a *App) RegisterService(name string, svc interface{}) error {
+	if a == nil || a.services == nil {
+		return fmt.Errorf("app: services not initialized")
+	}
+	return a.services.Register(name, svc)
+}
+
+// GetService looks up a previously registered service by name.
+func (a *App) GetService(name string) (interface{}, bool) {
+	if a == nil || a.services == nil {
+		return nil, false
+	}
+	return a.services.Get(name)
 }
 
 // Start starts the HTTP server in a background goroutine and returns immediately.
@@ -439,6 +499,8 @@ func (a *App) Shutdown(ctx context.Context) error {
 func (a *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	a.Handler().ServeHTTP(w, r)
 }
+
+// ...existing code...
 
 // MountAssets mounts a handler on the given prefix to serve static assets.
 // If devProxy is non-empty it will proxy requests to the provided URL (eg

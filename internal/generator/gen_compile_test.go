@@ -14,21 +14,11 @@ func TestGeneratedModelCompilesAndRuns(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read module name: %v", err)
 	}
-	gov, err := readGoVersion(repo)
-	if err != nil {
-		gov = "1.20"
-	}
-
 	// create an isolated temporary module so tests don't modify repo/examples
 	projDir := t.TempDir()
 	uid := filepath.Base(projDir)
 	moduleName := modName + "/examples/" + uid
-	absRepo, _ := filepath.Abs(repo)
-	goMod := "module " + moduleName + "\n\n" +
-		"go " + gov + "\n\n" +
-		"require " + modName + " v0.0.0\n\n" +
-		"replace " + modName + " => " + absRepo + "\n"
-	if err := os.WriteFile(filepath.Join(projDir, "go.mod"), []byte(goMod), 0o644); err != nil {
+	if err := WriteTempGoMod(projDir, moduleName, false); err != nil {
 		t.Fatalf("write go.mod: %v", err)
 	}
 

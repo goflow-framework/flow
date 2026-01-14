@@ -81,3 +81,37 @@ func RunCmdCombined(dir string, name string, args ...string) ([]byte, error) {
 	}
 	return out, fmt.Errorf("%v\noutput: %s", err, string(out))
 }
+
+// WriteTempGoMod writes a minimal go.mod into projDir for moduleName. The
+// go version is taken from the repository root's go.mod and the repo module
+// is added as a replace directive using an absolute path so temporary
+// modules resolve local packages reliably across toolchains.
+func WriteTempGoMod(projDir, moduleName string, replaceSelf bool) error {
+	repo := findRepoRoot()
+	modName, err := readModuleName(repo)
+	if err != nil {
+		return fmt.Errorf("read module name: %w", err)
+	}
+	gov, err := readGoVersion(repo)
+	if err != nil {
+		gov = "1.20"
+	}
+	absRepo, err := filepath.Abs(repo)
+	if err != nil {
+		absRepo = repo
+	}
+
+	goMod := fmt.Sprintf("module %s\n\ngo %s\n\nrequire %s v0.0.0\n\nreplace %s => %s\n",
+		moduleName, gov, modName, modName, absRepo)
+	if replaceSelf {
+		// point the module name to the absolute temp project path so the
+		// go toolchain resolves imports without ambiguity across environments
+		// and proxy settings.
+		absProj, err := filepath.Abs(projDir)
+		if err != nil {
+			absProj = projDir
+		}
+		goMod += fmt.Sprintf("replace %s => %s\n", moduleName, absProj)
+	}
+	return os.WriteFile(filepath.Join(projDir, "go.mod"), []byte(goMod), 0o644)
+}
