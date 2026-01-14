@@ -6,12 +6,15 @@ import (
 	"sync"
 )
 
-// Plugin gives lifecycle hooks for apps. Plugins may be registered at
-// application initialization time and optionally started/stopped with the App.
+// Plugin is the canonical plugin interface for Flow. It provides lifecycle
+// hooks for initialization, mount-time registration, optional middleware,
+// and optional background start/stop semantics.
 type Plugin interface {
 	Name() string
 	Version() string
 	Init(app *App) error
+	Mount(app *App) error
+	Middlewares() []Middleware
 	Start(ctx context.Context) error
 	Stop(ctx context.Context) error
 }

@@ -62,10 +62,6 @@ node_modules/
 .DS_Store
 Thumbs.db
 
-# Generated/example outputs and large artifacts
-gen-compile*/
-examples/gen-compile*/
-
 # Misc
 *.bak
 *.tmp

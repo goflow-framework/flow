@@ -10,26 +10,10 @@ import (
 	"github.com/undiegomejia/flow/pkg/flow"
 )
 
-// Plugin is the minimal interface a Flow plugin should implement.
-// Implementations may provide initialization hooks, mount-time hooks and
-// optional middleware to be applied to the host App.
-type Plugin interface {
-	// Name returns a short unique name for the plugin.
-	Name() string
-
-	// Init is called early with the App reference. Use it to configure
-	// global resources or perform early checks. It may mutate the App.
-	Init(a *flow.App) error
-
-	// Mount is called after Init and after previously-registered plugins
-	// have been initialized. Use it to register routes or attach middleware
-	// via App.Use().
-	Mount(a *flow.App) error
-
-	// Middlewares returns middleware the plugin wishes to register. These
-	// will be appended to the App in Mount order. Returning nil is fine.
-	Middlewares() []flow.Middleware
-}
+// Plugin is an alias to the canonical flow.Plugin interface. This package
+// provides a small registry and helpers for compile-time plugin registration
+// used by the framework and examples.
+type Plugin = flow.Plugin
 
 var (
 	mu       sync.RWMutex
