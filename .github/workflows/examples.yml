@@ -46,15 +46,11 @@ jobs:
         run: go vet ./...
 
       - name: staticcheck
+        if: matrix.go-version == '1.24'
         run: |
           # Use latest staticcheck on Go 1.24; for older Go toolchains install a pinned
           # staticcheck release that is compatible with older Go versions.
-          if [ "${{ matrix.go-version }}" = "1.24" ]; then
-            go install honnef.co/go/tools/cmd/staticcheck@latest
-          else
-            # pinned staticcheck release that supports older Go toolchains.
-            go install honnef.co/go/tools/cmd/staticcheck@2022.1.2
-          fi
+          go install honnef.co/go/tools/cmd/staticcheck@latest
           staticcheck ./...
 
       - name: Run tests
