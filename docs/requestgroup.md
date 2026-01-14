@@ -37,6 +37,41 @@ func handler(ctx *flow.Context) {
 }
 ```
 
+Cancellation and explicit Wait
+--------------------------------
+
+If a goroutine returns an error, the RequestGroup cancels the shared
+context; other goroutines should observe this cancellation and return
+quickly. You can let the framework wait for spawned goroutines by
+returning from the handler (the router wrappers call `defer PutContext(ctx)`),
+or you can wait explicitly in the handler by calling `ctx.RequestGroup().Wait()`.
+
+Example: explicit Wait and surfacing errors
+
+```go
+func handler(ctx *flow.Context) {
+  ctx.Go(func(cctx context.Context) error {
+    time.Sleep(50 * time.Millisecond)
+    return fmt.Errorf("oops")
+  })
+
+  if err := ctx.RequestGroup().Wait(); err != nil {
+    ctx.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+    return
+  }
+  ctx.JSON(http.StatusOK, map[string]string{"status": "ok"})
+}
+```
+
+Middleware usage
+-----------------
+
+Middleware can also spawn request-scoped goroutines using the Context's
+RequestGroup; because the group is anchored to the request context, tasks
+spawned in middleware are canceled when the request is canceled. Be
+careful to avoid long-running background work in middleware unless you
+explicitly manage lifecycle and resource usage.
+
 Notes
 - `RequestGroup.Wait()` returns aggregated errors; `PutContext` ignores
   those errors because there is no good place to surface them at the
