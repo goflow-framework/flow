@@ -567,7 +567,7 @@ var adminLayoutTmpl = `<!doctype html>
 <head>
   <meta charset="utf-8">
   <title>Admin - {{.Title}}</title>
-  <link rel="stylesheet" href="{{asset "admin/admin.css"}}">
+  <link rel="stylesheet" href="/assets/admin/admin.css">
   <style>body{font-family:Arial,Helvetica,sans-serif;padding:20px}</style>
 </head>
 <body>
