@@ -23,8 +23,7 @@ This README gives a concise introduction, quickstart, and reference for the main
 The repository contains a small example app under `examples/simple`. To run it from a Linux environment (or WSL on Windows):
 
 ```bash
-# from the repository root. Replace <repo_root> with your repository path.
-cd <repo_root>
+# from the repository root. Go to your repository path.
 go run ./examples/simple
 ```
 
@@ -39,8 +38,7 @@ The example demonstrates controllers and views (see `examples/simple/app/control
 There is also a Bun ORM demo that demonstrates wiring the Bun adapter into the `App`, running `AutoMigrate`, and doing basic DB operations (Linux/WSL):
 
 ```bash
-# from the repository root. Replace <repo_root> with your repository path.
-cd <repo_root>
+# from the repository root. Go to your repository path.
 go run ./examples/bun_demo
 ```
 
@@ -122,11 +120,11 @@ Make sure you have Go 1.20+ (project uses module mode). These commands assume a 
 From the repository root:
 
 ```bash
-# run all tests (replace <repo_root> with your repository path)
-cd <repo_root> && go test ./... -v
+# run all tests. Go to your repository path.
+go test ./... -v
 
-# build the project (replace <repo_root> with your repository path)
-cd <repo_root> && go build ./...
+# build the project. Go to your repository path.
+go build ./...
 ```
 
 ## Formatting
@@ -332,4 +330,5 @@ This design keeps the runtime small and explicit: provide an executor when you w
 ## License
 
 This project is provided under an MIT-style license. Modify as appropriate for your needs.
+
 
