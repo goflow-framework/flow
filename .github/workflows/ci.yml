@@ -28,7 +28,7 @@ jobs:
         with:
           path: |
             ~/.cache/go-build
-            ${{ env.GOMODCACHE }}
+            ${{ github.workspace }}/pkg/mod
           key: ${{ runner.OS }}-go-${{ hashFiles('**/go.sum') }}
           restore-keys: |
             ${{ runner.OS }}-go-
@@ -44,10 +44,8 @@ jobs:
           GOBIN=$(go env GOPATH)/bin
           mkdir -p "$GOBIN"
           GOBIN="$GOBIN" go install honnef.co/go/tools/cmd/staticcheck@latest
-
-      - name: Run staticcheck
-        run: |
-          $(go env GOPATH)/bin/staticcheck ./...
+      # staticcheck moved to a dedicated job so heavy linting doesn't slow the
+      # main lint-and-test pipeline. See `staticcheck` job below.
 
       - name: Check gofmt
         run: |
@@ -159,7 +157,7 @@ jobs:
         with:
           path: |
             ~/.cache/go-build
-            ${{ env.GOMODCACHE }}
+            ${{ github.workspace }}/pkg/mod
           key: ${{ runner.OS }}-go-1.24-${{ hashFiles('**/go.sum') }}
           restore-keys: |
             ${{ runner.OS }}-go-1.24-
@@ -178,6 +176,27 @@ jobs:
         with:
           name: generator-integration
           path: .ci/integration/generator_tests.txt
+  staticcheck:
+    name: staticcheck (lint)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.24'
+
+      - name: Install staticcheck
+        run: |
+          GOBIN=$(go env GOPATH)/bin
+          mkdir -p "$GOBIN"
+          GOBIN="$GOBIN" go install honnef.co/go/tools/cmd/staticcheck@latest
+
+      - name: Run staticcheck
+        run: |
+          $(go env GOPATH)/bin/staticcheck ./...
   test:
     name: Test (Go ${{ matrix.go-version }})
     runs-on: ubuntu-latest
