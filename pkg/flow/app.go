@@ -500,8 +500,6 @@ func (a *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	a.Handler().ServeHTTP(w, r)
 }
 
-// ...existing code...
-
 // MountAssets mounts a handler on the given prefix to serve static assets.
 // If devProxy is non-empty it will proxy requests to the provided URL (eg
 // http://localhost:8000) which is useful when running a local bundler/dev
