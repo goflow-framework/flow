@@ -12,9 +12,9 @@ type incompatiblePlugin struct{}
 
 func (p *incompatiblePlugin) Name() string                    { return "bad" }
 func (p *incompatiblePlugin) Version() string                 { return "v1.2.3" }
-func (p *incompatiblePlugin) Init(a *flow.App) error         { return nil }
-func (p *incompatiblePlugin) Mount(a *flow.App) error        { return nil }
-func (p *incompatiblePlugin) Middlewares() []flow.Middleware { return nil }
+func (p *incompatiblePlugin) Init(a *flow.App) error          { return nil }
+func (p *incompatiblePlugin) Mount(a *flow.App) error         { return nil }
+func (p *incompatiblePlugin) Middlewares() []flow.Middleware  { return nil }
 func (p *incompatiblePlugin) Start(ctx context.Context) error { return nil }
 func (p *incompatiblePlugin) Stop(ctx context.Context) error  { return nil }
 
