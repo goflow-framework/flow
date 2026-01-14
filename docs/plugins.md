@@ -1,77 +1,161 @@
 # Plugins
 
 Flow supports a small, explicit plugin model built around a canonical
-`Plugin` interface and a lightweight `ServiceRegistry` attached to an
-`App` instance. The goal is to keep plugin interactions explicit and
-testable while allowing simple runtime registration patterns.
+`Plugin` interface (`pkg/flow.Plugin`) and a lightweight
+`ServiceRegistry` attached to an `App` instance. The goal is to keep plugin
+interactions explicit and testable while allowing simple runtime and
+compile-time registration patterns.
 
 Core concepts
 
 - `flow.Plugin` — interface for lifecycle hooks (Init, Mount, Start, Stop).
-- `flow.ServiceRegistry` — threadsafe registry for sharing services between
-  plugins and application components.
+- `flow.ServiceRegistry` — threadsafe registry for sharing typed services
+  between plugins and application components (e.g. mailer, metrics client).
+- `pkg/plugins` — a thin registry helper package used for compile-time
+  registration (optional).
 
 Registration patterns
 
-1. Runtime registration (recommended)
+1) Runtime registration (recommended)
+
+This is the simplest pattern: your application (typically in `main`) calls
+registration functions provided by a plugin package and explicitly wires
+services into the `App`.
 
 ```go
-import "github.com/undiegomejia/flow/pkg/flow"
+package main
 
-app := flow.New("myapp")
+import (
+    "context"
+    "log"
 
-// register a named service
-_ = app.RegisterService("mailer", myMailer)
+    "github.com/undiegomejia/flow/pkg/flow"
+    myplugin "github.com/yourorg/yourplugin"
+)
 
-// later
-svc, ok := app.GetService("mailer")
-if ok {
-    mailer := svc.(MyMailer)
-    // use mailer
+func main() {
+    app := flow.New("myapp")
+
+    // plugin performs runtime registration (returns an error on misconfig)
+    if err := myplugin.Register(app); err != nil {
+        log.Fatalf("register plugin: %v", err)
+    }
+
+    // optional: start plugin background work if plugin implements Start
+    // (see flow.Plugin.Start contract if used)
+
+    // start app
+    _ = app.Start()
+    // ... run server loop, signal handling, etc.
+    _ = app.Shutdown(context.Background())
 }
 ```
 
-2. Compile-time registration (use sparingly)
+2) Compile-time registration (init-time)
 
-Plugins may register themselves during package `init()` by calling a
-registration helper in `pkg/plugins`. This is useful for first-party
-plugins distributed with the repo. Runtime registration (explicit calls in
-`main`) is preferred for clarity.
+Packages can register themselves from `init()` using `pkg/plugins` so that
+plugins are discovered by import side-effect. This is useful for first-party
+plugins shipped with the repository. Prefer runtime registration for clarity
+and easier testability.
 
-ServiceRegistry contract
+Example plugin (compile-time registration)
 
-Services are stored as `interface{}`; consumers should document and assert
-expected concrete types. Keep service interfaces small and well documented.
+```go
+// pkg/plugins/example/example.go
+package example
 
-Example plugins
+import (
+    "context"
 
-See `examples/plugins/simple` for a minimal plugin that registers a service
-and demonstrates `App.RegisterService` usage.
+    "github.com/undiegomejia/flow/pkg/flow"
+    "github.com/undiegomejia/flow/pkg/plugins"
+)
 
-Security note
+type ExamplePlugin struct{}
 
-Plugins run with the same process privileges as the app. Do not load
-untrusted third-party plugins in production without additional isolation.
-# Plugins
+func (p *ExamplePlugin) Name() string { return "example" }
+func (p *ExamplePlugin) Version() string { return "v0.1.0" }
+func (p *ExamplePlugin) Init(a *flow.App) error {
+    // register a service for other components to consume
+    _ = a.RegisterService("example.mailer", NewMailer())
+    return nil
+}
+func (p *ExamplePlugin) Mount(a *flow.App) error {
+    // register routes or middleware using app.Use / controllers
+    return nil
+}
+func (p *ExamplePlugin) Middlewares() []flow.Middleware { return nil }
+func (p *ExamplePlugin) Start(ctx context.Context) error { return nil }
+func (p *ExamplePlugin) Stop(ctx context.Context) error { return nil }
 
-Flow plugins provide a lightweight way to extend an application at boot
-time. The minimal plugin API is intentionally small and aims for compile-time
-registration (plugins call `plugins.Register(...)` from init()).
+func init() {
+    plugins.Register(&ExamplePlugin{})
+}
+```
 
-Key concepts
-- Plugin: implement `plugins.Plugin` with `Name()`, `Init(*flow.App)`, `Mount(*flow.App)` and `Middlewares()`.
-- Register: call `plugins.Register(p)` (typically from an `init()` in the plugin package).
-- ApplyAll: the host application should call `plugins.ApplyAll(app)` during startup to run Init/Mount hooks and register any middleware returned by plugins.
+Bootstrapping and ApplyAll
 
-Lifecycle
-1. Init pass: `Init(a)` is called for all registered plugins in registration order. Use this to prepare shared resources, validate configuration or mutate the App.
-2. Mount pass: `Mount(a)` is called for all plugins after Init. Use this to register routes (via `app.SetRouter` / controllers) or to call `app.Use(...)`.
+If you use compile-time registration via `pkg/plugins`, call
+`plugins.ApplyAll(app)` during application bootstrap to execute the
+Init and Mount passes and register any middleware returned by plugins.
 
-Notes and recommendations
-- Keep plugins small and focused. For most extensions you only need to provide middleware or mount a few routes.
-- This plugin model is compile-time oriented; plugins are typically compiled into the application binary. A runtime plugin registry can be built on top of this API if needed later.
+```go
+// cmd/myapp/main.go
+package main
 
-Example
-1. Create a plugin package under `pkg/plugins/yourplugin`.
-2. In its `init()` register the plugin.
-3. In your `cmd/...` bootstrap code call `plugins.ApplyAll(app)` before `app.Start()`.
+import (
+    "context"
+    "log"
+
+    "github.com/undiegomejia/flow/pkg/flow"
+    "github.com/undiegomejia/flow/pkg/plugins"
+)
+
+func main() {
+    app := flow.New("myapp", flow.WithDefaultMiddleware())
+
+    // apply registered plugins (runs Init and Mount passes)
+    if err := plugins.ApplyAll(app); err != nil {
+        log.Fatalf("apply plugins: %v", err)
+    }
+
+    if err := app.Start(); err != nil {
+        log.Fatalf("start app: %v", err)
+    }
+    // ... graceful shutdown handling omitted for brevity
+    _ = app.Shutdown(context.Background())
+}
+```
+
+Working with services
+
+`ServiceRegistry` stores `interface{}` values keyed by name. Keep service
+interfaces small and assert the concrete type at consumption points.
+
+```go
+// registering (in plugin Init or runtime Register)
+_ = app.RegisterService("mailer", myMailer)
+
+// retrieving (in handlers or other plugins)
+svc, ok := app.GetService("mailer")
+if ok {
+    mailer := svc.(MyMailer) // type assert and use
+    mailer.Send(...)
+}
+```
+
+Testing plugins
+
+- Unit test plugin Init/Mount using a plain `flow.New(...)` App instance and
+  assert service registration or route/middleware effects.
+- For compile-time plugins, tests may call `plugins.List()` and `plugins.Get()`
+  or call `plugins.ApplyAll(app)` to exercise Init/Mount in order.
+
+Notes & recommendations
+
+- Prefer runtime registration for clarity and easier testing.
+- Keep plugin surface area small — register services and mount routes or
+  middleware; avoid mutating unrelated global state.
+- Document plugin semantic versioning in its package and validate major
+  compatibility at registration if needed.
+
