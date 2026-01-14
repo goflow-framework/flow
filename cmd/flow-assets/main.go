@@ -1,12 +1,15 @@
 package main
 
 import (
+    "crypto/sha1"
+    "encoding/json"
     "flag"
     "fmt"
     "log"
     "os"
     "os/exec"
     "path/filepath"
+    "strings"
 )
 
 func main() {
