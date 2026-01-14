@@ -24,8 +24,9 @@ func LoadManifest(path string) (Manifest, error) {
 
 // AssetFuncFromManifest returns a template-friendly function that resolves an
 // asset key into the manifest-mapped path prefixed with prefix. Example:
-//   asset := AssetFuncFromManifest(manifest, "/assets/")
-//   asset("js/app.js") -> "/assets/js/app.a1b2c3.js"
+//
+//	asset := AssetFuncFromManifest(manifest, "/assets/")
+//	asset("js/app.js") -> "/assets/js/app.a1b2c3.js"
 func AssetFuncFromManifest(man Manifest, prefix string) func(string) string {
 	return func(key string) string {
 		if man == nil {

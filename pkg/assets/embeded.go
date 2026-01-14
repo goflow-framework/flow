@@ -23,7 +23,8 @@ func Assets() http.FileSystem {
 
 // FileServer returns an http.Handler that serves the embedded assets.
 // Example usage:
-//    http.Handle("/assets/", http.StripPrefix("/assets/", assets.FileServer()))
+//
+//	http.Handle("/assets/", http.StripPrefix("/assets/", assets.FileServer()))
 func FileServer() http.Handler {
 	return http.FileServer(Assets())
 }
