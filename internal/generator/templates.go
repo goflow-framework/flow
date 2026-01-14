@@ -546,3 +546,34 @@ auth:
 common:
   hello: "Hello"
 `
+var adminCSSTmpl = `/* Minimal admin CSS */
+body { background:#f7f7f7; color:#111 }
+nav { margin-bottom: 1em }
+main { background:#fff; padding:1em; border-radius:6px }
+`
+
+var appJSTmpl = `// Minimal application JS
+document.addEventListener('DOMContentLoaded', function(){
+  console.log('app JS loaded')
+});
+`
+
+var appCSSTmpl = `/* Minimal application CSS */
+body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; }
+header { padding: 1rem; border-bottom: 1px solid #eee }
+`
+
+var adminLayoutTmpl = `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Admin - {{.Title}}</title>
+  <link rel="stylesheet" href="{{asset "admin/admin.css"}}">
+  <style>body{font-family:Arial,Helvetica,sans-serif;padding:20px}</style>
+</head>
+<body>
+  <nav><a href="/admin">Admin</a> | <a href="/">Home</a></nav>
+  <div id="flash">{{/* TODO: flash messages */}}</div>
+  <main>{{ template "content" . }}</main>
+</body>
+</html>`
