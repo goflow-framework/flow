@@ -21,11 +21,16 @@ func TestCLI_GenerateAdmin_Smoke(t *testing.T) {
 
 	tmpProj := t.TempDir()
 	uid := filepath.Base(tmpProj)
-	moduleName := modName + "/examples/" + uid
+	// Use an independent module name (not a subpath of the repo module) to
+	// avoid Go module resolution treating the generated package as part of the
+	// main repo module. This prevents `go mod tidy` from attempting to fetch
+	// packages from the parent module.
+	moduleName := "example.com/" + uid
 	goMod := "module " + moduleName + "\n\n" +
 		"go 1.20\n\n" +
 		"require " + modName + " v0.0.0\n\n" +
-		"replace " + modName + " => " + repo + "\n"
+		"replace " + modName + " => " + repo + "\n" +
+		"replace " + moduleName + " => .\n"
 	if err := os.WriteFile(filepath.Join(tmpProj, "go.mod"), []byte(goMod), 0o644); err != nil {
 		t.Fatalf("write go.mod: %v", err)
 	}

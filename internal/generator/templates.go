@@ -145,18 +145,18 @@ func (c *{{.Controller}}) Delete(ctx *flow.Context) {
 }
 
 // MountAdminRoutes registers admin routes for this resource.
-func MountAdmin{{.Controller}}Routes(app *flow.App) {
-    r := flow.NewRouter(app)
-    ctrl := New{{.Controller}}(app)
-    base := "/admin/{{.Name}}"
-    r.Get(base, ctrl.Index)
-    r.Get(base+"/new", ctrl.New)
-    r.Post(base, ctrl.Create)
-    r.Get(base+"/:id", ctrl.Show)
-    r.Get(base+"/:id/edit", ctrl.Edit)
-    r.Post(base+"/:id", ctrl.Update)
-    r.Post(base+"/:id/delete", ctrl.Delete)
-    app.SetRouter(r.Handler())
+func MountAdmin{{.Title}}Routes(app *flow.App) {
+     r := flow.NewRouter(app)
+     ctrl := New{{.Controller}}(app)
+     base := "/admin/{{.Name}}"
+     r.Get(base, ctrl.Index)
+     r.Get(base+"/new", ctrl.New)
+     r.Post(base, ctrl.Create)
+     r.Get(base+"/:id", ctrl.Show)
+     r.Get(base+"/:id/edit", ctrl.Edit)
+     r.Post(base+"/:id", ctrl.Update)
+     r.Post(base+"/:id/delete", ctrl.Delete)
+     app.SetRouter(r.Handler())
 }
 `
 
