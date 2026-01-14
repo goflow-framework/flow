@@ -57,6 +57,42 @@ func (r *ServiceRegistry) Get(name string) (interface{}, bool) {
 	return s, ok
 }
 
+// GetAs returns the service registered under name cast to the requested type T.
+// If the service is not found or cannot be asserted to T the zero value and
+// false are returned. This is a convenience wrapper that avoids repeating
+// type assertions at call sites.
+// GetAs returns the service registered under name cast to the requested type T.
+// It is implemented as a generic package-level helper because Go does not
+// allow methods with independent type parameters on non-generic receiver
+// types. If the service is not found or cannot be asserted to T the zero
+// value and false are returned.
+func GetAs[T any](r *ServiceRegistry, name string) (T, bool) {
+	var zero T
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	s, ok := r.services[name]
+	if !ok {
+		return zero, false
+	}
+	t, ok := s.(T)
+	if !ok {
+		return zero, false
+	}
+	return t, true
+}
+
+// ListServices returns the registered service names in no particular order.
+// It can be used for diagnostics and tests.
+func (r *ServiceRegistry) ListServices() []string {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	out := make([]string, 0, len(r.services))
+	for k := range r.services {
+		out = append(out, k)
+	}
+	return out
+}
+
 // PluginAPIMajor is the major version of the plugin API expected by this
 // version of the framework. Plugins with a differing major semantic version
 // should be considered incompatible.
