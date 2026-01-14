@@ -57,10 +57,17 @@ jobs:
             exit 1
           fi
 
-      - name: Run tests with coverage
+      - name: Run tests with coverage (exclude generator integration)
         run: |
           mkdir -p .ci
-          go test ./... -v -coverprofile=.ci/coverage.out || true
+          # exclude the internal/generator package from the broad test run so
+          # it can be executed in an isolated job with a pinned toolchain.
+          pkgs=$(go list ./... | grep -v "internal/generator" || true)
+          if [ -z "$pkgs" ]; then
+            echo "no packages to test"
+          else
+            go test $pkgs -v -coverprofile=.ci/coverage.out || true
+          fi
 
       - name: Upload coverage report
         uses: actions/upload-artifact@v4
@@ -130,13 +137,43 @@ jobs:
         with:
           go-version: '1.24'
 
+      - name: Run other integration tests (if any)
+        run: |
+          echo "No other integration tests configured; generator tests run in dedicated job."
+
+  generator-compile:
+    name: Generator compile tests (isolated)
+    runs-on: ubuntu-latest
+    needs: lint-and-test
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go (generator tests require Go 1.24)
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.24'
+
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/go-build
+            ${{ env.GOMODCACHE }}
+          key: ${{ runner.OS }}-go-1.24-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.OS }}-go-1.24-
+
+      - name: Install modules
+        run: go mod download
+
       - name: Run generator CLI integration tests
         run: |
           mkdir -p .ci/integration
           # Run only the generator package tests which build and execute the CLI
           go test ./internal/generator -v 2>&1 | tee .ci/integration/generator_tests.txt
 
-      - name: Upload integration artifact
+      - name: Upload generator integration artifact
         uses: actions/upload-artifact@v4
         with:
           name: generator-integration
