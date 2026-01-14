@@ -34,9 +34,9 @@ import (
 
 	orm "github.com/undiegomejia/flow/internal/orm"
 	"github.com/undiegomejia/flow/pkg/assets"
-	"github.com/undiegomejia/flow/pkg/observability"
-	"github.com/undiegomejia/flow/pkg/job"
 	execpkg "github.com/undiegomejia/flow/pkg/exec"
+	"github.com/undiegomejia/flow/pkg/job"
+	"github.com/undiegomejia/flow/pkg/observability"
 	"github.com/uptrace/bun"
 )
 
