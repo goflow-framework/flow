@@ -1,0 +1,25 @@
+name: examples
+
+on:
+  push:
+    branches: [ main, add-plugin-api-serviceRegistry-skeleton ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-and-run-examples:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.20'
+      - name: Install deps
+        run: go mod download
+      - name: Run tests
+        run: go test ./... -v
+      - name: Run runtime example (smoke)
+        run: go run ./examples/plugins/runtime
+      - name: Run middleware example (smoke)
+        run: go run ./examples/plugins/middleware
