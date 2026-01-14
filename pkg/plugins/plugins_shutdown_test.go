@@ -18,11 +18,8 @@ func (p *shutdownPlugin) Init(a *flow.App) error          { return nil }
 func (p *shutdownPlugin) Mount(a *flow.App) error         { return nil }
 func (p *shutdownPlugin) Middlewares() []flow.Middleware  { return nil }
 func (p *shutdownPlugin) Start(ctx context.Context) error { return nil }
-func (p *shutdownPlugin) Stop(ctx context.Context) error  { return nil }
-
-// OnShutdown is the optional hook looked up by ShutdownAll in the plugins
-// registry. We implement it here to be invoked and record that it ran.
-func (p *shutdownPlugin) OnShutdown(ctx context.Context) error {
+func (p *shutdownPlugin) Stop(ctx context.Context) error {
+	// record that Stop was called during ShutdownAll
 	p.called = true
 	return nil
 }

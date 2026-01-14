@@ -119,17 +119,17 @@ func Reset() {
 	order = make([]string, 0)
 }
 
-// ShutdownAll invokes optional shutdown hooks on registered plugins in the
-// reverse of registration order. A plugin may implement an OnShutdown
-// method with the signature `OnShutdown(context.Context) error` — if present
-// it will be called. ShutdownAll returns the first error encountered.
+// ShutdownAll invokes plugin shutdown hooks in reverse registration order.
+// It will call the canonical Stop(context.Context) error lifecycle method
+// defined on the framework Plugin interface. ShutdownAll returns the first
+// aggregated error encountered (as a single error containing messages).
 func ShutdownAll(ctx context.Context) error {
 	mu.RLock()
 	names := make([]string, len(order))
 	copy(names, order)
 	mu.RUnlock()
 
-	// iterate in reverse order for shutdown
+	// iterate in reverse order for shutdown and call Stop(ctx) on each
 	var errs []string
 	for i := len(names) - 1; i >= 0; i-- {
 		name := names[i]
@@ -137,11 +137,8 @@ func ShutdownAll(ctx context.Context) error {
 		if p == nil {
 			continue
 		}
-		// optional shutdown hook
-		if sh, ok := p.(interface{ OnShutdown(context.Context) error }); ok {
-			if err := sh.OnShutdown(ctx); err != nil {
-				errs = append(errs, fmt.Sprintf("%s: %v", name, err))
-			}
+		if err := p.Stop(ctx); err != nil {
+			errs = append(errs, fmt.Sprintf("%s: %v", name, err))
 		}
 	}
 
