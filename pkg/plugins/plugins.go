@@ -38,6 +38,11 @@ func Register(p Plugin) error {
 		return errors.New("plugin: empty name")
 	}
 
+	// Validate compatible plugin API version before registering
+	if err := flow.ValidatePluginVersion(p.Version()); err != nil {
+		return fmt.Errorf("plugin %s: %w", name, err)
+	}
+
 	mu.Lock()
 	defer mu.Unlock()
 	if _, ok := registry[name]; ok {

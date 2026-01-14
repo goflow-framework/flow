@@ -3,6 +3,8 @@ package flow
 import (
 	"context"
 	"fmt"
+	"strconv"
+	"strings"
 	"sync"
 )
 
@@ -53,4 +55,33 @@ func (r *ServiceRegistry) Get(name string) (interface{}, bool) {
 	defer r.mu.RUnlock()
 	s, ok := r.services[name]
 	return s, ok
+}
+
+// PluginAPIMajor is the major version of the plugin API expected by this
+// version of the framework. Plugins with a differing major semantic version
+// should be considered incompatible.
+const PluginAPIMajor = 0
+
+// ValidatePluginVersion checks whether a plugin version string (eg "v0.1.2"
+// or "0.1.2") is compatible with the framework PluginAPIMajor. It returns
+// an error if the version cannot be parsed or the major version doesn't
+// match PluginAPIMajor.
+func ValidatePluginVersion(v string) error {
+	if v == "" {
+		return fmt.Errorf("empty plugin version")
+	}
+	// strip optional leading 'v'
+	v = strings.TrimPrefix(v, "v")
+	parts := strings.Split(v, ".")
+	if len(parts) == 0 {
+		return fmt.Errorf("invalid plugin version: %q", v)
+	}
+	maj, err := strconv.Atoi(parts[0])
+	if err != nil {
+		return fmt.Errorf("invalid major version in %q: %w", v, err)
+	}
+	if maj != PluginAPIMajor {
+		return fmt.Errorf("incompatible plugin major version %d (expected %d)", maj, PluginAPIMajor)
+	}
+	return nil
 }
