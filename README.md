@@ -204,6 +204,14 @@ _ = r.Resources("users", users)
 app.SetRouter(r.Handler())
 ```
 
+RequestGroup helper
+-------------------
+
+Flow exposes a small structured-concurrency helper `RequestGroup` accessible
+from a request `*flow.Context`. See `docs/requestgroup.md` for usage
+examples, cancellation semantics and a small demo app under
+`examples/requestgroup_demo`.
+
 The `MakeResourceAdapter(app, res)` adapts a `flow.Resource` (methods that accept `*Context`) to the internal router.
 
 See also: Executor & background workers (docs/executor.md) for guidance on running background tasks and wiring job workers to the App.

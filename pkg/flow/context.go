@@ -18,6 +18,7 @@
 package flow
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"html/template"
@@ -46,6 +47,11 @@ type Context struct {
 	// status stores the last status set via Status or one of the render
 	// helpers. Zero means unset; helper methods will set sensible defaults.
 	status int
+	// rg is an optional RequestGroup for request-scoped goroutines. It is
+	// lazily created by RequestGroup() and waited on by PutContext so
+	// deferred PutContext in router handlers will block until spawned
+	// goroutines complete.
+	rg *RequestGroup
 }
 
 // NewContext constructs a Context. App may be nil for tests or simple
@@ -80,6 +86,15 @@ var UseContextPool = true
 func PutContext(c *Context) {
 	if c == nil {
 		return
+	}
+	// If the handler spawned any request-scoped goroutines via
+	// c.RequestGroup()/c.Go(...), Wait for them to finish before clearing
+	// fields and returning the Context to the pool. We ignore errors from
+	// Wait here because there's nowhere useful to surface them; the
+	// application can inspect errors returned by goroutines if desired.
+	if c.rg != nil {
+		_ = c.rg.Wait()
+		c.rg = nil
 	}
 	// clear references
 	c.App = nil
@@ -275,5 +290,28 @@ func (c *Context) Error(status int, msg string) {
 	_, _ = c.W.Write([]byte(msg))
 }
 
-// TODO: add helpers for file uploads, streaming responses, template caching,
-// secure cookie helpers, and content negotiation as the framework evolves.
+// RequestGroup returns a request-scoped RequestGroup. It is lazily created
+// and anchored to the request's context so deadlines/cancellations propagate.
+func (c *Context) RequestGroup() *RequestGroup {
+	if c == nil {
+		return nil
+	}
+	if c.rg == nil {
+		// Use the request context so cancellations and deadlines carry over.
+		parent := context.Background()
+		if c.R != nil {
+			parent = c.R.Context()
+		}
+		c.rg = NewRequestGroup(parent)
+	}
+	return c.rg
+}
+
+// Go is a convenience helper that runs fn in the request's RequestGroup.
+// It creates the group if necessary.
+func (c *Context) Go(fn func(ctx context.Context) error) {
+	if c == nil {
+		return
+	}
+	c.RequestGroup().Go(fn)
+}
