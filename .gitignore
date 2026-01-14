@@ -23,10 +23,6 @@
 # Vendor (if you vendor dependencies locally)
 /vendor/
 
-# Example and CLI binaries (built outputs)
-cmd/*/flow
-**/flow
-
 # Profiling, benchmark and coverage outputs
 *.prof
 *.pprof
