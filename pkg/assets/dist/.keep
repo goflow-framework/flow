@@ -1,0 +1,3 @@
+This file keeps the dist directory under version control for the embed.go
+helper. It is intentionally empty and will be replaced by build outputs in
+real projects.
