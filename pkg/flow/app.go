@@ -33,6 +33,7 @@ import (
 
 	orm "github.com/undiegomejia/flow/internal/orm"
 	"github.com/undiegomejia/flow/pkg/observability"
+	"github.com/undiegomejia/flow/pkg/assets"
 	"github.com/uptrace/bun"
 )
 
