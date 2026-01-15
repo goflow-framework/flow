@@ -1,11 +1,4 @@
 run:
-  skip-dirs:
-    - ^tools$
-    - ^examples$
-    - ^bench-output$
-    - ^cmd/flow-worker$
-    - ^cmd/flow-assets$
-    - ^examples/.*$
   timeout: 5m
   tests: true
 
@@ -25,6 +18,14 @@ linters:
 
 issues:
   exclude-use-default: false
+  # directories to exclude from issue reporting (replacement for deprecated run.skip-dirs)
+  exclude-dirs:
+    - ^tools$
+    - ^examples$
+    - ^bench-output$
+    - ^cmd/flow-worker$
+    - ^cmd/flow-assets$
+    - ^examples/.*$
   exclude-rules:
     - linters:
         - errcheck
@@ -36,9 +37,7 @@ issues:
     - linters:
         - errcheck
       text: "Flush"
-    - path: _test\.go$
-      text: ""
-    
+
 linters-settings: {}
 
 exclude:
