@@ -18,19 +18,19 @@ jobs:
         run: |
           go version
           go env
-      - name: Prepare module & go caches
+      - name: Prepare module & go caches (no download)
         run: |
-          # Create isolated module and go caches under the runner temp dir
+          # Create isolated module and go caches under the runner temp dir.
+          # IMPORTANT: do NOT download modules on the runner. Downloading
+          # modules here can create cached export data compiled by the
+          # runner's Go toolchain and lead to export-data/version
+          # mismatches when the linter runs inside the container. We'll
+          # perform `go mod download` inside the container where the
+          # linter is built and executed.
           mkdir -p "$RUNNER_TEMP/gomodcache"
           mkdir -p "$RUNNER_TEMP/gocache"
-          # Export them for later steps (writing to GITHUB_ENV makes them
-          # available in subsequent steps)
           echo "GOMODCACHE=$RUNNER_TEMP/gomodcache" >> "$GITHUB_ENV"
           echo "GOCACHE=$RUNNER_TEMP/gocache" >> "$GITHUB_ENV"
-          # Clean any existing caches and download modules into the isolated cache
-          GOMODCACHE="$RUNNER_TEMP/gomodcache" GOCACHE="$RUNNER_TEMP/gocache" go clean -cache -modcache || true
-          GOMODCACHE="$RUNNER_TEMP/gomodcache" GOCACHE="$RUNNER_TEMP/gocache" go env
-          GOMODCACHE="$RUNNER_TEMP/gomodcache" GOCACHE="$RUNNER_TEMP/gocache" go mod download
       - name: Run golangci-lint inside a Go 1.24 container
         run: |
           export GOFLAGS='-mod=mod'
