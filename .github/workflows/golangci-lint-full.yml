@@ -53,7 +53,11 @@ jobs:
           GOMODCACHE=/tmp/gomodcache GOCACHE=/tmp/gocache /usr/local/go/bin/go list ./pkg/... ./internal/... || (echo 'go list failed' && exit 2)
           # Optionally run go vet to surface type-check issues earlier
           GOMODCACHE=/tmp/gomodcache GOCACHE=/tmp/gocache /usr/local/go/bin/go vet ./pkg/... ./internal/... || true
-          GOBIN="/go/bin" /usr/local/go/bin/go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.59.0
+          # Install prebuilt golangci-lint binary (v1.59.0) to avoid running `go install` (faster and deterministic)
+          echo '\n--- Installing golangci-lint binary (v1.59.0) ---\n'
+          curl -sSfL https://github.com/golangci/golangci-lint/releases/download/v1.59.0/golangci-lint-1.59.0-linux-amd64.tar.gz | tar -xz -C /tmp || (echo 'failed to download golangci-lint binary' && exit 2)
+          mv /tmp/golangci-lint-1.59.0-linux-amd64/golangci-lint /usr/local/bin/golangci-lint
+          chmod +x /usr/local/bin/golangci-lint
           echo '\n--- Diagnostic: go env (json) ---\n'
           /usr/local/go/bin/go env -json || true
           echo '\n--- Diagnostic: go list sync/atomic ---\n'
@@ -112,8 +116,10 @@ jobs:
             GOMODCACHE=/tmp/gomodcache GOCACHE=/tmp/gocache /usr/local/go/bin/go list -deps -json ./... > /app/ci-export-typecheck/deps.json || true; \
             /usr/local/go/bin/go env -json > /app/ci-export-typecheck/go_env.json || true; \
             /usr/local/go/bin/go list -json sync/atomic > /app/ci-export-typecheck/sync_atomic.json || true; \
-            GOBIN=/go/bin /usr/local/go/bin/go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.59.0; \
-            /go/bin/golangci-lint run --verbose --config .golangci.yml --enable typecheck ./... > /app/ci-export-typecheck/golangci_typecheck.out 2>&1"
+            # install prebuilt golangci-lint binary to avoid building it via `go install`
+            curl -sSfL https://github.com/golangci/golangci-lint/releases/download/v1.59.0/golangci-lint-1.59.0-linux-amd64.tar.gz | tar -xz -C /tmp || (echo 'failed to download golangci-lint binary' > /app/ci-export-typecheck/golangci_typecheck.out && exit 2); \
+            mv /tmp/golangci-lint-1.59.0-linux-amd64/golangci-lint /usr/local/bin/golangci-lint; chmod +x /usr/local/bin/golangci-lint; \
+            /usr/local/bin/golangci-lint run --verbose --config .golangci.yml --enable typecheck ./... > /app/ci-export-typecheck/golangci_typecheck.out 2>&1"
           rc=$?; echo "$rc" > ci-export-typecheck/golangci_exit_code || true
       - name: Archive typecheck diagnostic outputs
         run: |
@@ -152,5 +158,7 @@ jobs:
           echo 'Running blocking typecheck inside golang:1.24.11 container';
           docker run --rm -v "$PWD":/app -w /app golang:1.24.11 /bin/sh -lc "set -euo pipefail; export PATH=/usr/local/go/bin:/go/bin:$PATH; export GOFLAGS='-mod=mod -buildvcs=false'; mkdir -p /tmp/gomodcache /tmp/gocache; \
             GOMODCACHE=/tmp/gomodcache GOCACHE=/tmp/gocache /usr/local/go/bin/go mod download; \
-            GOBIN=/go/bin /usr/local/go/bin/go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.59.0; \
-            /go/bin/golangci-lint run --config .golangci.yml --enable typecheck ./...; "
+            # install prebuilt golangci-lint and run blocking typecheck
+            curl -sSfL https://github.com/golangci/golangci-lint/releases/download/v1.59.0/golangci-lint-1.59.0-linux-amd64.tar.gz | tar -xz -C /tmp || (echo 'failed to download golangci-lint binary' && exit 2); \
+            mv /tmp/golangci-lint-1.59.0-linux-amd64/golangci-lint /usr/local/bin/golangci-lint; chmod +x /usr/local/bin/golangci-lint; \
+            /usr/local/bin/golangci-lint run --config .golangci.yml --enable typecheck ./...; "
