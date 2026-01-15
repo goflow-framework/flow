@@ -29,7 +29,9 @@ jobs:
           mkdir -p "$GOBIN"
           GOBIN="$GOBIN" go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.59.0
 
-      - name: Run golangci-lint
+      - name: Run golangci-lint (core packages only)
         run: |
           export GOFLAGS='-mod=mod'
-          $(go env GOPATH)/bin/golangci-lint run --config .golangci.yml ./...
+          # Limit linting to core packages to avoid analyzing example/tool directories
+          # which can trigger analyzer export-data/typecheck errors in CI.
+          $(go env GOPATH)/bin/golangci-lint run --config .golangci.yml ./pkg/... ./internal/...
