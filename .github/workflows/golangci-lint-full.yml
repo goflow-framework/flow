@@ -63,7 +63,6 @@ jobs:
   run-official-golangci-image:
     name: Run official golangci-lint Docker image
     runs-on: ubuntu-latest
-    needs: build-and-run-linters
     steps:
       - uses: actions/checkout@v4
       - name: Run official golangci-lint image
