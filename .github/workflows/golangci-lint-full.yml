@@ -103,6 +103,9 @@ jobs:
       - name: Run typecheck inside Go container (non-blocking)
         run: |
           echo 'Running typecheck diagnostics inside golang:1.24.11 container';
+          # Run the container and write the golangci output into repo-mounted path.
+          # Capture the docker exit code on the runner and write it to a file so
+          # downstream steps can make a reliable decision.
           docker run --rm -v "$PWD":/app -w /app golang:1.24.11 /bin/sh -lc "set -euo pipefail; export GOFLAGS='-mod=mod -buildvcs=false'; mkdir -p /tmp/gomodcache /tmp/gocache; \
             GOMODCACHE=/tmp/gomodcache GOCACHE=/tmp/gocache /usr/local/go/bin/go clean -cache -modcache -testcache -i || true; \
             GOMODCACHE=/tmp/gomodcache GOCACHE=/tmp/gocache /usr/local/go/bin/go mod download; \
@@ -110,7 +113,8 @@ jobs:
             /usr/local/go/bin/go env -json > /app/ci-export-typecheck/go_env.json || true; \
             /usr/local/go/bin/go list -json sync/atomic > /app/ci-export-typecheck/sync_atomic.json || true; \
             GOBIN=/go/bin /usr/local/go/bin/go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.59.0; \
-            /go/bin/golangci-lint run --verbose --config .golangci.yml --enable typecheck ./... > /app/ci-export-typecheck/golangci_typecheck.out 2>&1 || true; "
+            /go/bin/golangci-lint run --verbose --config .golangci.yml --enable typecheck ./... > /app/ci-export-typecheck/golangci_typecheck.out 2>&1"
+          rc=$?; echo "$rc" > ci-export-typecheck/golangci_exit_code || true
       - name: Archive typecheck diagnostic outputs
         run: |
           tar -czf ci-export-typecheck.tar.gz ci-export-typecheck || true
@@ -122,8 +126,14 @@ jobs:
       - id: check
         name: Determine if typecheck produced issues
         run: |
-          # If the golangci output file exists and is non-empty we consider that an issue
-          if [ -f ci-export-typecheck/golangci_typecheck.out ] && [ -s ci-export-typecheck/golangci_typecheck.out ]; then
+          # Read the exit code produced by the docker run. Non-zero means golangci-lint found issues
+          # (or the container failed). Default to 'true' (has issues) if we can't read the code.
+          if [ -f ci-export-typecheck/golangci_exit_code ]; then
+            exitcode=$(cat ci-export-typecheck/golangci_exit_code)
+          else
+            exitcode=1
+          fi
+          if [ "$exitcode" -ne 0 ]; then
             echo "has_issues=true" >> "$GITHUB_OUTPUT"
           else
             echo "has_issues=false" >> "$GITHUB_OUTPUT"
