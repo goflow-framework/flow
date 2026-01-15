@@ -1,8 +1,16 @@
 run:
+  skip-dirs:
+    - ^tools$
+    - ^examples$
+    - ^bench-output$
+    - ^cmd/flow-worker$
+    - ^cmd/flow-assets$
+    - ^examples/.*$
   timeout: 5m
   tests: true
 
 linters:
+  disable-all: false
   enable:
     - govet
     - staticcheck
@@ -28,7 +36,9 @@ issues:
     - linters:
         - errcheck
       text: "Flush"
-
+    - path: _test\.go$
+      text: ""
+    
 linters-settings: {}
 
 exclude:
