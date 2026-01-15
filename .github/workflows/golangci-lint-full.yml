@@ -31,14 +31,17 @@ jobs:
           GOMODCACHE="$RUNNER_TEMP/gomodcache" GOCACHE="$RUNNER_TEMP/gocache" go clean -cache -modcache || true
           GOMODCACHE="$RUNNER_TEMP/gomodcache" GOCACHE="$RUNNER_TEMP/gocache" go env
           GOMODCACHE="$RUNNER_TEMP/gomodcache" GOCACHE="$RUNNER_TEMP/gocache" go mod download
-      - name: Build golangci-lint with local Go
-        run: |
-          GOBIN=$(go env GOPATH)/bin
-          mkdir -p "$GOBIN"
-          # build/install golangci-lint with the runner's Go to ensure analyzer
-          # and toolchain versions are compatible
-          GOBIN="$GOBIN" go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.59.0
-      - name: Run golangci-lint (full set)
+      - name: Run golangci-lint inside official docker image
         run: |
           export GOFLAGS='-mod=mod'
-          $(go env GOPATH)/bin/golangci-lint run --config .golangci.yml ./pkg/... ./internal/...
+          # Run the linter inside the official golangci-lint container to
+          # ensure analyzer and toolchain versions are consistent. Mount the
+          # repository and the isolated module/go caches created earlier so
+          # the container reuses the downloaded modules.
+          docker run --rm \
+            -v "$PWD":/app -w /app \
+            -v "$RUNNER_TEMP/gomodcache":/gomodcache \
+            -v "$RUNNER_TEMP/gocache":/gocache \
+            -e GOMODCACHE=/gomodcache -e GOCACHE=/gocache \
+            golangci/golangci-lint:v1.59.0 \
+            golangci-lint run --config .golangci.yml ./pkg/... ./internal/...
