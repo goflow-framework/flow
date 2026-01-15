@@ -8,8 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
 	"log"
+
+	"github.com/google/uuid"
 )
 
 // simple handler used by benchmarks

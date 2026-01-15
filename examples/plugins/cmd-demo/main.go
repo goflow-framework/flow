@@ -7,6 +7,7 @@ import (
 
 	"github.com/undiegomejia/flow/pkg/flow"
 	"github.com/undiegomejia/flow/pkg/plugins"
+
 	// import the sample plugin so it registers during init()
 	_ "github.com/undiegomejia/flow/pkg/plugins/sample"
 )

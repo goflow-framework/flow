@@ -2,9 +2,10 @@ package flow
 
 import (
 	"context"
-	execpkg "github.com/undiegomejia/flow/pkg/exec"
 	"sync/atomic"
 	"time"
+
+	execpkg "github.com/undiegomejia/flow/pkg/exec"
 )
 
 // BoundedExecutor is a simple bounded worker pool with a buffered task queue.
