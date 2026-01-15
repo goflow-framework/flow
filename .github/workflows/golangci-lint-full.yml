@@ -261,3 +261,37 @@ jobs:
         with:
           name: golangci-typecheck-diagnostics-blocking-debug
           path: ci-export-typecheck-blocking-debug.tar.gz
+
+  # Forced blocking job: run the blocking typecheck regardless of the gate.
+  # This is temporary and intended to collect full blocking diagnostics for debugging only.
+  typecheck-blocking-force:
+    name: Typecheck (blocking, forced - debug)
+    needs: typecheck-nonblocking
+    runs-on: ubuntu-latest
+    container:
+      image: golang:1.24.11
+    if: always()
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create export dir (blocking-force)
+        run: |
+          mkdir -p ./ci-export-typecheck
+      - name: Run blocking typecheck (force) inside Go container
+        run: |
+          if [ -f .github/scripts/run-golangci-in-container.sh ]; then
+            sh .github/scripts/run-golangci-in-container.sh _blocking_force || true
+          else
+            echo "helper script not found" > ./ci-export-typecheck/golangci_typecheck_blocking_force.out || true
+            echo 2 > ./ci-export-typecheck/golangci_exit_code_blocking_force || true
+          fi
+      - name: Archive blocking-force diagnostic outputs
+        if: always()
+        run: |
+          mkdir -p ci-export-typecheck
+          tar -czf ci-export-typecheck-blocking-force.tar.gz ci-export-typecheck || true
+      - name: Upload blocking-force diagnostics artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: golangci-typecheck-diagnostics-blocking-force
+          path: ci-export-typecheck-blocking-force.tar.gz
