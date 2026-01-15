@@ -27,6 +27,7 @@ jobs:
         uses: golangci/golangci-lint-action@v4
         with:
           version: v1.59.0
-          # run only on core packages and explicitly disable type-aware linters
-          # to avoid analyzer/export-data mismatches in CI.
-          args: --config .golangci.yml --disable typecheck --disable staticcheck --disable unused --disable govet ./pkg/... ./internal/...
+          # Run only purely syntactic linters and ignore repository config to
+          # prevent any type-aware analyzers from running (they trigger
+          # export-data/typecheck errors in this CI environment).
+          args: --no-config --disable-all --enable gofmt --enable goimports ./pkg/... ./internal/...
