@@ -43,4 +43,4 @@ jobs:
             -v "$RUNNER_TEMP/gocache":/gocache \
             -e GOMODCACHE=/gomodcache -e GOCACHE=/gocache \
             golang:1.24 \
-            /bin/sh -lc "set -euo pipefail; go version; go env; GOMODCACHE=/gomodcache GOCACHE=/gocache go mod download; GOBIN=\"/go/bin\" go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.59.0; /go/bin/golangci-lint run --config .golangci.yml ./pkg/... ./internal/..."
+            /bin/sh -lc "set -euo pipefail; /usr/local/go/bin/go version; /usr/local/go/bin/go env; GOMODCACHE=/gomodcache GOCACHE=/gocache /usr/local/go/bin/go mod download; GOBIN=\"/go/bin\" /usr/local/go/bin/go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.59.0; /go/bin/golangci-lint run --config .golangci.yml ./pkg/... ./internal/..."
