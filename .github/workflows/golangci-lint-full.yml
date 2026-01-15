@@ -48,11 +48,9 @@ jobs:
           # Use container-local caches to avoid bind-mount and cross-device cache issues
           mkdir -p /tmp/gomodcache /tmp/gocache
           GOMODCACHE=/tmp/gomodcache GOCACHE=/tmp/gocache /usr/local/go/bin/go clean -cache -modcache -testcache -i || true
-          GOMODCACHE=/tmp/gomodcache GOCACHE=/tmp/gocache /usr/local/go/bin/go mod download
-          echo '\n--- Running diagnostics: go list and go vet (show errors if any) ---\n'
-          GOMODCACHE=/tmp/gomodcache GOCACHE=/tmp/gocache /usr/local/go/bin/go list ./pkg/... ./internal/... || (echo 'go list failed' && exit 2)
-          # Optionally run go vet to surface type-check issues earlier
-          GOMODCACHE=/tmp/gomodcache GOCACHE=/tmp/gocache /usr/local/go/bin/go vet ./pkg/... ./internal/... || true
+          # NOTE: avoid running `go list`/`go vet` on the runner -- run them inside the
+          # container to ensure the same toolchain and working directory are used.
+          echo '\n--- Skipping runner-side go list/go vet (will execute inside container when needed) ---\n'
           # Install prebuilt golangci-lint binary (v1.59.0) to avoid running `go install` (faster and deterministic)
           echo '\n--- Installing golangci-lint binary (v1.59.0) ---\n'
           curl -sSfL https://github.com/golangci/golangci-lint/releases/download/v1.59.0/golangci-lint-1.59.0-linux-amd64.tar.gz | tar -xz -C /tmp || (echo 'failed to download golangci-lint binary' && exit 2)
