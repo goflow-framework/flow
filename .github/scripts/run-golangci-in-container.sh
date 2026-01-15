@@ -56,9 +56,22 @@ if command -v git >/dev/null 2>&1; then
   git config --global --add safe.directory "$(pwd)" || true
 fi
 
-# Clear caches and compiled stdlib packages that may cause export-data mismatches
+# Clear caches and compiled stdlib packages that may cause export-data mismatches.
+# Be careful to avoid removing the Go toolchain 'tool' directory which is required
+# by the Go binary in some images. Remove all package folders under GOROOT/pkg
+# except the 'tool' directory to force rebuild of stdlib export data without
+# accidentally deleting the toolchain itself.
 GOMODCACHE=/tmp/gomodcache GOCACHE=/tmp/gocache /usr/local/go/bin/go clean -cache -modcache -testcache -i || true
-rm -rf /usr/local/go/pkg/* || true
+if [ -d /usr/local/go/pkg ]; then
+  for entry in /usr/local/go/pkg/*; do
+    base="$(basename "$entry")"
+    if [ "$base" = "tool" ]; then
+      # preserve tool binaries
+      continue
+    fi
+    rm -rf "$entry" || true
+  done
+fi
 GOMODCACHE=/tmp/gomodcache GOCACHE=/tmp/gocache /usr/local/go/bin/go mod download || true
 
 # Collect diagnostics
