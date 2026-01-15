@@ -39,11 +39,6 @@ jobs:
       - name: Run go vet
         run: go vet ./...
 
-      - name: Install staticcheck
-        run: |
-          GOBIN=$(go env GOPATH)/bin
-          mkdir -p "$GOBIN"
-          GOBIN="$GOBIN" go install honnef.co/go/tools/cmd/staticcheck@latest
       # staticcheck moved to a dedicated job so heavy linting doesn't slow the
       # main lint-and-test pipeline. See `staticcheck` job below.
 

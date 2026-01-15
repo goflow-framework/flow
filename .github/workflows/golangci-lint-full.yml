@@ -59,8 +59,17 @@ jobs:
                  # Diagnostic invocations for typecheck/staticcheck removed to avoid
                  # noisy analyzer runs during PRs; use the `collect-export-diagnostics`
                  # job to capture export metadata for debugging.
-                echo '\n--- Running golangci-lint (whitelist: gofmt, goimports, errcheck) ---\n'; \
-                /go/bin/golangci-lint run --disable-all --enable gofmt --enable goimports --enable errcheck --verbose --config .golangci.yml ./pkg/... ./internal/...; \
+                echo '\n--- Running standalone whitelist checks: gofmt, goimports, errcheck ---\n'; \
+                # run gofmt check (fail on any files listed)
+                /usr/local/go/bin/gofmt -l . > /tmp/gofmt_out || true; \
+                if [ -s /tmp/gofmt_out ]; then echo 'gofmt found files that need formatting:'; cat /tmp/gofmt_out; exit 1; fi; \
+                # install and run goimports
+                GOBIN=/go/bin /usr/local/go/bin/go install golang.org/x/tools/cmd/goimports@latest; \
+                /go/bin/goimports -l . > /tmp/goimports_out || true; \
+                if [ -s /tmp/goimports_out ]; then echo 'goimports found files that need fixes:'; cat /tmp/goimports_out; exit 1; fi; \
+                # install and run errcheck
+                GOBIN=/go/bin /usr/local/go/bin/go install github.com/kisielk/errcheck@latest; \
+                /go/bin/errcheck ./... || (echo 'errcheck found issues' && exit 1); \
                 echo '\n--- Running golangci-lint (preserve-more, but disable govet/typecheck/staticcheck) ---\n'; \
                 /go/bin/golangci-lint run --verbose --config .golangci.yml --disable govet --disable typecheck --disable staticcheck ./pkg/... ./internal/... || true"
   collect-export-diagnostics:
