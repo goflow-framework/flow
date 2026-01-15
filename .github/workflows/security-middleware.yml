@@ -1,0 +1,20 @@
+name: security-middleware
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test-middleware:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.24'
+      - name: Run secure middleware tests
+        run: |
+          go test ./pkg/flow -run TestSecureHeaders -v

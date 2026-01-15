@@ -23,7 +23,8 @@ This README gives a concise introduction, quickstart, and reference for the main
 The repository contains a small example app under `examples/simple`. To run it from a Linux environment (or WSL on Windows):
 
 ```bash
-# from the repository root.
+# from the repository root. Replace <repo_root> with your repository path.
+cd <repo_root>
 go run ./examples/simple
 ```
 
@@ -38,7 +39,8 @@ The example demonstrates controllers and views (see `examples/simple/app/control
 There is also a Bun ORM demo that demonstrates wiring the Bun adapter into the `App`, running `AutoMigrate`, and doing basic DB operations (Linux/WSL):
 
 ```bash
-# from the repository root.
+# from the repository root. Replace <repo_root> with your repository path.
+cd <repo_root>
 go run ./examples/bun_demo
 ```
 
@@ -120,11 +122,11 @@ Make sure you have Go 1.20+ (project uses module mode). These commands assume a 
 From the repository root:
 
 ```bash
-# run all tests. From the repository root.
-go test ./... -v
+# run all tests (replace <repo_root> with your repository path)
+cd <repo_root> && go test ./... -v
 
-# build the project. From the repository root.
-go build ./...
+# build the project (replace <repo_root> with your repository path)
+cd <repo_root> && go build ./...
 ```
 
 ## Formatting
@@ -183,6 +185,12 @@ Below is a quick map of important packages and conventions to understand Flow's 
 	- `Controller` (in `pkg/flow/controller.go`): base type and adapter helpers.
 	- `ViewManager` (in `pkg/flow/view.go`): template loader, caching, layout and partial resolution.
 	- `SessionManager` (in `pkg/flow/session.go`): cookie-based sessions and flash helpers.
+
+	Security docs
+	---------------
+
+	We added optional secure-default middleware to make it easy to harden apps. See `docs/security.md` for details on `SecureHeaders`, `SessionCookieHardening`, and the `WithSecureDefaults` helper.
+	Example: `examples/security_demo` demonstrates enabling secure defaults on an `App`.
 
 ### Router and Controllers (example)
 
@@ -338,6 +346,4 @@ This design keeps the runtime small and explicit: provide an executor when you w
 ## License
 
 This project is provided under an MIT-style license. Modify as appropriate for your needs.
-
-
 
