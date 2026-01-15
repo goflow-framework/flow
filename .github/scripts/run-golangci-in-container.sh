@@ -45,6 +45,17 @@ if [ -x /usr/local/go/bin/go ]; then
   export GOROOT=/usr/local/go
 fi
 
+# Ensure we're running from the repository root inside the container. When the
+# workspace is mounted with different ownership, git may complain about dubious
+# ownership and commands like `go list` (which use the vcs) can fail. Force the
+# current directory to the workspace and mark it as a safe directory for git.
+if [ -n "${GITHUB_WORKSPACE:-}" ]; then
+  cd "$GITHUB_WORKSPACE" || true
+fi
+if command -v git >/dev/null 2>&1; then
+  git config --global --add safe.directory "$(pwd)" || true
+fi
+
 # Clear caches and compiled stdlib packages that may cause export-data mismatches
 GOMODCACHE=/tmp/gomodcache GOCACHE=/tmp/gocache /usr/local/go/bin/go clean -cache -modcache -testcache -i || true
 rm -rf /usr/local/go/pkg/* || true
