@@ -1,5 +1,6 @@
 #!/bin/sh
 set -euo pipefail
+set -x
 # run-golangci-in-container.sh — tiny README
 #
 # Purpose:
@@ -53,14 +54,18 @@ if [ -n "${GITHUB_WORKSPACE:-}" ]; then
   cd "$GITHUB_WORKSPACE" || true
 fi
 if command -v git >/dev/null 2>&1; then
+  # record the git user and config before we set safe.directory
+  id > "$OUTDIR/id${SUFFIX}.txt" 2>/dev/null || true
+  stat -c '%U %G %a %n' . > "$OUTDIR/pwd_stat${SUFFIX}.txt" 2>/dev/null || true
+  git config --global --list > "$OUTDIR/git_global_config_before${SUFFIX}.txt" 2>/dev/null || true
   git config --global --add safe.directory "$(pwd)" || true
+  git config --global --list > "$OUTDIR/git_global_config_after${SUFFIX}.txt" 2>/dev/null || true
 fi
 
-# Clear caches and compiled stdlib packages that may cause export-data mismatches.
-# Be careful to avoid removing the Go toolchain 'tool' directory which is required
-# by the Go binary in some images. Remove all package folders under GOROOT/pkg
-# except the 'tool' directory to force rebuild of stdlib export data without
-# accidentally deleting the toolchain itself.
+# Capture GOROOT pkg layout before we modify it
+ls -la /usr/local/go/pkg > "$OUTDIR/goroot_pkg_before${SUFFIX}.txt" 2>/dev/null || true
+
+# Clear caches and compiled stdlib packages that may cause export-data mismatches
 GOMODCACHE=/tmp/gomodcache GOCACHE=/tmp/gocache /usr/local/go/bin/go clean -cache -modcache -testcache -i || true
 if [ -d /usr/local/go/pkg ]; then
   for entry in /usr/local/go/pkg/*; do
@@ -75,6 +80,9 @@ if [ -d /usr/local/go/pkg ]; then
   done
 fi
 GOMODCACHE=/tmp/gomodcache GOCACHE=/tmp/gocache /usr/local/go/bin/go mod download || true
+
+# Capture GOROOT pkg layout after cleanup
+ls -la /usr/local/go/pkg > "$OUTDIR/goroot_pkg_after${SUFFIX}.txt" 2>/dev/null || true
 
 # Collect diagnostics
 echo "$PATH" > "$OUTDIR/path${SUFFIX}.txt" 2>/dev/null || true
