@@ -8,10 +8,6 @@ on:
 jobs:
   build-and-run-linters:
     runs-on: ubuntu-latest
-    env:
-      # create an isolated module cache to avoid stale export data from the
-      # runner/modcache interfering with type-aware analyzers
-      GOMODCACHE: ${{ runner.temp }}/gomodcache
     steps:
       - uses: actions/checkout@v4
       - name: Set up Go
@@ -26,10 +22,12 @@ jobs:
         run: |
           mkdir -p "$GOMODCACHE"
           go env GOMODCACHE
-      - name: Install dependencies (fresh cache)
+      - name: Prepare module cache
         run: |
-          export GOFLAGS='-mod=mod'
-          go clean -cache -modcache || true
+          # Persist a GOMODCACHE that uses the runner temp directory for subsequent steps
+          echo "GOMODCACHE=$RUNNER_TEMP/gomodcache" >> "$GITHUB_ENV"
+          mkdir -p "$GOMODCACHE"
+          go env GOMODCACHE
           # ensure modules are downloaded into the isolated GOMODCACHE
           go mod download
       - name: Build golangci-lint with local Go
