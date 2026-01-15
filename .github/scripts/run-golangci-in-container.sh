@@ -65,7 +65,9 @@ GOMODCACHE=/tmp/gomodcache GOCACHE=/tmp/gocache /usr/local/go/bin/go clean -cach
 if [ -d /usr/local/go/pkg ]; then
   for entry in /usr/local/go/pkg/*; do
     base="$(basename "$entry")"
-    if [ "$base" = "tool" ]; then
+    # preserve 'tool' and 'include' directories which contain toolchain
+    # binaries and header files required by the container's go runtime.
+    if [ "$base" = "tool" ] || [ "$base" = "include" ]; then
       # preserve tool binaries
       continue
     fi
