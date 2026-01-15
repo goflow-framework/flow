@@ -86,36 +86,6 @@ jobs:
           # Run the helper script inside the golang container (script lives under /app)
           docker run --rm -v "$PWD":/app -w /app golang:1.24.11 /bin/sh -c "/app/.github/workflows/_run_golangci.sh"
 
-  collect-export-diagnostics:
-    name: Collect golang export-data diagnostics
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Create export dir
-        run: |
-          mkdir -p ./ci-export
-      - name: Run export diagnostics in Go container
-        run: |
-          echo 'Running export diagnostics inside golang:1.24.11 container';
-          docker run --rm -v "$PWD":/app -w /app golang:1.24.11 /bin/sh -lc "set -euo pipefail; export GOFLAGS='-mod=mod -buildvcs=false'; mkdir -p /tmp/gomodcache /tmp/gocache; \
-            GOMODCACHE=/tmp/gomodcache GOCACHE=/tmp/gocache /usr/local/go/bin/go mod download; \
-            # collect dependency export list for all packages
-            GOMODCACHE=/tmp/gomodcache GOCACHE=/tmp/gocache /usr/local/go/bin/go list -deps -json ./... > /app/ci-export/deps.json || true; \
-            echo '--- goroot pkg listing ---' > /app/ci-export/goroot_pkg.txt; ls -la /usr/local/go/pkg >> /app/ci-export/goroot_pkg.txt || true; \
-            echo '--- module cache top entries ---' > /app/ci-export/modcache_list.txt; ls -la /tmp/gomodcache | head -n 200 >> /app/ci-export/modcache_list.txt || true; \
-            echo '--- find .a (archive) files and potential export files ---' > /app/ci-export/exports_find.txt; find /tmp/gomodcache /tmp/gocache /usr/local/go/pkg -type f \( -name '*.a' -o -iname '*export*' \) -maxdepth 6 -print >> /app/ci-export/exports_find.txt || true; \
-            # small sanity outputs
-            /usr/local/go/bin/go env -json > /app/ci-export/go_env.json || true; \
-            /usr/local/go/bin/go list -json sync/atomic > /app/ci-export/sync_atomic.json || true; "
-      - name: Archive diagnostic outputs
-        run: |
-          tar -czf ci-export.tar.gz ci-export || true
-      - name: Upload diagnostics artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: golangci-export-diagnostics
-          path: ci-export.tar.gz
-
   # Gated rollout: run type-aware 'typecheck' first in a non-blocking job.
   # If the non-blocking run completes successfully, the blocking job below
   # will run and enforce failures. This allows a safe staged rollout.
@@ -123,6 +93,8 @@ jobs:
     name: Typecheck (non-blocking rollout)
     runs-on: ubuntu-latest
     continue-on-error: true
+    outputs:
+      has_issues: ${{ steps.check.outputs.has_issues }}
     steps:
       - uses: actions/checkout@v4
       - name: Create export dir
@@ -147,13 +119,22 @@ jobs:
         with:
           name: golangci-typecheck-diagnostics
           path: ci-export-typecheck.tar.gz
+      - id: check
+        name: Determine if typecheck produced issues
+        run: |
+          # If the golangci output file exists and is non-empty we consider that an issue
+          if [ -f ci-export-typecheck/golangci_typecheck.out ] && [ -s ci-export-typecheck/golangci_typecheck.out ]; then
+            echo "has_issues=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_issues=false" >> "$GITHUB_OUTPUT"
+          fi
 
   # Blocking job that will only run if the non-blocking run succeeded.
   typecheck-blocking:
     name: Typecheck (blocking, gated)
     needs: typecheck-nonblocking
     runs-on: ubuntu-latest
-    if: needs.typecheck-nonblocking.result == 'success'
+    if: needs.typecheck-nonblocking.outputs.has_issues == 'false'
     steps:
       - uses: actions/checkout@v4
       - name: Run blocking typecheck inside Go container
