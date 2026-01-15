@@ -130,6 +130,31 @@ jobs:
         with:
           name: golangci-typecheck-diagnostics
           path: ci-export-typecheck.tar.gz
+      - name: Summarize golangci output and post to PR
+        if: ${{ github.event_name == 'pull_request' }}
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const path = './ci-export-typecheck/golangci_typecheck.out';
+            let body = '### golangci-lint (typecheck) summary\n\n';
+            try {
+              const out = fs.readFileSync(path, 'utf8');
+              const totalLines = out.split(/\r?\n/).length;
+              const head = out.split(/\r?\n/).slice(0,200).join('\n');
+              const exitcode = fs.existsSync('./ci-export-typecheck/golangci_exit_code') ? fs.readFileSync('./ci-export-typecheck/golangci_exit_code','utf8').trim() : 'n/a';
+              body += `Exit code: ${exitcode}\n\nTotal lines: ${totalLines}\n\n\`\`\`\n${head}\n\`\`\``;
+            } catch (e) {
+              body += 'No golangci output found in ci-export-typecheck/golangci_typecheck.out';
+            }
+            // post a comment to the PR
+            await github.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.pull_request.number,
+              body,
+            });
       - id: check
         name: Determine if typecheck produced issues
         run: |
