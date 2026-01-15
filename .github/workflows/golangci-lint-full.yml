@@ -3,7 +3,7 @@ name: golangci-lint-full
 on:
   pull_request:
   push:
-    branches: [ main, feature/priority2-secure-middleware ]
+    branches: [ main ]
 
 jobs:
   build-and-run-linters:
@@ -20,15 +20,15 @@ jobs:
           go env
       - name: Prepare module cache
         run: |
-          mkdir -p "$GOMODCACHE"
-          go env GOMODCACHE
-      - name: Prepare module cache
-        run: |
-          # Persist a GOMODCACHE that uses the runner temp directory for subsequent steps
+          # Create an isolated module cache under the runner temp dir and export
+          # it for subsequent steps. Writing to GITHUB_ENV takes effect only in
+          # subsequent steps, so use RUNNER_TEMP directly to make the directory
+          # in this step, then export the variable for later steps.
+          mkdir -p "$RUNNER_TEMP/gomodcache"
           echo "GOMODCACHE=$RUNNER_TEMP/gomodcache" >> "$GITHUB_ENV"
-          mkdir -p "$GOMODCACHE"
+          # Clean any global caches and download modules into the isolated cache
+          go clean -cache -modcache || true
           go env GOMODCACHE
-          # ensure modules are downloaded into the isolated GOMODCACHE
           go mod download
       - name: Build golangci-lint with local Go
         run: |
