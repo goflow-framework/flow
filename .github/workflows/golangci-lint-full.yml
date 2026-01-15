@@ -83,7 +83,7 @@ jobs:
       - name: Run export diagnostics in Go container
         run: |
           echo 'Running export diagnostics inside golang:1.24.11 container';
-          docker run --rm -v "$PWD":/app -w /app golang:1.24.11 /bin/sh -lc "set -euo pipefail; mkdir -p /tmp/gomodcache /tmp/gocache; \
+          docker run --rm -v "$PWD":/app -w /app golang:1.24.11 /bin/sh -lc "set -euo pipefail; export GOFLAGS='-mod=mod -buildvcs=false'; mkdir -p /tmp/gomodcache /tmp/gocache; \
             GOMODCACHE=/tmp/gomodcache GOCACHE=/tmp/gocache /usr/local/go/bin/go mod download; \
             # collect dependency export list for all packages
             GOMODCACHE=/tmp/gomodcache GOCACHE=/tmp/gocache /usr/local/go/bin/go list -deps -json ./... > /app/ci-export/deps.json || true; \
