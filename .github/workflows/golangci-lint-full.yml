@@ -43,7 +43,11 @@ jobs:
             -v "$RUNNER_TEMP/gocache":/gocache \
             -e GOMODCACHE=/gomodcache -e GOCACHE=/gocache \
             golang:1.24 \
-            /bin/sh -lc "set -euo pipefail; export PATH=/usr/local/go/bin:/go/bin:$PATH; /usr/local/go/bin/go version; /usr/local/go/bin/go env; GOMODCACHE=/gomodcache GOCACHE=/gocache /usr/local/go/bin/go mod download; \
+            /bin/sh -lc "set -euo pipefail; export PATH=/usr/local/go/bin:/go/bin:$PATH; /usr/local/go/bin/go version; /usr/local/go/bin/go env; \
+              # Clean any pre-existing cache artifacts inside the container's mounted caches
+              rm -rf /gomodcache/pkg/mod/cache || true; rm -rf /gocache/* || true; \
+              GOMODCACHE=/gomodcache GOCACHE=/gocache /usr/local/go/bin/go clean -cache -modcache -testcache -i || true; \
+              GOMODCACHE=/gomodcache GOCACHE=/gocache /usr/local/go/bin/go mod download; \
               echo '\n--- Running diagnostics: go list and go vet (show errors if any) ---\n'; \
               GOMODCACHE=/gomodcache GOCACHE=/gocache /usr/local/go/bin/go list ./pkg/... ./internal/... || (echo 'go list failed' && exit 2); \
               # Optionally run go vet to surface type-check issues earlier
@@ -52,6 +56,9 @@ jobs:
               echo '\n--- Diagnostic: go env (json) ---\n'; /usr/local/go/bin/go env -json || true; \
               echo '\n--- Diagnostic: go list sync/atomic ---\n'; /usr/local/go/bin/go list -json sync/atomic || true; \
               echo '\n--- Diagnostic: list some files in GOMODCACHE ---\n'; ls -la /gomodcache | head -n 50 || true; \
+              echo '\n--- Diagnostic: list compiled stdlib packages (GOROOT/pkg) ---\n'; ls -la /usr/local/go/pkg || true; \
+              echo '\n--- Diagnostic: list compiled stdlib arch packages (GOROOT/pkg/linux_amd64) ---\n'; ls -la /usr/local/go/pkg/linux_amd64 || true; \
+              echo '\n--- Diagnostic: find any sync/atomic related files in caches ---\n'; find /gomodcache /gocache /usr/local/go/pkg -type f -name '*sync*' -maxdepth 5 -print || true; \
                echo '\n--- Diagnostic: golangci-lint (typecheck only) ---\n'; /go/bin/golangci-lint run --disable-all -E typecheck --verbose --config .golangci.yml ./pkg/... ./internal/... || true; \
                echo '\n--- Diagnostic: golangci-lint (staticcheck only) ---\n'; /go/bin/golangci-lint run --disable-all -E staticcheck --verbose --config .golangci.yml ./pkg/... ./internal/... || true; \
               echo '\n--- Running golangci-lint (verbose) ---\n'; /go/bin/golangci-lint run --verbose --config .golangci.yml ./pkg/... ./internal/..."
