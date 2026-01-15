@@ -36,6 +36,8 @@ OUTDIR="./ci-export-typecheck"
 GOLANGCI_URL="https://github.com/golangci/golangci-lint/releases/download/v1.59.0/golangci-lint-1.59.0-linux-amd64.tar.gz"
 
 mkdir -p "$OUTDIR" /tmp/gomodcache /tmp/gocache
+export GOMODCACHE=/tmp/gomodcache
+export GOCACHE=/tmp/gocache
 export PATH=/usr/local/go/bin:/go/bin:$PATH
 export GOFLAGS='-mod=mod -buildvcs=false'
 # Ensure GOROOT is set when the container's Go is available. Some images
