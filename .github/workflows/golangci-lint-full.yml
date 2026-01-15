@@ -86,7 +86,7 @@ jobs:
           /go/bin/golangci-lint run --verbose --config .golangci.yml --disable govet --disable typecheck --disable staticcheck ./pkg/... ./internal/... || true
           chmod +x .github/workflows/_run_golangci.sh || true
           # Run the helper script inside the golang container (script lives under /app)
-          docker run --rm -v "$PWD":/app -w /app golang:1.24.11 /bin/sh -c "/app/.github/workflows/_run_golangci.sh"
+          docker run --rm -v "$GITHUB_WORKSPACE":/app -w /app golang:1.24.11 /bin/sh -c "/app/.github/workflows/_run_golangci.sh"
 
   # Gated rollout: run type-aware 'typecheck' first in a non-blocking job.
   # If the non-blocking run completes successfully, the blocking job below
@@ -108,7 +108,7 @@ jobs:
           # Run the container and write the golangci output into repo-mounted path.
           # Capture the docker exit code on the runner and write it to a file so
           # downstream steps can make a reliable decision.
-          docker run --rm -v "$PWD":/app -w /app golang:1.24.11 /bin/sh -lc "set -euo pipefail; export PATH=/usr/local/go/bin:/go/bin:$PATH; export GOFLAGS='-mod=mod -buildvcs=false'; mkdir -p /tmp/gomodcache /tmp/gocache; \
+          docker run --rm -v "$GITHUB_WORKSPACE":/app -w /app golang:1.24.11 /bin/sh -lc "set -euo pipefail; export PATH=/usr/local/go/bin:/go/bin:$PATH; export GOFLAGS='-mod=mod -buildvcs=false'; mkdir -p /tmp/gomodcache /tmp/gocache; \
             GOMODCACHE=/tmp/gomodcache GOCACHE=/tmp/gocache /usr/local/go/bin/go clean -cache -modcache -testcache -i || true; \
             GOMODCACHE=/tmp/gomodcache GOCACHE=/tmp/gocache /usr/local/go/bin/go mod download; \
             GOMODCACHE=/tmp/gomodcache GOCACHE=/tmp/gocache /usr/local/go/bin/go list -deps -json ./... > /app/ci-export-typecheck/deps.json || true; \
@@ -154,7 +154,7 @@ jobs:
       - name: Run blocking typecheck inside Go container
         run: |
           echo 'Running blocking typecheck inside golang:1.24.11 container';
-          docker run --rm -v "$PWD":/app -w /app golang:1.24.11 /bin/sh -lc "set -euo pipefail; export PATH=/usr/local/go/bin:/go/bin:$PATH; export GOFLAGS='-mod=mod -buildvcs=false'; mkdir -p /tmp/gomodcache /tmp/gocache; \
+          docker run --rm -v "$GITHUB_WORKSPACE":/app -w /app golang:1.24.11 /bin/sh -lc "set -euo pipefail; export PATH=/usr/local/go/bin:/go/bin:$PATH; export GOFLAGS='-mod=mod -buildvcs=false'; mkdir -p /tmp/gomodcache /tmp/gocache; \
             GOMODCACHE=/tmp/gomodcache GOCACHE=/tmp/gocache /usr/local/go/bin/go mod download; \
             # install prebuilt golangci-lint and run blocking typecheck
             curl -sSfL https://github.com/golangci/golangci-lint/releases/download/v1.59.0/golangci-lint-1.59.0-linux-amd64.tar.gz | tar -xz -C /tmp || (echo 'failed to download golangci-lint binary' && exit 2); \
