@@ -96,11 +96,38 @@ which go > "$OUTDIR/which_go${SUFFIX}.txt" 2>&1 || true
 ls -la /usr/local/go/bin > "$OUTDIR/goroot_bin_ls${SUFFIX}.txt" 2>&1 || true
 ls -la /usr/local/go/pkg > "$OUTDIR/goroot_pkg_ls${SUFFIX}.txt" 2>&1 || true
 
-# Download and run golangci-lint from /tmp to avoid mv/timing/permission issues
+## Build/install golangci-lint inside the container so the binary is built
+## with the same Go toolchain as the container's GOROOT. This avoids
+## export-data version mismatches that happen when a prebuilt binary is
+## produced with a different Go version than the container's stdlib.
 rc=0
-curl -sSfL "$GOLANGCI_URL" | tar -xz -C /tmp || rc=2
-if [ "$rc" -eq 0 ]; then
-  /tmp/golangci-lint-1.59.0-linux-amd64/golangci-lint run --config .golangci.yml --enable typecheck ./... > "$OUTDIR/golangci_typecheck${SUFFIX}.out" 2>&1 || rc=$?
+GOBIN=/tmp/gobin
+mkdir -p "$GOBIN"
+export GOBIN
+export PATH="$GOBIN:$PATH"
+
+# Try to install golangci-lint via `go install`. This compiles the tool
+# with the container's go and places it in /tmp/gobin. If this fails we
+# fall back to the prebuilt tarball download (older behavior).
+if /usr/local/go/bin/go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.59.0 >/dev/null 2>&1; then
+  echo "golangci-lint installed to $GOBIN" >/dev/null 2>&1 || true
+else
+  # fallback: try to download the prebuilt archive into /tmp
+  curl -sSfL "$GOLANGCI_URL" | tar -xz -C /tmp || rc=2
 fi
+
+# Ensure module deps are available in the container module cache
+GOMODCACHE=/tmp/gomodcache GOCACHE=/tmp/gocache /usr/local/go/bin/go mod download ./... || true
+
+# Run golangci-lint (installed in GOBIN or extracted into /tmp)
+if command -v golangci-lint >/dev/null 2>&1; then
+  golangci-lint run --config .golangci.yml --enable typecheck ./... > "$OUTDIR/golangci_typecheck${SUFFIX}.out" 2>&1 || rc=$?
+elif [ -x /tmp/golangci-lint-1.59.0-linux-amd64/golangci-lint ]; then
+  /tmp/golangci-lint-1.59.0-linux-amd64/golangci-lint run --config .golangci.yml --enable typecheck ./... > "$OUTDIR/golangci_typecheck${SUFFIX}.out" 2>&1 || rc=$?
+else
+  echo "no golangci-lint available" > "$OUTDIR/golangci_typecheck${SUFFIX}.out" 2>&1 || true
+  rc=3
+fi
+
 echo "$rc" > "$OUTDIR/golangci_exit_code${SUFFIX}" || true
 exit "$rc"
