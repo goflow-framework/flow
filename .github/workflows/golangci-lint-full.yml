@@ -34,44 +34,58 @@ jobs:
       - name: Run golangci-lint inside a Go 1.24 container
         run: |
           export GOFLAGS='-mod=mod'
-          # Use an official Go container so we can download modules and build
-          # the golangci-lint binary inside the same Go toolchain that will
-          # be used for analysis. This avoids export-data/version mismatches.
-          docker run --rm \
-              -v "$PWD":/app -w /app \
-              golang:1.24.11 \
-              /bin/sh -lc "set -euo pipefail; export PATH=/usr/local/go/bin:/go/bin:$PATH; export GOFLAGS='-mod=mod -buildvcs=false'; /usr/local/go/bin/go version; /usr/local/go/bin/go env; \
-                # Use container-local caches to avoid bind-mount and cross-device cache issues
-                mkdir -p /tmp/gomodcache /tmp/gocache; \
-                GOMODCACHE=/tmp/gomodcache GOCACHE=/tmp/gocache /usr/local/go/bin/go clean -cache -modcache -testcache -i || true; \
-                GOMODCACHE=/tmp/gomodcache GOCACHE=/tmp/gocache /usr/local/go/bin/go mod download; \
-                echo '\n--- Running diagnostics: go list and go vet (show errors if any) ---\n'; \
-                GOMODCACHE=/tmp/gomodcache GOCACHE=/tmp/gocache /usr/local/go/bin/go list ./pkg/... ./internal/... || (echo 'go list failed' && exit 2); \
-                # Optionally run go vet to surface type-check issues earlier
-                GOMODCACHE=/tmp/gomodcache GOCACHE=/tmp/gocache /usr/local/go/bin/go vet ./pkg/... ./internal/... || true; \
-                GOBIN="/go/bin" /usr/local/go/bin/go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.59.0; \
-                echo '\n--- Diagnostic: go env (json) ---\n'; /usr/local/go/bin/go env -json || true; \
-                echo '\n--- Diagnostic: go list sync/atomic ---\n'; /usr/local/go/bin/go list -json sync/atomic || true; \
-                echo '\n--- Diagnostic: list some files in container GOMODCACHE (/tmp/gomodcache) ---\n'; ls -la /tmp/gomodcache | head -n 50 || true; \
-                echo '\n--- Diagnostic: list compiled stdlib packages (GOROOT/pkg) ---\n'; ls -la /usr/local/go/pkg || true; \
-                echo '\n--- Diagnostic: list compiled stdlib arch packages (GOROOT/pkg/linux_amd64) ---\n'; ls -la /usr/local/go/pkg/linux_amd64 || true; \
-                echo '\n--- Diagnostic: find any sync/atomic related files in container caches ---\n'; find /tmp/gomodcache /tmp/gocache /usr/local/go/pkg -type f -name '*sync*' -maxdepth 5 -print || true; \
-                 # Diagnostic invocations for typecheck/staticcheck removed to avoid
-                 # noisy analyzer runs during PRs; use the `collect-export-diagnostics`
-                 # job to capture export metadata for debugging.
-                echo '\n--- Running standalone whitelist checks: gofmt, goimports, errcheck ---\n'; \
-                # run gofmt check (fail on any files listed)
-                /usr/local/go/bin/gofmt -l . > /tmp/gofmt_out || true; \
-                if [ -s /tmp/gofmt_out ]; then echo 'gofmt found files that need formatting:'; cat /tmp/gofmt_out; exit 1; fi; \
-                # install and run goimports
-                GOBIN=/go/bin /usr/local/go/bin/go install golang.org/x/tools/cmd/goimports@latest; \
-                /go/bin/goimports -l . > /tmp/goimports_out || true; \
-                if [ -s /tmp/goimports_out ]; then echo 'goimports found files that need fixes:'; cat /tmp/goimports_out; exit 1; fi; \
-                # install and run errcheck
-                GOBIN=/go/bin /usr/local/go/bin/go install github.com/kisielk/errcheck@latest; \
-                /go/bin/errcheck ./... || (echo 'errcheck found issues' && exit 1); \
-                echo '\n--- Running golangci-lint (preserve-more, but disable govet/typecheck/staticcheck) ---\n'; \
-                /go/bin/golangci-lint run --verbose --config .golangci.yml --disable govet --disable typecheck --disable staticcheck ./pkg/... ./internal/... || true"
+          # create a helper script inside the repo (mounted into the container) to
+          # avoid nested quoting/escaping issues when running many commands inside
+          # a docker container. This avoids accidental injection of following
+          # YAML job names as shell commands (the "command not found" we saw).
+          cat > .github/workflows/_run_golangci.sh <<'SH'
+          #!/bin/sh
+          set -euo pipefail
+          export PATH=/usr/local/go/bin:/go/bin:$PATH
+          export GOFLAGS='-mod=mod -buildvcs=false'
+          /usr/local/go/bin/go version
+          /usr/local/go/bin/go env
+          # Use container-local caches to avoid bind-mount and cross-device cache issues
+          mkdir -p /tmp/gomodcache /tmp/gocache
+          GOMODCACHE=/tmp/gomodcache GOCACHE=/tmp/gocache /usr/local/go/bin/go clean -cache -modcache -testcache -i || true
+          GOMODCACHE=/tmp/gomodcache GOCACHE=/tmp/gocache /usr/local/go/bin/go mod download
+          echo '\n--- Running diagnostics: go list and go vet (show errors if any) ---\n'
+          GOMODCACHE=/tmp/gomodcache GOCACHE=/tmp/gocache /usr/local/go/bin/go list ./pkg/... ./internal/... || (echo 'go list failed' && exit 2)
+          # Optionally run go vet to surface type-check issues earlier
+          GOMODCACHE=/tmp/gomodcache GOCACHE=/tmp/gocache /usr/local/go/bin/go vet ./pkg/... ./internal/... || true
+          GOBIN="/go/bin" /usr/local/go/bin/go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.59.0
+          echo '\n--- Diagnostic: go env (json) ---\n'
+          /usr/local/go/bin/go env -json || true
+          echo '\n--- Diagnostic: go list sync/atomic ---\n'
+          /usr/local/go/bin/go list -json sync/atomic || true
+          echo '\n--- Diagnostic: list some files in container GOMODCACHE (/tmp/gomodcache) ---\n'
+          ls -la /tmp/gomodcache | head -n 200 || true
+          echo '\n--- Diagnostic: list compiled stdlib packages (GOROOT/pkg) ---\n'
+          ls -la /usr/local/go/pkg || true
+          echo '\n--- Diagnostic: list compiled stdlib arch packages (GOROOT/pkg/linux_amd64) ---\n'
+          ls -la /usr/local/go/pkg/linux_amd64 || true
+          echo '\n--- Diagnostic: find any sync/atomic related files in container caches ---\n'
+          find /tmp/gomodcache /tmp/gocache /usr/local/go/pkg -type f -name '*sync*' -maxdepth 6 -print || true
+          # Diagnostic invocations for typecheck/staticcheck removed to avoid
+          # noisy analyzer runs during PRs; use the `collect-export-diagnostics`
+          # job to capture export metadata for debugging.
+          echo '\n--- Running standalone whitelist checks: gofmt, goimports, errcheck ---\n'
+          # run gofmt check (fail on any files listed)
+          /usr/local/go/bin/gofmt -l . > /tmp/gofmt_out || true
+          if [ -s /tmp/gofmt_out ]; then echo 'gofmt found files that need formatting:'; cat /tmp/gofmt_out; exit 1; fi
+          # install and run goimports
+          GOBIN=/go/bin /usr/local/go/bin/go install golang.org/x/tools/cmd/goimports@latest
+          /go/bin/goimports -l . > /tmp/goimports_out || true
+          if [ -s /tmp/goimports_out ]; then echo 'goimports found files that need fixes:'; cat /tmp/goimports_out; exit 1; fi
+          # install and run errcheck
+          GOBIN=/go/bin /usr/local/go/bin/go install github.com/kisielk/errcheck@latest
+          /go/bin/errcheck ./... || (echo 'errcheck found issues' && exit 1)
+          echo '\n--- Running golangci-lint (preserve-more, but disable govet/typecheck/staticcheck) ---\n'
+          /go/bin/golangci-lint run --verbose --config .golangci.yml --disable govet --disable typecheck --disable staticcheck ./pkg/... ./internal/... || true
+          chmod +x .github/workflows/_run_golangci.sh || true
+          # Run the helper script inside the golang container (script lives under /app)
+          docker run --rm -v "$PWD":/app -w /app golang:1.24.11 /bin/sh -c "/app/.github/workflows/_run_golangci.sh"
+
   collect-export-diagnostics:
     name: Collect golang export-data diagnostics
     runs-on: ubuntu-latest
