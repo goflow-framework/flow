@@ -18,18 +18,19 @@ jobs:
         run: |
           go version
           go env
-      - name: Prepare module cache
+      - name: Prepare module & go caches
         run: |
-          # Create an isolated module cache under the runner temp dir and export
-          # it for subsequent steps. Writing to GITHUB_ENV takes effect only in
-          # subsequent steps, so use RUNNER_TEMP directly to make the directory
-          # in this step, then export the variable for later steps.
+          # Create isolated module and go caches under the runner temp dir
           mkdir -p "$RUNNER_TEMP/gomodcache"
+          mkdir -p "$RUNNER_TEMP/gocache"
+          # Export them for later steps (writing to GITHUB_ENV makes them
+          # available in subsequent steps)
           echo "GOMODCACHE=$RUNNER_TEMP/gomodcache" >> "$GITHUB_ENV"
-          # Clean any global caches and download modules into the isolated cache
-          go clean -cache -modcache || true
-          go env GOMODCACHE
-          go mod download
+          echo "GOCACHE=$RUNNER_TEMP/gocache" >> "$GITHUB_ENV"
+          # Clean any existing caches and download modules into the isolated cache
+          GOMODCACHE="$RUNNER_TEMP/gomodcache" GOCACHE="$RUNNER_TEMP/gocache" go clean -cache -modcache || true
+          GOMODCACHE="$RUNNER_TEMP/gomodcache" GOCACHE="$RUNNER_TEMP/gocache" go env
+          GOMODCACHE="$RUNNER_TEMP/gomodcache" GOCACHE="$RUNNER_TEMP/gocache" go mod download
       - name: Build golangci-lint with local Go
         run: |
           GOBIN=$(go env GOPATH)/bin
