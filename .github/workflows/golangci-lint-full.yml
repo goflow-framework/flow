@@ -115,3 +115,51 @@ jobs:
         with:
           name: golangci-export-diagnostics
           path: ci-export.tar.gz
+
+  # Gated rollout: run type-aware 'typecheck' first in a non-blocking job.
+  # If the non-blocking run completes successfully, the blocking job below
+  # will run and enforce failures. This allows a safe staged rollout.
+  typecheck-nonblocking:
+    name: Typecheck (non-blocking rollout)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create export dir
+        run: |
+          mkdir -p ./ci-export-typecheck
+      - name: Run typecheck inside Go container (non-blocking)
+        run: |
+          echo 'Running typecheck diagnostics inside golang:1.24.11 container';
+          docker run --rm -v "$PWD":/app -w /app golang:1.24.11 /bin/sh -lc "set -euo pipefail; export GOFLAGS='-mod=mod -buildvcs=false'; mkdir -p /tmp/gomodcache /tmp/gocache; \
+            GOMODCACHE=/tmp/gomodcache GOCACHE=/tmp/gocache /usr/local/go/bin/go clean -cache -modcache -testcache -i || true; \
+            GOMODCACHE=/tmp/gomodcache GOCACHE=/tmp/gocache /usr/local/go/bin/go mod download; \
+            GOMODCACHE=/tmp/gomodcache GOCACHE=/tmp/gocache /usr/local/go/bin/go list -deps -json ./... > /app/ci-export-typecheck/deps.json || true; \
+            /usr/local/go/bin/go env -json > /app/ci-export-typecheck/go_env.json || true; \
+            /usr/local/go/bin/go list -json sync/atomic > /app/ci-export-typecheck/sync_atomic.json || true; \
+            GOBIN=/go/bin /usr/local/go/bin/go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.59.0; \
+            /go/bin/golangci-lint run --verbose --config .golangci.yml --enable typecheck ./... > /app/ci-export-typecheck/golangci_typecheck.out 2>&1 || true; "
+      - name: Archive typecheck diagnostic outputs
+        run: |
+          tar -czf ci-export-typecheck.tar.gz ci-export-typecheck || true
+      - name: Upload typecheck diagnostics artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: golangci-typecheck-diagnostics
+          path: ci-export-typecheck.tar.gz
+
+  # Blocking job that will only run if the non-blocking run succeeded.
+  typecheck-blocking:
+    name: Typecheck (blocking, gated)
+    needs: typecheck-nonblocking
+    runs-on: ubuntu-latest
+    if: needs.typecheck-nonblocking.result == 'success'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run blocking typecheck inside Go container
+        run: |
+          echo 'Running blocking typecheck inside golang:1.24.11 container';
+          docker run --rm -v "$PWD":/app -w /app golang:1.24.11 /bin/sh -lc "set -euo pipefail; export GOFLAGS='-mod=mod -buildvcs=false'; mkdir -p /tmp/gomodcache /tmp/gocache; \
+            GOMODCACHE=/tmp/gomodcache GOCACHE=/tmp/gocache /usr/local/go/bin/go mod download; \
+            GOBIN=/go/bin /usr/local/go/bin/go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.59.0; \
+            /go/bin/golangci-lint run --config .golangci.yml --enable typecheck ./...; "
