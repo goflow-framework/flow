@@ -43,4 +43,10 @@ jobs:
             -v "$RUNNER_TEMP/gocache":/gocache \
             -e GOMODCACHE=/gomodcache -e GOCACHE=/gocache \
             golang:1.24 \
-            /bin/sh -lc "set -euo pipefail; export PATH=/usr/local/go/bin:/go/bin:$PATH; /usr/local/go/bin/go version; /usr/local/go/bin/go env; GOMODCACHE=/gomodcache GOCACHE=/gocache /usr/local/go/bin/go mod download; GOBIN=\"/go/bin\" /usr/local/go/bin/go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.59.0; /go/bin/golangci-lint run --config .golangci.yml ./pkg/... ./internal/..."
+            /bin/sh -lc "set -euo pipefail; export PATH=/usr/local/go/bin:/go/bin:$PATH; /usr/local/go/bin/go version; /usr/local/go/bin/go env; GOMODCACHE=/gomodcache GOCACHE=/gocache /usr/local/go/bin/go mod download; \
+              echo '\n--- Running diagnostics: go list and go vet (show errors if any) ---\n'; \
+              GOMODCACHE=/gomodcache GOCACHE=/gocache /usr/local/go/bin/go list ./pkg/... ./internal/... || (echo 'go list failed' && exit 2); \
+              # Optionally run go vet to surface type-check issues earlier
+              GOMODCACHE=/gomodcache GOCACHE=/gocache /usr/local/go/bin/go vet ./pkg/... ./internal/... || true; \
+              GOBIN=\"/go/bin\" /usr/local/go/bin/go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.59.0; \
+              echo '\n--- Running golangci-lint ---\n'; /go/bin/golangci-lint run --config .golangci.yml ./pkg/... ./internal/..."
