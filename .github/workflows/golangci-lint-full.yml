@@ -148,13 +148,18 @@ jobs:
             } catch (e) {
               body += 'No golangci output found in ci-export-typecheck/golangci_typecheck.out';
             }
-            // post a comment to the PR
-            await github.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.payload.pull_request.number,
-              body,
-            });
+            // post a comment to the PR (use github.rest to access the REST API)
+            const pr = context.payload.pull_request;
+            if (!pr) {
+              console.log('No pull_request payload available; skipping comment');
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: pr.number,
+                body,
+              });
+            }
       - id: check
         name: Determine if typecheck produced issues
         run: |
