@@ -1,0 +1,45 @@
+name: golangci-lint-full
+
+on:
+  pull_request:
+  push:
+    branches: [ main, feature/priority2-secure-middleware ]
+
+jobs:
+  build-and-run-linters:
+    runs-on: ubuntu-latest
+    env:
+      # create an isolated module cache to avoid stale export data from the
+      # runner/modcache interfering with type-aware analyzers
+      GOMODCACHE: ${{ runner.temp }}/gomodcache
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.24'
+      - name: Print go env
+        run: |
+          go version
+          go env
+      - name: Prepare module cache
+        run: |
+          mkdir -p "$GOMODCACHE"
+          go env GOMODCACHE
+      - name: Install dependencies (fresh cache)
+        run: |
+          export GOFLAGS='-mod=mod'
+          go clean -cache -modcache || true
+          # ensure modules are downloaded into the isolated GOMODCACHE
+          go mod download
+      - name: Build golangci-lint with local Go
+        run: |
+          GOBIN=$(go env GOPATH)/bin
+          mkdir -p "$GOBIN"
+          # build/install golangci-lint with the runner's Go to ensure analyzer
+          # and toolchain versions are compatible
+          GOBIN="$GOBIN" go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.59.0
+      - name: Run golangci-lint (full set)
+        run: |
+          export GOFLAGS='-mod=mod'
+          $(go env GOPATH)/bin/golangci-lint run --config .golangci.yml ./pkg/... ./internal/...
