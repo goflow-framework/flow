@@ -106,30 +106,8 @@ jobs:
           mkdir -p ./ci-export-typecheck
       - name: Run typecheck inside Go container (non-blocking)
         run: |
-          echo 'Running typecheck diagnostics inside golang:1.24.11 container'
-          # Run diagnostics and golangci-lint inside the job-level container
-          export PATH=/usr/local/go/bin:/go/bin:$PATH
-          export GOFLAGS='-mod=mod -buildvcs=false'
-          mkdir -p ./ci-export-typecheck /tmp/gomodcache /tmp/gocache
-          GOMODCACHE=/tmp/gomodcache GOCACHE=/tmp/gocache /usr/local/go/bin/go clean -cache -modcache -testcache -i || true
-          # remove compiled stdlib packages to avoid import/export version mismatches
-          rm -rf /usr/local/go/pkg/* || true
-          GOMODCACHE=/tmp/gomodcache GOCACHE=/tmp/gocache /usr/local/go/bin/go mod download || true
-          # Collect diagnostics to help debug transient failures
-          echo "$PATH" > ./ci-export-typecheck/path.txt 2>/dev/null || true
-          which go > ./ci-export-typecheck/which_go.txt 2>&1 || true
-          /usr/local/go/bin/go version > ./ci-export-typecheck/go_version.txt 2>&1 || true
-          /usr/local/go/bin/go env -json > ./ci-export-typecheck/go_env.json 2>&1 || true
-          /usr/local/go/bin/go list -deps -json ./... > ./ci-export-typecheck/deps.json 2>&1 || true
-          /usr/local/go/bin/go list -json sync/atomic > ./ci-export-typecheck/sync_atomic.json 2>&1 || true
-          ls -la /usr/local/go/bin > ./ci-export-typecheck/goroot_bin_ls.txt 2>&1 || true
-          ls -la /usr/local/go/pkg > ./ci-export-typecheck/goroot_pkg_ls.txt 2>&1 || true
-          # download and run golangci-lint from /tmp to avoid mv/timing issues
-          rc=0
-          curl -sSfL https://github.com/golangci/golangci-lint/releases/download/v1.59.0/golangci-lint-1.59.0-linux-amd64.tar.gz | tar -xz -C /tmp || rc=2
-          if [ "$rc" -eq 0 ]; then /tmp/golangci-lint-1.59.0-linux-amd64/golangci-lint run --verbose --config .golangci.yml --enable typecheck ./... > ./ci-export-typecheck/golangci_typecheck.out 2>&1 || rc=$?; fi
-          echo "$rc" > ./ci-export-typecheck/golangci_exit_code || true
-          rc=$?; echo "$rc" > ci-export-typecheck/golangci_exit_code || true
+          chmod +x .github/scripts/run-golangci-in-container.sh || true
+          ./.github/scripts/run-golangci-in-container.sh
       - name: Archive typecheck diagnostic outputs
         if: always()
         run: |
@@ -173,22 +151,5 @@ jobs:
       - uses: actions/checkout@v4
       - name: Run blocking typecheck inside Go container
         run: |
-          echo 'Running blocking typecheck inside golang:1.24.11 container'
-          export PATH=/usr/local/go/bin:/go/bin:$PATH
-          export GOFLAGS='-mod=mod -buildvcs=false'
-          mkdir -p ./ci-export-typecheck /tmp/gomodcache /tmp/gocache
-          GOMODCACHE=/tmp/gomodcache GOCACHE=/tmp/gocache /usr/local/go/bin/go clean -cache -modcache -testcache -i || true
-          # remove compiled stdlib packages to avoid import/export version mismatches
-          rm -rf /usr/local/go/pkg/* || true
-          GOMODCACHE=/tmp/gomodcache GOCACHE=/tmp/gocache /usr/local/go/bin/go mod download || true
-          # diagnostics: which go, go version, go env, list some GOROOT pkg files
-          echo "$PATH" > ./ci-export-typecheck/path_blocking.txt 2>/dev/null || true
-          which go > ./ci-export-typecheck/which_go_blocking.txt 2>&1 || true
-          /usr/local/go/bin/go version > ./ci-export-typecheck/go_version_blocking.txt 2>&1 || true
-          /usr/local/go/bin/go env -json > ./ci-export-typecheck/go_env_blocking.json 2>&1 || true
-          ls -la /usr/local/go/pkg > ./ci-export-typecheck/goroot_pkg_ls_blocking.txt 2>&1 || true
-          /usr/local/go/bin/go list -deps -json ./... > ./ci-export-typecheck/deps_blocking.json 2>&1 || true
-          rc=0
-          curl -sSfL https://github.com/golangci/golangci-lint/releases/download/v1.59.0/golangci-lint-1.59.0-linux-amd64.tar.gz | tar -xz -C /tmp || rc=2
-          if [ "$rc" -eq 0 ]; then /tmp/golangci-lint-1.59.0-linux-amd64/golangci-lint run --config .golangci.yml --enable typecheck ./... > ./ci-export-typecheck/golangci_typecheck_blocking.out 2>&1 || rc=$?; fi
-          echo "$rc" > ./ci-export-typecheck/golangci_exit_code_blocking || true
+          chmod +x .github/scripts/run-golangci-in-container.sh || true
+          ./.github/scripts/run-golangci-in-container.sh _blocking
