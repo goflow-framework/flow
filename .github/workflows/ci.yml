@@ -176,27 +176,10 @@ jobs:
         with:
           name: generator-integration
           path: .ci/integration/generator_tests.txt
-  staticcheck:
-    name: staticcheck (lint)
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Go
-        uses: actions/setup-go@v4
-        with:
-          go-version: '1.24'
-
-      - name: Install staticcheck
-        run: |
-          GOBIN=$(go env GOPATH)/bin
-          mkdir -p "$GOBIN"
-          GOBIN="$GOBIN" go install honnef.co/go/tools/cmd/staticcheck@latest
-
-      - name: Run staticcheck
-        run: |
-          $(go env GOPATH)/bin/staticcheck ./...
+  # staticcheck moved to a dedicated workflow (`.github/workflows/staticcheck.yml`)
+  # and now runs on pushes to `main`. Removing the inline `staticcheck` job
+  # here avoids duplicate lint runs on push to `main` while keeping the
+  # dedicated workflow for branch-level linting.
   test:
     name: Test (Go ${{ matrix.go-version }})
     runs-on: ubuntu-latest
