@@ -104,6 +104,20 @@ jobs:
       - name: Create export dir
         run: |
           mkdir -p ./ci-export-typecheck
+      - name: Debug:dump workspace and git info
+        run: |
+          # Capture working directory and listing to help debug 'no go files to analyze'
+          echo "PWD: $(pwd)" > ./ci-export-typecheck/pwd.txt || true
+          echo "Listing root:" > ./ci-export-typecheck/ls_root.txt || true
+          ls -la >> ./ci-export-typecheck/ls_root.txt 2>&1 || true
+          echo "Listing .github:" > ./ci-export-typecheck/ls_github.txt || true
+          ls -la .github >> ./ci-export-typecheck/ls_github.txt 2>&1 || true
+          echo "Git top-level:" > ./ci-export-typecheck/git_top.txt || true
+          git rev-parse --show-toplevel >> ./ci-export-typecheck/git_top.txt 2>&1 || true
+          echo "Git status:" > ./ci-export-typecheck/git_status.txt || true
+          git status --porcelain >> ./ci-export-typecheck/git_status.txt 2>&1 || true
+          echo "Files matching go pattern:" > ./ci-export-typecheck/go_files.txt || true
+          find . -type f -name '*.go' | head -n 200 >> ./ci-export-typecheck/go_files.txt 2>&1 || true
       - name: Run typecheck inside Go container (non-blocking)
         run: |
           # Invoke the helper script via the shell instead of chmod/executing it
