@@ -20,6 +20,10 @@ type SessionManager struct {
 	CookieName string
 	// MaxAge in seconds
 	MaxAge int
+	// CookieSecure, when true, will mark session cookies with Secure flag.
+	CookieSecure bool
+	// CookieSameSite controls the SameSite attribute for session cookies.
+	CookieSameSite http.SameSite
 }
 
 // NewSessionManager constructs a manager with the provided secret. If
@@ -28,7 +32,7 @@ func NewSessionManager(secret []byte, cookieName string) *SessionManager {
 	if cookieName == "" {
 		cookieName = "flow_session"
 	}
-	return &SessionManager{Secret: secret, CookieName: cookieName, MaxAge: 86400}
+	return &SessionManager{Secret: secret, CookieName: cookieName, MaxAge: 86400, CookieSecure: false, CookieSameSite: http.SameSiteDefaultMode}
 }
 
 // generateRandomSecret returns n bytes of randomness.
@@ -125,7 +129,8 @@ func (s *Session) Save() error {
 		Value:    enc,
 		Path:     "/",
 		HttpOnly: true,
-		Secure:   false,
+		Secure:   s.sm.CookieSecure,
+		SameSite: s.sm.CookieSameSite,
 		Expires:  time.Now().Add(time.Duration(s.sm.MaxAge) * time.Second),
 		MaxAge:   s.sm.MaxAge,
 	}
@@ -165,4 +170,12 @@ func FromContext(ctx context.Context) *Session {
 func DefaultSessionManager() *SessionManager {
 	s, _ := generateRandomSecret(32)
 	return NewSessionManager(s, "flow_session")
+}
+
+// ApplySecureCookieDefaults enables conservative cookie flags for session
+// cookies: Secure=true, HttpOnly is already set by Save(), and
+// SameSite=Lax. Call this in app initialization when serving over HTTPS.
+func (sm *SessionManager) ApplySecureCookieDefaults() {
+	sm.CookieSecure = true
+	sm.CookieSameSite = http.SameSiteLaxMode
 }
