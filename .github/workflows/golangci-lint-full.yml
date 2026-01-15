@@ -120,9 +120,16 @@ jobs:
             /usr/local/bin/golangci-lint run --verbose --config .golangci.yml --enable typecheck ./... > /app/ci-export-typecheck/golangci_typecheck.out 2>&1"
           rc=$?; echo "$rc" > ci-export-typecheck/golangci_exit_code || true
       - name: Archive typecheck diagnostic outputs
+        if: always()
         run: |
+          # Ensure the export dir exists and contains at least a placeholder
+          mkdir -p ci-export-typecheck
+          if [ -z "$(ls -A ci-export-typecheck 2>/dev/null)" ]; then
+            echo "no diagnostics produced; placeholder created" > ci-export-typecheck/golangci_typecheck.out || true
+          fi
           tar -czf ci-export-typecheck.tar.gz ci-export-typecheck || true
       - name: Upload typecheck diagnostics artifact
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: golangci-typecheck-diagnostics
