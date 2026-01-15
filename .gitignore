@@ -37,6 +37,7 @@ flame*.svg
 nohup.out
 pprof_client.log
 pprof_server.log
+artifacts/*
 
 # Databases
 *.db
@@ -68,6 +69,8 @@ Thumbs.db
 
 # Ignore any prof files anywhere
 **/*.prof
+**/*.tar.gz
+**/*.zip
 
 # End of .gitignore
 
