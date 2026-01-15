@@ -49,4 +49,7 @@ jobs:
               # Optionally run go vet to surface type-check issues earlier
               GOMODCACHE=/gomodcache GOCACHE=/gocache /usr/local/go/bin/go vet ./pkg/... ./internal/... || true; \
               GOBIN=\"/go/bin\" /usr/local/go/bin/go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.59.0; \
-              echo '\n--- Running golangci-lint ---\n'; /go/bin/golangci-lint run --config .golangci.yml ./pkg/... ./internal/..."
+              echo '\n--- Diagnostic: go env (json) ---\n'; /usr/local/go/bin/go env -json || true; \
+              echo '\n--- Diagnostic: go list sync/atomic ---\n'; /usr/local/go/bin/go list -json sync/atomic || true; \
+              echo '\n--- Diagnostic: list some files in GOMODCACHE ---\n'; ls -la /gomodcache | head -n 50 || true; \
+              echo '\n--- Running golangci-lint (verbose) ---\n'; /go/bin/golangci-lint run --verbose --debug --config .golangci.yml ./pkg/... ./internal/..."
