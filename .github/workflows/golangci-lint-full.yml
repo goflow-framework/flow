@@ -59,3 +59,21 @@ jobs:
                  echo '\n--- Diagnostic: golangci-lint (typecheck only) ---\n'; /go/bin/golangci-lint run --disable-all -E typecheck --verbose --config .golangci.yml ./pkg/... ./internal/... || true; \
                  echo '\n--- Diagnostic: golangci-lint (staticcheck only) ---\n'; /go/bin/golangci-lint run --disable-all -E staticcheck --verbose --config .golangci.yml ./pkg/... ./internal/... || true; \
                 echo '\n--- Running golangci-lint (verbose) ---\n'; /go/bin/golangci-lint run --verbose --config .golangci.yml ./pkg/... ./internal/..."
+
+  run-official-golangci-image:
+    name: Run official golangci-lint Docker image
+    runs-on: ubuntu-latest
+    needs: build-and-run-linters
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run official golangci-lint image
+        run: |
+          echo "Running official golangci-lint Docker image v1.59.0 as a comparison";
+          # Use container-local caches to avoid bind-mount issues
+          mkdir -p /tmp/gomodcache /tmp/gocache;
+          docker run --rm \
+            -v "$PWD":/app -w /app \
+            -v /tmp/gomodcache:/tmp/gomodcache \
+            -v /tmp/gocache:/tmp/gocache \
+            -e GOMODCACHE=/tmp/gomodcache -e GOCACHE=/tmp/gocache \
+            golangci/golangci-lint:v1.59.0 golangci-lint run --verbose --config .golangci.yml ./pkg/... ./internal/...
