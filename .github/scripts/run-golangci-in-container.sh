@@ -83,6 +83,44 @@ if [ -d /usr/local/go/pkg ]; then
 fi
 GOMODCACHE=/tmp/gomodcache GOCACHE=/tmp/gocache /usr/local/go/bin/go mod download || true
 
+# Aggressive-clean path (for debugging): when running the forced blocking
+# debug job we may need to aggressively clear caches and rebuild the stdlib
+# export data inside the container to remove any build-id / export-data
+# mismatches. This block runs when SUFFIX contains '_blocking_force' or when
+# the environment variable AGGRESSIVE_CLEAN is set to '1'. It attempts a
+# conservative cache wipe, then tries to rebuild the stdlib export data by
+# running `go install std` (fallback to `go test std` if needed).
+if echo "${SUFFIX}" | grep -q "_blocking_force" || [ "${AGGRESSIVE_CLEAN:-0}" = "1" ]; then
+  echo "AGGRESSIVE_CLEAN: clearing module and go caches and attempting to rebuild stdlib export data" || true
+  rm -rf /tmp/gocache/* /tmp/gomodcache/* || true
+  # remove any remaining compiled stdlib packages (preserve tool/include as before)
+  if [ -d /usr/local/go/pkg ]; then
+    for entry in /usr/local/go/pkg/*; do
+      base="$(basename "$entry")"
+      if [ "$base" = "tool" ] || [ "$base" = "include" ]; then
+        continue
+      fi
+      rm -rf "$entry" || true
+    done
+  fi
+  # Attempt to rebuild standard library export data by installing std. This
+  # compiles std packages with the container's go toolchain. If install
+  # isn't supported, fall back to running `go test std` (capped with timeout).
+  if /usr/local/go/bin/go install std >/tmp/gobuild_std.log 2>&1; then
+    echo "go install std succeeded" || true
+  else
+    echo "go install std failed; attempting go test std (timeout 300s)" || true
+    # run tests to force compilation of std packages; limit runtime to 5m
+    if command -v timeout >/dev/null 2>&1; then
+      timeout 300s /usr/local/go/bin/go test std >/tmp/gobuild_std_test.log 2>&1 || true
+    else
+      /usr/local/go/bin/go test std >/tmp/gobuild_std_test.log 2>&1 || true
+    fi
+  fi
+  # Recreate the module cache after rebuilding stdlib
+  GOMODCACHE=/tmp/gomodcache GOCACHE=/tmp/gocache /usr/local/go/bin/go mod download ./... || true
+fi
+
 # Capture GOROOT pkg layout after cleanup
 ls -la /usr/local/go/pkg > "$OUTDIR/goroot_pkg_after${SUFFIX}.txt" 2>/dev/null || true
 
