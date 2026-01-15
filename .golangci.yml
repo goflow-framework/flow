@@ -31,7 +31,6 @@ linters:
     # These are intentionally omitted here and the CI workflow will explicitly
     # re-enable/reevaluate them once the underlying toolchain issue is fixed.
     # To restore full checks, re-add `staticcheck` and `typecheck` to this list.
-  # ...existing code...
 
 issues:
   exclude-use-default: false
