@@ -52,4 +52,6 @@ jobs:
               echo '\n--- Diagnostic: go env (json) ---\n'; /usr/local/go/bin/go env -json || true; \
               echo '\n--- Diagnostic: go list sync/atomic ---\n'; /usr/local/go/bin/go list -json sync/atomic || true; \
               echo '\n--- Diagnostic: list some files in GOMODCACHE ---\n'; ls -la /gomodcache | head -n 50 || true; \
+               echo '\n--- Diagnostic: golangci-lint (typecheck only) ---\n'; /go/bin/golangci-lint run --disable-all -E typecheck --verbose --config .golangci.yml ./pkg/... ./internal/... || true; \
+               echo '\n--- Diagnostic: golangci-lint (staticcheck only) ---\n'; /go/bin/golangci-lint run --disable-all -E staticcheck --verbose --config .golangci.yml ./pkg/... ./internal/... || true; \
               echo '\n--- Running golangci-lint (verbose) ---\n'; /go/bin/golangci-lint run --verbose --config .golangci.yml ./pkg/... ./internal/..."
