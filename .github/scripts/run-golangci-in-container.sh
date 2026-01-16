@@ -82,41 +82,42 @@ if [ -d /usr/local/go/pkg ]; then
   done
 fi
 GOMODCACHE=/tmp/gomodcache GOCACHE=/tmp/gocache /usr/local/go/bin/go mod download || true
+  # Preserve the toolchain binaries and headers so the 'go' command
+  # remains functional after the ultra-clean. Copy back 'tool' and
+  # 'include' from the backup into the fresh pkg tree. This keeps the
+  # ultra intent of removing compiled package export-data while not
+  # removing required go toolchain binaries (avoids "no such tool
+  # 'compile'" errors).
+  if [ -d /tmp/goroot_pkg_backup/tool ]; then
+    cp -a /tmp/goroot_pkg_backup/tool /usr/local/go/pkg/ || true
+  fi
+  if [ -d /tmp/goroot_pkg_backup/include ]; then
+    cp -a /tmp/goroot_pkg_backup/include /usr/local/go/pkg/ || true
+  fi
+  
 
-# Aggressive-clean path (for debugging): when running the forced blocking
-# debug job we may need to aggressively clear caches and rebuild the stdlib
-# export data inside the container to remove any build-id / export-data
-# mismatches. This block runs when SUFFIX contains '_blocking_force' or when
-# the environment variable AGGRESSIVE_CLEAN is set to '1'. It attempts a
-# conservative cache wipe, then tries to rebuild the stdlib export data by
-# running `go install std` (fallback to `go test std` if needed).
-if echo "${SUFFIX}" | grep -q "_blocking_force" || [ "${AGGRESSIVE_CLEAN:-0}" = "1" ]; then
-  echo "AGGRESSIVE_CLEAN: clearing module and go caches and attempting to rebuild stdlib export data" || true
-  rm -rf /tmp/gocache/* /tmp/gomodcache/* || true
-  # remove any remaining compiled stdlib packages (preserve tool/include as before)
-  if [ -d /usr/local/go/pkg ]; then
-    for entry in /usr/local/go/pkg/*; do
-      base="$(basename "$entry")"
-      if [ "$base" = "tool" ] || [ "$base" = "include" ]; then
-        continue
-      fi
-      rm -rf "$entry" || true
-    done
-  fi
-  # Attempt to rebuild standard library export data by installing std. This
-  # compiles std packages with the container's go toolchain. If install
-  # isn't supported, fall back to running `go test std` (capped with timeout).
-  if /usr/local/go/bin/go install std >/tmp/gobuild_std.log 2>&1; then
-    echo "go install std succeeded" || true
-  else
-    echo "go install std failed; attempting go test std (timeout 300s)" || true
-    # run tests to force compilation of std packages; limit runtime to 5m
-    if command -v timeout >/dev/null 2>&1; then
-      timeout 300s /usr/local/go/bin/go test std >/tmp/gobuild_std_test.log 2>&1 || true
-    else
-      /usr/local/go/bin/go test std >/tmp/gobuild_std_test.log 2>&1 || true
-    fi
-  fi
+# Capture GOROOT pkg layout after cleanup
+ls -la /usr/local/go/pkg > "$OUTDIR/goroot_pkg_after${SUFFIX}.txt" 2>/dev/null || true
+
+# Collect diagnostics
+echo "$PATH" > "$OUTDIR/path${SUFFIX}.txt" 2>/dev/null || true
+which go > "$OUTDIR/which_go${SUFFIX}.txt" 2>&1 || true
+/usr/local/go/bin/go version > "$OUTDIR/go_version${SUFFIX}.txt" 2>&1 || true
+/usr/local/go/bin/go env -json > "$OUTDIR/go_env${SUFFIX}.json" 2>&1 || true
+/usr/local/go/bin/go list -deps -json ./... > "$OUTDIR/deps${SUFFIX}.json" 2>&1 || true
+/usr/local/go/bin/go list -json sync/atomic > "$OUTDIR/sync_atomic${SUFFIX}.json" 2>&1 || true
+ls -la /usr/local/go/bin > "$OUTDIR/goroot_bin_ls${SUFFIX}.txt" 2>&1 || true
+ls -la /usr/local/go/pkg > "$OUTDIR/goroot_pkg_ls${SUFFIX}.txt" 2>&1 || true
+
+# Download and run golangci-lint from /tmp to avoid mv/timing/permission issues
+rc=0
+curl -sSfL "$GOLANGCI_URL" | tar -xz -C /tmp || rc=2
+if [ "$rc" -eq 0 ]; then
+  /tmp/golangci-lint-1.59.0-linux-amd64/golangci-lint run --config .golangci.yml --enable typecheck ./... > "$OUTDIR/golangci_typecheck${SUFFIX}.out" 2>&1 || rc=$?
+fi
+echo "$rc" > "$OUTDIR/golangci_exit_code${SUFFIX}" || true
+exit "$rc"
+
   # Recreate the module cache after rebuilding stdlib
   GOMODCACHE=/tmp/gomodcache GOCACHE=/tmp/gocache /usr/local/go/bin/go mod download ./... || true
   # Ultra-aggressive option: when specifically requested (suffix contains
@@ -131,6 +132,16 @@ if echo "${SUFFIX}" | grep -q "_blocking_force" || [ "${AGGRESSIVE_CLEAN:-0}" = 
       rm -rf /tmp/goroot_pkg_backup || true
       mv /usr/local/go/pkg /tmp/goroot_pkg_backup || true
       mkdir -p /usr/local/go/pkg || true
+      # Restore toolchain helpers into the fresh pkg tree so `go` remains
+      # functional while compiled stdlib packages are removed. Copying
+      # only 'tool' and 'include' preserves essential binaries/headers but
+      # leaves compiled package objects out of the active GOROOT/pkg.
+      if [ -d /tmp/goroot_pkg_backup/tool ]; then
+        cp -a /tmp/goroot_pkg_backup/tool /usr/local/go/pkg/ || true
+      fi
+      if [ -d /tmp/goroot_pkg_backup/include ]; then
+        cp -a /tmp/goroot_pkg_backup/include /usr/local/go/pkg/ || true
+      fi
     fi
 
     # attempt to rebuild stdlib now that pkg is empty
@@ -159,18 +170,13 @@ if echo "${SUFFIX}" | grep -q "_blocking_force" || [ "${AGGRESSIVE_CLEAN:-0}" = 
     # ensure module cache populated
     GOMODCACHE=/tmp/gomodcache GOCACHE=/tmp/gocache /usr/local/go/bin/go mod download ./... || true
   fi
-fi
 
-# Capture GOROOT pkg layout after cleanup
-ls -la /usr/local/go/pkg > "$OUTDIR/goroot_pkg_after${SUFFIX}.txt" 2>/dev/null || true
-
-# Conservative fix: ensure module files are present and capture extra diagnostics
-# after any rebuild/cleanup attempt. This helps diagnose "no go files to analyze"
-# and shows the module graph and cached modules available to the container.
 if [ -x /usr/local/go/bin/go ]; then
   echo "Running conservative post-rebuild diagnostics" > "$OUTDIR/post_rebuild_diag${SUFFIX}.txt" 2>/dev/null || true
   # Ensure module files available
-  GOMODCACHE=/tmp/gomodcache GOCACHE=/tmp/gocache /usr/local/go/bin/go mod tidy ./... > "$OUTDIR/go_mod_tidy${SUFFIX}.txt" 2>&1 || true
+  # `go mod tidy` accepts no package arguments; run without './...' so it
+  # operates on the repository's modules and writes output to diagnostics.
+  GOMODCACHE=/tmp/gomodcache GOCACHE=/tmp/gocache /usr/local/go/bin/go mod tidy > "$OUTDIR/go_mod_tidy${SUFFIX}.txt" 2>&1 || true
   # list module cache
   ls -la /tmp/gomodcache > "$OUTDIR/gomodcache_ls${SUFFIX}.txt" 2>/dev/null || true
   # capture dependency graph after rebuild
@@ -180,62 +186,3 @@ if [ -x /usr/local/go/bin/go ]; then
   # list toolchain linux_amd64 tools
   ls -la /usr/local/go/pkg/tool/linux_amd64 > "$OUTDIR/goroot_tool_linux_list${SUFFIX}.txt" 2>/dev/null || true
 fi
-
-# Collect diagnostics
-echo "$PATH" > "$OUTDIR/path${SUFFIX}.txt" 2>/dev/null || true
-which go > "$OUTDIR/which_go${SUFFIX}.txt" 2>&1 || true
-/usr/local/go/bin/go version > "$OUTDIR/go_version${SUFFIX}.txt" 2>&1 || true
-/usr/local/go/bin/go env -json > "$OUTDIR/go_env${SUFFIX}.json" 2>&1 || true
-/usr/local/go/bin/go list -deps -json ./... > "$OUTDIR/deps${SUFFIX}.json" 2>&1 || true
-/usr/local/go/bin/go list -json sync/atomic > "$OUTDIR/sync_atomic${SUFFIX}.json" 2>&1 || true
-ls -la /usr/local/go/bin > "$OUTDIR/goroot_bin_ls${SUFFIX}.txt" 2>&1 || true
-ls -la /usr/local/go/pkg > "$OUTDIR/goroot_pkg_ls${SUFFIX}.txt" 2>&1 || true
-
-## Build/install golangci-lint inside the container so the binary is built
-## with the same Go toolchain as the container's GOROOT. This avoids
-## export-data version mismatches that happen when a prebuilt binary is
-## produced with a different Go version than the container's stdlib.
-rc=0
-GOBIN=/tmp/gobin
-mkdir -p "$GOBIN"
-export GOBIN
-export PATH="$GOBIN:$PATH"
-
-# Try to install golangci-lint via `go install`. This compiles the tool
-# with the container's go and places it in /tmp/gobin. If this fails we
-# fall back to the prebuilt tarball download (older behavior).
-if /usr/local/go/bin/go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.59.0 >/dev/null 2>&1; then
-  echo "golangci-lint installed to $GOBIN" >/dev/null 2>&1 || true
-else
-  # fallback: try to download the prebuilt archive into /tmp
-  curl -sSfL "$GOLANGCI_URL" | tar -xz -C /tmp || rc=2
-fi
-
-# Ensure module deps are available in the container module cache
-GOMODCACHE=/tmp/gomodcache GOCACHE=/tmp/gocache /usr/local/go/bin/go mod download ./... || true
-
-# Run golangci-lint (installed in GOBIN or extracted into /tmp)
-if command -v golangci-lint >/dev/null 2>&1; then
-  golangci-lint run --config .golangci.yml --enable typecheck ./... > "$OUTDIR/golangci_typecheck${SUFFIX}.out" 2>&1 || rc=$?
-elif [ -x /tmp/golangci-lint-1.59.0-linux-amd64/golangci-lint ]; then
-  /tmp/golangci-lint-1.59.0-linux-amd64/golangci-lint run --config .golangci.yml --enable typecheck ./... > "$OUTDIR/golangci_typecheck${SUFFIX}.out" 2>&1 || rc=$?
-else
-  echo "no golangci-lint available" > "$OUTDIR/golangci_typecheck${SUFFIX}.out" 2>&1 || true
-  rc=3
-fi
-
-# Copy any ultra/aggressive-clean logs and backup listings into the output
-# directory so they are preserved in artifacts for debugging.
-for f in /tmp/gobuild_std_ultra.log /tmp/gobuild_std_ultra_test.log /tmp/gobuild_std.log /tmp/gobuild_std_test.log; do
-  if [ -f "$f" ]; then
-    cp "$f" "$OUTDIR/$(basename "$f")${SUFFIX}" 2>/dev/null || true
-  fi
-done
-
-if [ -d /tmp/goroot_pkg_backup ]; then
-  ls -la /tmp/goroot_pkg_backup > "$OUTDIR/goroot_pkg_backup_ls${SUFFIX}.txt" 2>/dev/null || true
-  find /tmp/goroot_pkg_backup -maxdepth 4 -type f | head -n 200 > "$OUTDIR/goroot_pkg_backup_files${SUFFIX}.txt" 2>/dev/null || true
-fi
-
-echo "$rc" > "$OUTDIR/golangci_exit_code${SUFFIX}" || true
-exit "$rc"
