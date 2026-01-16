@@ -172,6 +172,20 @@ jobs:
             echo "helper script not found" > ./ci-export-typecheck/golangci_typecheck.out || true
             echo 2 > ./ci-export-typecheck/golangci_exit_code || true
           fi
+      - name: Print ci-export summary (debug)
+        if: always()
+        run: |
+          if [ -f ci-export-typecheck/golangci_typecheck.out ]; then
+            echo '--- ci-export summary (head 200) ---'
+            head -n 200 ci-export-typecheck/golangci_typecheck.out || true
+          else
+            echo 'ci-export summary not found'
+          fi
+          if [ -f ci-export-typecheck/golangci_exit_code ]; then
+            echo '--- ci-export exit code ---'
+            cat ci-export-typecheck/golangci_exit_code || true
+          fi
+
       - name: Archive typecheck diagnostic outputs
         if: always()
         run: |
@@ -274,6 +288,20 @@ jobs:
             echo 2 > ./ci-export-typecheck/golangci_exit_code_blocking || true
           fi
 
+      - name: Print ci-export summary (blocking)
+        if: always()
+        run: |
+          if [ -f ci-export-typecheck/golangci_typecheck.out ]; then
+            echo '--- ci-export summary (blocking head 200) ---'
+            head -n 200 ci-export-typecheck/golangci_typecheck.out || true
+          else
+            echo 'ci-export summary not found (blocking)'
+          fi
+          if [ -f ci-export-typecheck/golangci_exit_code ]; then
+            echo '--- ci-export exit code (blocking) ---'
+            cat ci-export-typecheck/golangci_exit_code || true
+          fi
+
   # Temporary debug job: always run blocking diagnostics regardless of gate.
   # Use this to collect blocking outputs when the gated job is skipped.
   typecheck-blocking-debug:
@@ -308,6 +336,19 @@ jobs:
           else
             echo "helper script not found" > ./ci-export-typecheck/golangci_typecheck_blocking_debug.out || true
             echo 2 > ./ci-export-typecheck/golangci_exit_code_blocking_debug || true
+          fi
+      - name: Print ci-export summary (blocking-debug)
+        if: always()
+        run: |
+          if [ -f ci-export-typecheck/golangci_typecheck.out ]; then
+            echo '--- ci-export summary (blocking-debug head 200) ---'
+            head -n 200 ci-export-typecheck/golangci_typecheck.out || true
+          else
+            echo 'ci-export summary not found (blocking-debug)'
+          fi
+          if [ -f ci-export-typecheck/golangci_exit_code ]; then
+            echo '--- ci-export exit code (blocking-debug) ---'
+            cat ci-export-typecheck/golangci_exit_code || true
           fi
       - name: Archive debug diagnostic outputs
         if: always()
@@ -357,6 +398,19 @@ jobs:
           else
             echo "helper script not found" > ./ci-export-typecheck/golangci_typecheck_blocking_force.out || true
             echo 2 > ./ci-export-typecheck/golangci_exit_code_blocking_force || true
+          fi
+      - name: Print ci-export summary (blocking-force)
+        if: always()
+        run: |
+          if [ -f ci-export-typecheck/golangci_typecheck.out ]; then
+            echo '--- ci-export summary (blocking-force head 200) ---'
+            head -n 200 ci-export-typecheck/golangci_typecheck.out || true
+          else
+            echo 'ci-export summary not found (blocking-force)'
+          fi
+          if [ -f ci-export-typecheck/golangci_exit_code ]; then
+            echo '--- ci-export exit code (blocking-force) ---'
+            cat ci-export-typecheck/golangci_exit_code || true
           fi
       - name: Archive blocking-force diagnostic outputs
         if: always()
