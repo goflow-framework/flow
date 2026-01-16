@@ -156,6 +156,17 @@ jobs:
       - name: Run typecheck inside pinned analyzer container (non-blocking)
         run: |
           if [ -f .github/scripts/run-golangci-in-container.sh ]; then
+            # Preflight: record .github/scripts listing and helper script stat so
+            # we can debug missing-file cases in the exported diagnostics.
+            mkdir -p ./ci-export-typecheck || true
+            echo "Preflight: ls .github/scripts" > ./ci-export-typecheck/ls_dot_github_scripts.txt || true
+            ls -la .github/scripts >> ./ci-export-typecheck/ls_dot_github_scripts.txt 2>&1 || true
+            if [ -f .github/scripts/run-golangci-in-container.sh ]; then
+              stat -c '%a %U %G %n' .github/scripts/run-golangci-in-container.sh > ./ci-export-typecheck/run_helper_stat.txt 2>&1 || true
+            else
+              echo "not found" > ./ci-export-typecheck/run_helper_stat.txt || true
+            fi
+
             # Use a host bind-mount for ci-export-typecheck so the container can
             # write diagnostics directly to a shared directory. This avoids
             # streaming the outbound tar over stdout which has shown truncation
@@ -275,6 +286,15 @@ jobs:
         run: |
           # Invoke helper script via sh to avoid chmod issues on container mounts
           if [ -f .github/scripts/run-golangci-in-container.sh ]; then
+            mkdir -p ./ci-export-typecheck || true
+            echo "Preflight: ls .github/scripts" > ./ci-export-typecheck/ls_dot_github_scripts.txt || true
+            ls -la .github/scripts >> ./ci-export-typecheck/ls_dot_github_scripts.txt 2>&1 || true
+            if [ -f .github/scripts/run-golangci-in-container.sh ]; then
+              stat -c '%a %U %G %n' .github/scripts/run-golangci-in-container.sh > ./ci-export-typecheck/run_helper_stat.txt 2>&1 || true
+            else
+              echo "not found" > ./ci-export-typecheck/run_helper_stat.txt || true
+            fi
+
             docker run --rm \
               -v "$GITHUB_WORKSPACE":/app \
               -v "$GITHUB_WORKSPACE/ci-export-typecheck":/ci-export-typecheck \
@@ -325,6 +345,15 @@ jobs:
       - name: Run blocking typecheck (debug) inside analyzer container
         run: |
           if [ -f .github/scripts/run-golangci-in-container.sh ]; then
+            mkdir -p ./ci-export-typecheck || true
+            echo "Preflight: ls .github/scripts" > ./ci-export-typecheck/ls_dot_github_scripts.txt || true
+            ls -la .github/scripts >> ./ci-export-typecheck/ls_dot_github_scripts.txt 2>&1 || true
+            if [ -f .github/scripts/run-golangci-in-container.sh ]; then
+              stat -c '%a %U %G %n' .github/scripts/run-golangci-in-container.sh > ./ci-export-typecheck/run_helper_stat.txt 2>&1 || true
+            else
+              echo "not found" > ./ci-export-typecheck/run_helper_stat.txt || true
+            fi
+
             docker run --rm \
               -v "$GITHUB_WORKSPACE":/app \
               -v "$GITHUB_WORKSPACE/ci-export-typecheck":/ci-export-typecheck \
@@ -387,6 +416,15 @@ jobs:
       - name: Run blocking typecheck (force) inside analyzer container
         run: |
           if [ -f .github/scripts/run-golangci-in-container.sh ]; then
+            mkdir -p ./ci-export-typecheck || true
+            echo "Preflight: ls .github/scripts" > ./ci-export-typecheck/ls_dot_github_scripts.txt || true
+            ls -la .github/scripts >> ./ci-export-typecheck/ls_dot_github_scripts.txt 2>&1 || true
+            if [ -f .github/scripts/run-golangci-in-container.sh ]; then
+              stat -c '%a %U %G %n' .github/scripts/run-golangci-in-container.sh > ./ci-export-typecheck/run_helper_stat.txt 2>&1 || true
+            else
+              echo "not found" > ./ci-export-typecheck/run_helper_stat.txt || true
+            fi
+
             docker run --rm \
               -v "$GITHUB_WORKSPACE":/app \
               -v "$GITHUB_WORKSPACE/ci-export-typecheck":/ci-export-typecheck \
