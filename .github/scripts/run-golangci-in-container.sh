@@ -112,6 +112,52 @@ which go > "$OUTDIR/which_go${SUFFIX}.txt" 2>&1 || true
 ls -la /usr/local/go/bin > "$OUTDIR/goroot_bin_ls${SUFFIX}.txt" 2>&1 || true
 ls -la /usr/local/go/pkg > "$OUTDIR/goroot_pkg_ls${SUFFIX}.txt" 2>&1 || true
 
+# Ultra-aggressive cleanup (only when explicitly requested).
+# This backs up the current GOROOT/pkg to /tmp, recreates an empty pkg tree
+# restoring only 'tool' and 'include' so the 'go' binary remains usable, then
+# attempts to rebuild stdlib. If the rebuild leaves 'go' broken we restore
+# the backup to keep the container usable and record diagnostics.
+if echo "${SUFFIX}" | grep -q "_blocking_force_ultra" || [ "${ULTRA_AGGRESSIVE_CLEAN:-0}" = "1" ]; then
+  echo "ULTRA_AGGRESSIVE_CLEAN: backing up /usr/local/go/pkg -> /tmp/goroot_pkg_backup and recreating pkg tree" > "$OUTDIR/ultra${SUFFIX}.txt" 2>/dev/null || true
+  if [ -d /usr/local/go/pkg ]; then
+    rm -rf /tmp/goroot_pkg_backup || true
+    # Move the pkg tree out-of-the-way so we start with a clean slate.
+    mv /usr/local/go/pkg /tmp/goroot_pkg_backup || true
+    mkdir -p /usr/local/go/pkg || true
+    # Restore essential toolchain helpers so 'go' stays functional.
+    if [ -d /tmp/goroot_pkg_backup/tool ]; then
+      cp -a /tmp/goroot_pkg_backup/tool /usr/local/go/pkg/ || true
+    fi
+    if [ -d /tmp/goroot_pkg_backup/include ]; then
+      cp -a /tmp/goroot_pkg_backup/include /usr/local/go/pkg/ || true
+    fi
+  fi
+
+  # Attempt to rebuild the stdlib; prefer 'go install std' but fall back to 'go test std'.
+  if /usr/local/go/bin/go install std >/tmp/gobuild_std_ultra.log 2>&1; then
+    echo "ULTRA: go install std succeeded" >> "$OUTDIR/ultra${SUFFIX}.txt" || true
+  else
+    echo "ULTRA: go install std failed; attempting go test std (may take a while)" >> "$OUTDIR/ultra${SUFFIX}.txt" || true
+    if command -v timeout >/dev/null 2>&1; then
+      timeout 300s /usr/local/go/bin/go test std >/tmp/gobuild_std_ultra_test.log 2>&1 || true
+    else
+      /usr/local/go/bin/go test std >/tmp/gobuild_std_ultra_test.log 2>&1 || true
+    fi
+  fi
+
+  # Sanity-check that 'go' still works; restore backup if it doesn't.
+  if /usr/local/go/bin/go version >/dev/null 2>&1; then
+    echo "ULTRA: go binary functional after rebuild" >> "$OUTDIR/ultra${SUFFIX}.txt" || true
+  else
+    echo "ULTRA: go binary broken after aggressive cleanup; restoring backup" >> "$OUTDIR/ultra${SUFFIX}.txt" || true
+    rm -rf /usr/local/go/pkg || true
+    mv /tmp/goroot_pkg_backup /usr/local/go/pkg || true
+    echo "restored /usr/local/go/pkg from backup" >> "$OUTDIR/ultra${SUFFIX}.txt" || true
+  fi
+  # Ensure module cache populated after aggressive cleanup
+  GOMODCACHE=/tmp/gomodcache GOCACHE=/tmp/gocache /usr/local/go/bin/go mod download || true
+fi
+
 # Download and run golangci-lint from /tmp to avoid mv/timing/permission issues
 rc=0
 curl -sSfL "$GOLANGCI_URL" | tar -xz -C /tmp || rc=2
