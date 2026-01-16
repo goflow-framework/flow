@@ -156,20 +156,18 @@ jobs:
       - name: Run typecheck inside pinned analyzer container (non-blocking)
         run: |
           if [ -f .github/scripts/run-golangci-in-container.sh ]; then
-            # Diagnostic docker run: print container's view of the mounted workspace,
-            # show the helper script (with visible CRLFs), then run it under sh -x
-            # so we capture a traced execution in the workflow logs for debugging.
+            # Minimal mount-sanity diagnostic: validate that the runner's workspace
+            # is bind-mounted into the container and writable. This prints the
+            # container's view of /app and attempts to create a test file there.
             docker run --rm -v "$GITHUB_WORKSPACE":/app -w /app golangci-analyzer:1.24.11-1.59.0 /bin/sh -c '
-              echo "=== container: whoami && id ===";
-              whoami || true; id || true;
-              echo "=== container: pwd & ls -la /app ===";
-              pwd; ls -la /app || true;
-              echo "=== container: ls -la /app/.github/scripts ===";
-              ls -la /app/.github/scripts || true;
-              echo "=== container: head of helper script (cat -v to show CRLFs) ===";
-              head -n 80 /app/.github/scripts/run-golangci-in-container.sh | cat -v || true;
-              echo "=== container: run helper script with sh -x (traced) ===";
-              sh -x /app/.github/scripts/run-golangci-in-container.sh || rc=$?; echo "helper-exit=$${rc:-0}"; exit $${rc:-0}
+              echo "GITHUB_WORKSPACE=$GITHUB_WORKSPACE";
+              echo "=== whoami / id ==="; whoami || true; id || true;
+              echo "=== ls -la /app (first lines) ==="; ls -la /app || true;
+              echo "=== try to create /app/ci_export_test.txt ===";
+              if touch /app/ci_export_test.txt 2>/dev/null; then echo "touch succeeded"; else echo "touch failed"; fi;
+              ls -la /app/ci_export_test.txt || true;
+              echo "=== helper script head (cat -v) ==="; head -n 40 /app/.github/scripts/run-golangci-in-container.sh | cat -v || true;
+              echo "=== end mount sanity ===";
             '
           else
             echo "helper script not found" > ./ci-export-typecheck/golangci_typecheck.out || true
