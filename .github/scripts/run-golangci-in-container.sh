@@ -39,6 +39,20 @@ mkdir -p "$OUTDIR" /tmp/gomodcache /tmp/gocache
 # quick checkpoint so we know the container executed this script
 echo "container_started: $(date) uid=$(id -u 2>/dev/null || echo n/a)" > "$OUTDIR/container_started${SUFFIX}.txt" 2>/dev/null || true
 
+# Start a background heartbeat that writes to stderr (so the runner logs show
+# activity even if tar streaming out later gets interrupted). We also keep a
+# lightweight heartbeat file inside the output dir for post-mortem inspection.
+HEARTBEAT_FILE="$OUTDIR/heartbeat${SUFFIX}.log"
+(
+  while :; do
+    echo "HEARTBEAT: $(date) pid=$$ suffix=${SUFFIX}" >&2 || true
+    echo "$(date)" >> "$HEARTBEAT_FILE" 2>/dev/null || true
+    sleep 2
+  done
+) &
+HEART_PID=$!
+trap 'kill ${HEART_PID} 2>/dev/null || true' EXIT
+
 export GOMODCACHE=/tmp/gomodcache
 export GOCACHE=/tmp/gocache
 export PATH=/usr/local/go/bin:/go/bin:$PATH
@@ -112,6 +126,10 @@ which go > "$OUTDIR/which_go${SUFFIX}.txt" 2>&1 || true
 ls -la /usr/local/go/bin > "$OUTDIR/goroot_bin_ls${SUFFIX}.txt" 2>&1 || true
 ls -la /usr/local/go/pkg > "$OUTDIR/goroot_pkg_ls${SUFFIX}.txt" 2>&1 || true
 
+# Marker to show the script reached the golangci invocation step. This will
+# be included in the ci-export tar if the outbound tar stream succeeds.
+echo "marker_before_golangci: $(date)" > "$OUTDIR/marker_before_golangci${SUFFIX}.txt" 2>/dev/null || true
+
 # Ultra-aggressive cleanup (only when explicitly requested).
 # This backs up the current GOROOT/pkg to /tmp, recreates an empty pkg tree
 # restoring only 'tool' and 'include' so the 'go' binary remains usable, then
@@ -164,8 +182,12 @@ curl -sSfL "$GOLANGCI_URL" | tar -xz -C /tmp || rc=2
 if [ "$rc" -eq 0 ]; then
   # Ensure the container's go binary is on PATH when golangci-lint looks it up.
   PATH=/usr/local/go/bin:/go/bin:$PATH /tmp/golangci-lint-1.59.0-linux-amd64/golangci-lint run --config .golangci.yml --enable typecheck ./... > "$OUTDIR/golangci_typecheck${SUFFIX}.out" 2>&1 || rc=$?
+  # Marker indicating golangci completed (successfully or not).
+  echo "marker_after_golangci: $(date) rc=${rc:-}" > "$OUTDIR/marker_after_golangci${SUFFIX}.txt" 2>/dev/null || true
 fi
 echo "$rc" > "$OUTDIR/golangci_exit_code${SUFFIX}" || true
+# final checkpoint so we know the container finished running the helper
+echo "container_finished: $(date) rc=$rc" > "$OUTDIR/container_finished${SUFFIX}.txt" 2>/dev/null || true
 exit "$rc"
 
   # Recreate the module cache after rebuilding stdlib
