@@ -270,6 +270,8 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: golang:1.24.11
+    env:
+      ULTRA_AGGRESSIVE_CLEAN: '1'
     if: always()
     steps:
       - uses: actions/checkout@v4
