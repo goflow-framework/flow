@@ -4,8 +4,11 @@ FROM golang:1.24.11
 # data is compatible with the stdlib compiled in this image.
 ENV GOBIN=/usr/local/bin
 ENV GOFLAGS='-mod=mod -buildvcs=false'
-
 RUN set -eux; \
+    # ensure basic network tooling present so the helper script can curl/tar
+    apt-get update; \
+    apt-get install -y --no-install-recommends ca-certificates curl gnupg2; \
+    rm -rf /var/lib/apt/lists/*; \
     # install golangci-lint (pinned)
     go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.59.0; \
     # also install some helper tools commonly used by the repo's helper script
