@@ -156,8 +156,10 @@ jobs:
       - name: Run typecheck inside pinned analyzer container (non-blocking)
         run: |
           if [ -f .github/scripts/run-golangci-in-container.sh ]; then
-            # capture container stdout/stderr into the export dir so logs are uploaded
-            docker run --rm -v "$GITHUB_WORKSPACE":/app -w /app golangci-analyzer:1.24.11-1.59.0 /bin/sh -c "sh .github/scripts/run-golangci-in-container.sh" > ./ci-export-typecheck/docker_run_stdout.txt 2>&1 || true
+            # Run the helper script in the analyzer container and let any failure surface
+            # directly in the job logs (fail-fast). This shows container stdout/stderr
+            # in the workflow log and makes debugging immediate.
+            docker run --rm -v "$GITHUB_WORKSPACE":/app -w /app golangci-analyzer:1.24.11-1.59.0 /bin/sh -c "sh .github/scripts/run-golangci-in-container.sh"
           else
             echo "helper script not found" > ./ci-export-typecheck/golangci_typecheck.out || true
             echo 2 > ./ci-export-typecheck/golangci_exit_code || true
@@ -252,7 +254,7 @@ jobs:
         run: |
           # Invoke helper script via sh to avoid chmod issues on container mounts
           if [ -f .github/scripts/run-golangci-in-container.sh ]; then
-            docker run --rm -v "$GITHUB_WORKSPACE":/app -w /app golangci-analyzer:1.24.11-1.59.0 /bin/sh -c "sh .github/scripts/run-golangci-in-container.sh _blocking" > ./ci-export-typecheck/docker_run_stdout_blocking.txt 2>&1 || true
+            docker run --rm -v "$GITHUB_WORKSPACE":/app -w /app golangci-analyzer:1.24.11-1.59.0 /bin/sh -c "sh .github/scripts/run-golangci-in-container.sh _blocking"
           else
             echo "helper script not found" > ./ci-export-typecheck/golangci_typecheck_blocking.out || true
             echo 2 > ./ci-export-typecheck/golangci_exit_code_blocking || true
@@ -282,7 +284,7 @@ jobs:
       - name: Run blocking typecheck (debug) inside analyzer container
         run: |
           if [ -f .github/scripts/run-golangci-in-container.sh ]; then
-            docker run --rm -v "$GITHUB_WORKSPACE":/app -w /app golangci-analyzer:1.24.11-1.59.0 /bin/sh -c "sh .github/scripts/run-golangci-in-container.sh _blocking_debug" > ./ci-export-typecheck/docker_run_stdout_blocking_debug.txt 2>&1 || true
+            docker run --rm -v "$GITHUB_WORKSPACE":/app -w /app golangci-analyzer:1.24.11-1.59.0 /bin/sh -c "sh .github/scripts/run-golangci-in-container.sh _blocking_debug"
           else
             echo "helper script not found" > ./ci-export-typecheck/golangci_typecheck_blocking_debug.out || true
             echo 2 > ./ci-export-typecheck/golangci_exit_code_blocking_debug || true
@@ -325,7 +327,7 @@ jobs:
       - name: Run blocking typecheck (force) inside analyzer container
         run: |
           if [ -f .github/scripts/run-golangci-in-container.sh ]; then
-            docker run --rm -v "$GITHUB_WORKSPACE":/app -w /app -e ULTRA_AGGRESSIVE_CLEAN=1 golangci-analyzer:1.24.11-1.59.0 /bin/sh -c "sh .github/scripts/run-golangci-in-container.sh _blocking_force" > ./ci-export-typecheck/docker_run_stdout_blocking_force.txt 2>&1 || true
+            docker run --rm -v "$GITHUB_WORKSPACE":/app -w /app -e ULTRA_AGGRESSIVE_CLEAN=1 golangci-analyzer:1.24.11-1.59.0 /bin/sh -c "sh .github/scripts/run-golangci-in-container.sh _blocking_force"
           else
             echo "helper script not found" > ./ci-export-typecheck/golangci_typecheck_blocking_force.out || true
             echo 2 > ./ci-export-typecheck/golangci_exit_code_blocking_force || true
