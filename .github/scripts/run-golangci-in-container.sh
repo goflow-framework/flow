@@ -32,7 +32,9 @@ set -x
 # Writes diagnostics into ./ci-export-typecheck and records the golangci exit code.
 
 SUFFIX="${1:-}"
-OUTDIR="./ci-export-typecheck"
+# Allow caller to override where diagnostics should be written (useful when
+# the host binds a directory into the container at /ci-export-typecheck).
+OUTDIR="${CI_EXPORT_DIR:-./ci-export-typecheck}"
 GOLANGCI_URL="https://github.com/golangci/golangci-lint/releases/download/v1.59.0/golangci-lint-1.59.0-linux-amd64.tar.gz"
 
 mkdir -p "$OUTDIR" /tmp/gomodcache /tmp/gocache
