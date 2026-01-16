@@ -164,6 +164,23 @@ fi
 # Capture GOROOT pkg layout after cleanup
 ls -la /usr/local/go/pkg > "$OUTDIR/goroot_pkg_after${SUFFIX}.txt" 2>/dev/null || true
 
+# Conservative fix: ensure module files are present and capture extra diagnostics
+# after any rebuild/cleanup attempt. This helps diagnose "no go files to analyze"
+# and shows the module graph and cached modules available to the container.
+if [ -x /usr/local/go/bin/go ]; then
+  echo "Running conservative post-rebuild diagnostics" > "$OUTDIR/post_rebuild_diag${SUFFIX}.txt" 2>/dev/null || true
+  # Ensure module files available
+  GOMODCACHE=/tmp/gomodcache GOCACHE=/tmp/gocache /usr/local/go/bin/go mod tidy ./... > "$OUTDIR/go_mod_tidy${SUFFIX}.txt" 2>&1 || true
+  # list module cache
+  ls -la /tmp/gomodcache > "$OUTDIR/gomodcache_ls${SUFFIX}.txt" 2>/dev/null || true
+  # capture dependency graph after rebuild
+  GOMODCACHE=/tmp/gomodcache GOCACHE=/tmp/gocache /usr/local/go/bin/go list -deps -json ./... > "$OUTDIR/deps_after${SUFFIX}.json" 2>&1 || true
+  # capture package list for workspace
+  GOMODCACHE=/tmp/gomodcache GOCACHE=/tmp/gocache /usr/local/go/bin/go list -json ./... > "$OUTDIR/go_list${SUFFIX}.json" 2>&1 || true
+  # list toolchain linux_amd64 tools
+  ls -la /usr/local/go/pkg/tool/linux_amd64 > "$OUTDIR/goroot_tool_linux_list${SUFFIX}.txt" 2>/dev/null || true
+fi
+
 # Collect diagnostics
 echo "$PATH" > "$OUTDIR/path${SUFFIX}.txt" 2>/dev/null || true
 which go > "$OUTDIR/which_go${SUFFIX}.txt" 2>&1 || true
