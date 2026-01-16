@@ -89,19 +89,53 @@ jobs:
           # Run the helper script inside the golang container (script lives under /app)
           docker run --rm -v "$GITHUB_WORKSPACE":/app -w /app golang:1.24.11 /bin/sh -c "/app/.github/workflows/_run_golangci.sh"
 
+  # Build a pinned analyzer container image (golang:1.24.11 + golangci-lint v1.59.0)
+  build-analyzer-image:
+    name: Build analyzer image
+    runs-on: ubuntu-latest
+    outputs:
+      image-tag: ${{ steps.set-tag.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set image tag
+        id: set-tag
+        run: |
+          echo "tag=golangci-analyzer:1.24.11-1.59.0" >> "$GITHUB_OUTPUT"
+      - name: Build analyzer image
+        run: |
+          docker build --pull -t golangci-analyzer:1.24.11-1.59.0 .github/containers/golangci-analyzer || true
+          docker images | grep golangci-analyzer || true
+      - name: Save image artifact
+        run: |
+          docker save golangci-analyzer:1.24.11-1.59.0 -o analyzer-image.tar
+          ls -la analyzer-image.tar || true
+      - name: Upload analyzer image artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: analyzer-image
+          path: analyzer-image.tar
+
   # Gated rollout: run type-aware 'typecheck' first in a non-blocking job.
   # If the non-blocking run completes successfully, the blocking job below
   # will run and enforce failures. This allows a safe staged rollout.
   typecheck-nonblocking:
     name: Typecheck (non-blocking rollout)
+    needs: build-analyzer-image
     runs-on: ubuntu-latest
-    container:
-      image: golang:1.24.11
     continue-on-error: true
     outputs:
       has_issues: ${{ steps.check.outputs.has_issues }}
     steps:
       - uses: actions/checkout@v4
+      - name: Download analyzer image artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: analyzer-image
+          path: .
+      - name: Load analyzer image into Docker
+        run: |
+          docker load -i analyzer-image.tar
+          docker images | grep golangci-analyzer || true
       - name: Create export dir
         run: |
           mkdir -p ./ci-export-typecheck
@@ -119,13 +153,10 @@ jobs:
           git status --porcelain >> ./ci-export-typecheck/git_status.txt 2>&1 || true
           echo "Files matching go pattern:" > ./ci-export-typecheck/go_files.txt || true
           find . -type f -name '*.go' | head -n 200 >> ./ci-export-typecheck/go_files.txt 2>&1 || true
-      - name: Run typecheck inside Go container (non-blocking)
+      - name: Run typecheck inside pinned analyzer container (non-blocking)
         run: |
-          # Invoke the helper script via the shell instead of chmod/executing it
-          # directly. Some container/workspace mounts can make the repo files
-          # appear non-executable; calling with `sh` avoids permission issues.
           if [ -f .github/scripts/run-golangci-in-container.sh ]; then
-            sh .github/scripts/run-golangci-in-container.sh || true
+            docker run --rm -v "$GITHUB_WORKSPACE":/app -w /app golangci-analyzer:1.24.11-1.59.0 /bin/sh -c "sh .github/scripts/run-golangci-in-container.sh" || true
           else
             echo "helper script not found" > ./ci-export-typecheck/golangci_typecheck.out || true
             echo 2 > ./ci-export-typecheck/golangci_exit_code || true
@@ -211,18 +242,16 @@ jobs:
   # Blocking job that will only run if the non-blocking run succeeded.
   typecheck-blocking:
     name: Typecheck (blocking, gated)
-    needs: typecheck-nonblocking
+    needs: [build-analyzer-image, typecheck-nonblocking]
     runs-on: ubuntu-latest
-    container:
-      image: golang:1.24.11
     if: needs.typecheck-nonblocking.outputs.has_issues == 'false'
     steps:
       - uses: actions/checkout@v4
-      - name: Run blocking typecheck inside Go container
+      - name: Run blocking typecheck inside analyzer container
         run: |
           # Invoke helper script via sh to avoid chmod issues on container mounts
           if [ -f .github/scripts/run-golangci-in-container.sh ]; then
-            sh .github/scripts/run-golangci-in-container.sh _blocking || true
+            docker run --rm -v "$GITHUB_WORKSPACE":/app -w /app golangci-analyzer:1.24.11-1.59.0 /bin/sh -c "sh .github/scripts/run-golangci-in-container.sh _blocking" || true
           else
             echo "helper script not found" > ./ci-export-typecheck/golangci_typecheck_blocking.out || true
             echo 2 > ./ci-export-typecheck/golangci_exit_code_blocking || true
@@ -232,20 +261,27 @@ jobs:
   # Use this to collect blocking outputs when the gated job is skipped.
   typecheck-blocking-debug:
     name: Typecheck (blocking, debug - always run)
-    needs: typecheck-nonblocking
+    needs: [build-analyzer-image, typecheck-nonblocking]
     runs-on: ubuntu-latest
-    container:
-      image: golang:1.24.11
     if: always()
     steps:
       - uses: actions/checkout@v4
       - name: Create export dir (debug)
         run: |
           mkdir -p ./ci-export-typecheck
-      - name: Run blocking typecheck (debug) inside Go container
+      - name: Download analyzer image artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: analyzer-image
+          path: .
+      - name: Load analyzer image into Docker
+        run: |
+          docker load -i analyzer-image.tar
+          docker images | grep golangci-analyzer || true
+      - name: Run blocking typecheck (debug) inside analyzer container
         run: |
           if [ -f .github/scripts/run-golangci-in-container.sh ]; then
-            sh .github/scripts/run-golangci-in-container.sh _blocking_debug || true
+            docker run --rm -v "$GITHUB_WORKSPACE":/app -w /app golangci-analyzer:1.24.11-1.59.0 /bin/sh -c "sh .github/scripts/run-golangci-in-container.sh _blocking_debug" || true
           else
             echo "helper script not found" > ./ci-export-typecheck/golangci_typecheck_blocking_debug.out || true
             echo 2 > ./ci-export-typecheck/golangci_exit_code_blocking_debug || true
@@ -266,10 +302,8 @@ jobs:
   # This is temporary and intended to collect full blocking diagnostics for debugging only.
   typecheck-blocking-force:
     name: Typecheck (blocking, forced - debug)
-    needs: typecheck-nonblocking
+    needs: [build-analyzer-image, typecheck-nonblocking]
     runs-on: ubuntu-latest
-    container:
-      image: golang:1.24.11
     env:
       ULTRA_AGGRESSIVE_CLEAN: '1'
     if: always()
@@ -278,10 +312,19 @@ jobs:
       - name: Create export dir (blocking-force)
         run: |
           mkdir -p ./ci-export-typecheck
-      - name: Run blocking typecheck (force) inside Go container
+      - name: Download analyzer image artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: analyzer-image
+          path: .
+      - name: Load analyzer image into Docker
+        run: |
+          docker load -i analyzer-image.tar
+          docker images | grep golangci-analyzer || true
+      - name: Run blocking typecheck (force) inside analyzer container
         run: |
           if [ -f .github/scripts/run-golangci-in-container.sh ]; then
-            sh .github/scripts/run-golangci-in-container.sh _blocking_force || true
+            docker run --rm -v "$GITHUB_WORKSPACE":/app -w /app -e ULTRA_AGGRESSIVE_CLEAN=1 golangci-analyzer:1.24.11-1.59.0 /bin/sh -c "sh .github/scripts/run-golangci-in-container.sh _blocking_force" || true
           else
             echo "helper script not found" > ./ci-export-typecheck/golangci_typecheck_blocking_force.out || true
             echo 2 > ./ci-export-typecheck/golangci_exit_code_blocking_force || true
