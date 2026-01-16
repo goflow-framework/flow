@@ -36,6 +36,9 @@ OUTDIR="./ci-export-typecheck"
 GOLANGCI_URL="https://github.com/golangci/golangci-lint/releases/download/v1.59.0/golangci-lint-1.59.0-linux-amd64.tar.gz"
 
 mkdir -p "$OUTDIR" /tmp/gomodcache /tmp/gocache
+# quick checkpoint so we know the container executed this script
+echo "container_started: $(date) uid=$(id -u 2>/dev/null || echo n/a)" > "$OUTDIR/container_started${SUFFIX}.txt" 2>/dev/null || true
+
 export GOMODCACHE=/tmp/gomodcache
 export GOCACHE=/tmp/gocache
 export PATH=/usr/local/go/bin:/go/bin:$PATH
