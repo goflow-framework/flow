@@ -116,7 +116,8 @@ ls -la /usr/local/go/pkg > "$OUTDIR/goroot_pkg_ls${SUFFIX}.txt" 2>&1 || true
 rc=0
 curl -sSfL "$GOLANGCI_URL" | tar -xz -C /tmp || rc=2
 if [ "$rc" -eq 0 ]; then
-  /tmp/golangci-lint-1.59.0-linux-amd64/golangci-lint run --config .golangci.yml --enable typecheck ./... > "$OUTDIR/golangci_typecheck${SUFFIX}.out" 2>&1 || rc=$?
+  # Ensure the container's go binary is on PATH when golangci-lint looks it up.
+  PATH=/usr/local/go/bin:/go/bin:$PATH /tmp/golangci-lint-1.59.0-linux-amd64/golangci-lint run --config .golangci.yml --enable typecheck ./... > "$OUTDIR/golangci_typecheck${SUFFIX}.out" 2>&1 || rc=$?
 fi
 echo "$rc" > "$OUTDIR/golangci_exit_code${SUFFIX}" || true
 exit "$rc"
