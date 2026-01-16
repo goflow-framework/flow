@@ -207,5 +207,18 @@ else
   rc=3
 fi
 
+# Copy any ultra/aggressive-clean logs and backup listings into the output
+# directory so they are preserved in artifacts for debugging.
+for f in /tmp/gobuild_std_ultra.log /tmp/gobuild_std_ultra_test.log /tmp/gobuild_std.log /tmp/gobuild_std_test.log; do
+  if [ -f "$f" ]; then
+    cp "$f" "$OUTDIR/$(basename "$f")${SUFFIX}" 2>/dev/null || true
+  fi
+done
+
+if [ -d /tmp/goroot_pkg_backup ]; then
+  ls -la /tmp/goroot_pkg_backup > "$OUTDIR/goroot_pkg_backup_ls${SUFFIX}.txt" 2>/dev/null || true
+  find /tmp/goroot_pkg_backup -maxdepth 4 -type f | head -n 200 > "$OUTDIR/goroot_pkg_backup_files${SUFFIX}.txt" 2>/dev/null || true
+fi
+
 echo "$rc" > "$OUTDIR/golangci_exit_code${SUFFIX}" || true
 exit "$rc"
