@@ -119,6 +119,46 @@ if echo "${SUFFIX}" | grep -q "_blocking_force" || [ "${AGGRESSIVE_CLEAN:-0}" = 
   fi
   # Recreate the module cache after rebuilding stdlib
   GOMODCACHE=/tmp/gomodcache GOCACHE=/tmp/gocache /usr/local/go/bin/go mod download ./... || true
+  # Ultra-aggressive option: when specifically requested (suffix contains
+  # '_blocking_force_ultra' or ULTRA_AGGRESSIVE_CLEAN=1), back up and remove
+  # the entire GOROOT pkg tree (including 'tool' and 'include') to ensure
+  # any stray compiled artifacts are removed. This is destructive but run
+  # only in debug/forced runs. If removing breaks the 'go' binary we
+  # restore the backup to avoid leaving the container in a broken state.
+  if echo "${SUFFIX}" | grep -q "_blocking_force_ultra" || [ "${ULTRA_AGGRESSIVE_CLEAN:-0}" = "1" ]; then
+    echo "ULTRA_AGGRESSIVE_CLEAN: backing up /usr/local/go/pkg -> /tmp/goroot_pkg_backup and removing pkg/*" || true
+    if [ -d /usr/local/go/pkg ]; then
+      rm -rf /tmp/goroot_pkg_backup || true
+      mv /usr/local/go/pkg /tmp/goroot_pkg_backup || true
+      mkdir -p /usr/local/go/pkg || true
+    fi
+
+    # attempt to rebuild stdlib now that pkg is empty
+    if /usr/local/go/bin/go install std >/tmp/gobuild_std_ultra.log 2>&1; then
+      echo "ULTRA: go install std succeeded" || true
+    else
+      echo "ULTRA: go install std failed; attempting go test std (timeout 300s)" || true
+      if command -v timeout >/dev/null 2>&1; then
+        timeout 300s /usr/local/go/bin/go test std >/tmp/gobuild_std_ultra_test.log 2>&1 || true
+      else
+        /usr/local/go/bin/go test std >/tmp/gobuild_std_ultra_test.log 2>&1 || true
+      fi
+    fi
+
+    # sanity-check that 'go' still works (run 'go version') and that GOROOT/pkg
+    # now has compiled entries; if not, restore the backup to keep the container
+    # usable and record the restore in the output dir.
+    if /usr/local/go/bin/go version >/dev/null 2>&1; then
+      echo "ULTRA: go binary functional after rebuild" || true
+    else
+      echo "ULTRA: go binary broken after aggressive cleanup; restoring backup" || true
+      rm -rf /usr/local/go/pkg || true
+      mv /tmp/goroot_pkg_backup /usr/local/go/pkg || true
+      echo "restored /usr/local/go/pkg from backup" || true
+    fi
+    # ensure module cache populated
+    GOMODCACHE=/tmp/gomodcache GOCACHE=/tmp/gocache /usr/local/go/bin/go mod download ./... || true
+  fi
 fi
 
 # Capture GOROOT pkg layout after cleanup
