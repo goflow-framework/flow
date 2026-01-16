@@ -156,19 +156,18 @@ jobs:
       - name: Run typecheck inside pinned analyzer container (non-blocking)
         run: |
           if [ -f .github/scripts/run-golangci-in-container.sh ]; then
-            # Minimal mount-sanity diagnostic: validate that the runner's workspace
-            # is bind-mounted into the container and writable. This prints the
-            # container's view of /app and attempts to create a test file there.
-            docker run --rm -v "$GITHUB_WORKSPACE":/app -w /app golangci-analyzer:1.24.11-1.59.0 /bin/sh -c '
-              echo "GITHUB_WORKSPACE=$GITHUB_WORKSPACE";
-              echo "=== whoami / id ==="; whoami || true; id || true;
-              echo "=== ls -la /app (first lines) ==="; ls -la /app || true;
-              echo "=== try to create /app/ci_export_test.txt ===";
-              if touch /app/ci_export_test.txt 2>/dev/null; then echo "touch succeeded"; else echo "touch failed"; fi;
-              ls -la /app/ci_export_test.txt || true;
-              echo "=== helper script head (cat -v) ==="; head -n 40 /app/.github/scripts/run-golangci-in-container.sh | cat -v || true;
-              echo "=== end mount sanity ===";
-            '
+            # Stream the repo into the analyzer container (avoids bind-mount visibility issues),
+            # run the helper script inside /app, then stream the ci-export back to the host.
+            # The container writes ci-export-typecheck as a tar.gz to stdout which we
+            # capture into ci-export-typecheck.tar.gz and then extract to ./ci-export-typecheck.
+            tar -C "$GITHUB_WORKSPACE" -c . \
+              | docker run --rm -i golangci-analyzer:1.24.11-1.59.0 \
+                  sh -euxc 'mkdir -p /app && tar -C /app -x && cd /app && chmod +x .github/scripts/run-golangci-in-container.sh || true && /bin/sh .github/scripts/run-golangci-in-container.sh _nonblocking || true && tar -C . -czf - ci-export-typecheck || true' \
+              > ci-export-typecheck.tar.gz || true
+            # Populate the export dir for subsequent archive/upload steps
+            rm -rf ci-export-typecheck || true
+            mkdir -p ci-export-typecheck || true
+            if [ -s ci-export-typecheck.tar.gz ]; then tar -xzf ci-export-typecheck.tar.gz -C . || true; fi
           else
             echo "helper script not found" > ./ci-export-typecheck/golangci_typecheck.out || true
             echo 2 > ./ci-export-typecheck/golangci_exit_code || true
@@ -263,7 +262,13 @@ jobs:
         run: |
           # Invoke helper script via sh to avoid chmod issues on container mounts
           if [ -f .github/scripts/run-golangci-in-container.sh ]; then
-            docker run --rm -v "$GITHUB_WORKSPACE":/app -w /app golangci-analyzer:1.24.11-1.59.0 /bin/sh -c "sh .github/scripts/run-golangci-in-container.sh _blocking"
+            tar -C "$GITHUB_WORKSPACE" -c . \
+              | docker run --rm -i golangci-analyzer:1.24.11-1.59.0 \
+                  sh -euxc 'mkdir -p /app && tar -C /app -x && cd /app && chmod +x .github/scripts/run-golangci-in-container.sh || true && /bin/sh .github/scripts/run-golangci-in-container.sh _blocking || true && tar -C . -czf - ci-export-typecheck || true' \
+              > ci-export-typecheck.tar.gz || true
+            rm -rf ci-export-typecheck || true
+            mkdir -p ci-export-typecheck || true
+            if [ -s ci-export-typecheck.tar.gz ]; then tar -xzf ci-export-typecheck.tar.gz -C . || true; fi
           else
             echo "helper script not found" > ./ci-export-typecheck/golangci_typecheck_blocking.out || true
             echo 2 > ./ci-export-typecheck/golangci_exit_code_blocking || true
@@ -293,7 +298,13 @@ jobs:
       - name: Run blocking typecheck (debug) inside analyzer container
         run: |
           if [ -f .github/scripts/run-golangci-in-container.sh ]; then
-            docker run --rm -v "$GITHUB_WORKSPACE":/app -w /app golangci-analyzer:1.24.11-1.59.0 /bin/sh -c "sh .github/scripts/run-golangci-in-container.sh _blocking_debug"
+            tar -C "$GITHUB_WORKSPACE" -c . \
+              | docker run --rm -i golangci-analyzer:1.24.11-1.59.0 \
+                  sh -euxc 'mkdir -p /app && tar -C /app -x && cd /app && chmod +x .github/scripts/run-golangci-in-container.sh || true && /bin/sh .github/scripts/run-golangci-in-container.sh _blocking_debug || true && tar -C . -czf - ci-export-typecheck || true' \
+              > ci-export-typecheck.tar.gz || true
+            rm -rf ci-export-typecheck || true
+            mkdir -p ci-export-typecheck || true
+            if [ -s ci-export-typecheck.tar.gz ]; then tar -xzf ci-export-typecheck.tar.gz -C . || true; fi
           else
             echo "helper script not found" > ./ci-export-typecheck/golangci_typecheck_blocking_debug.out || true
             echo 2 > ./ci-export-typecheck/golangci_exit_code_blocking_debug || true
@@ -336,7 +347,13 @@ jobs:
       - name: Run blocking typecheck (force) inside analyzer container
         run: |
           if [ -f .github/scripts/run-golangci-in-container.sh ]; then
-            docker run --rm -v "$GITHUB_WORKSPACE":/app -w /app -e ULTRA_AGGRESSIVE_CLEAN=1 golangci-analyzer:1.24.11-1.59.0 /bin/sh -c "sh .github/scripts/run-golangci-in-container.sh _blocking_force"
+            tar -C "$GITHUB_WORKSPACE" -c . \
+              | docker run --rm -i -e ULTRA_AGGRESSIVE_CLEAN=1 golangci-analyzer:1.24.11-1.59.0 \
+                  sh -euxc 'mkdir -p /app && tar -C /app -x && cd /app && chmod +x .github/scripts/run-golangci-in-container.sh || true && /bin/sh .github/scripts/run-golangci-in-container.sh _blocking_force || true && tar -C . -czf - ci-export-typecheck || true' \
+              > ci-export-typecheck.tar.gz || true
+            rm -rf ci-export-typecheck || true
+            mkdir -p ci-export-typecheck || true
+            if [ -s ci-export-typecheck.tar.gz ]; then tar -xzf ci-export-typecheck.tar.gz -C . || true; fi
           else
             echo "helper script not found" > ./ci-export-typecheck/golangci_typecheck_blocking_force.out || true
             echo 2 > ./ci-export-typecheck/golangci_exit_code_blocking_force || true
