@@ -156,10 +156,21 @@ jobs:
       - name: Run typecheck inside pinned analyzer container (non-blocking)
         run: |
           if [ -f .github/scripts/run-golangci-in-container.sh ]; then
-            # Run the helper script in the analyzer container and let any failure surface
-            # directly in the job logs (fail-fast). This shows container stdout/stderr
-            # in the workflow log and makes debugging immediate.
-            docker run --rm -v "$GITHUB_WORKSPACE":/app -w /app golangci-analyzer:1.24.11-1.59.0 /bin/sh -c "sh .github/scripts/run-golangci-in-container.sh"
+            # Diagnostic docker run: print container's view of the mounted workspace,
+            # show the helper script (with visible CRLFs), then run it under sh -x
+            # so we capture a traced execution in the workflow logs for debugging.
+            docker run --rm -v "$GITHUB_WORKSPACE":/app -w /app golangci-analyzer:1.24.11-1.59.0 /bin/sh -c '
+              echo "=== container: whoami && id ===";
+              whoami || true; id || true;
+              echo "=== container: pwd & ls -la /app ===";
+              pwd; ls -la /app || true;
+              echo "=== container: ls -la /app/.github/scripts ===";
+              ls -la /app/.github/scripts || true;
+              echo "=== container: head of helper script (cat -v to show CRLFs) ===";
+              head -n 80 /app/.github/scripts/run-golangci-in-container.sh | cat -v || true;
+              echo "=== container: run helper script with sh -x (traced) ===";
+              sh -x /app/.github/scripts/run-golangci-in-container.sh || rc=$?; echo "helper-exit=$${rc:-0}"; exit $${rc:-0}
+            '
           else
             echo "helper script not found" > ./ci-export-typecheck/golangci_typecheck.out || true
             echo 2 > ./ci-export-typecheck/golangci_exit_code || true
