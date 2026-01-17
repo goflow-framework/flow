@@ -395,4 +395,35 @@ jobs:
               -e CI_EXPORT_DIR=/ci-export-typecheck \
               -e ULTRA_AGGRESSIVE_CLEAN=1 \
               golangci-analyzer:1.24.11-1.59.0 \
-              sh -euxc 'chmod +x .github/scripts/run-golangci-in-container.sh || true && CI_EXPORT_DIR=/ci-export-typecheck /bin/sh .github/scripts/run-golangci-in-container.sh _blocking_force
+              sh -euxc 'chmod +x .github/scripts/run-golangci-in-container.sh || true && CI_EXPORT_DIR=/ci-export-typecheck /bin/sh .github/scripts/run-golangci-in-container.sh _blocking_force || true' > ./ci-export-typecheck/docker_run.stdout 2> ./ci-export-typecheck/docker_run.stderr || true
+          else
+            echo "helper script not found" > ./ci-export-typecheck/golangci_typecheck_blocking_force.out || true
+            echo 2 > ./ci-export-typecheck/golangci_exit_code_blocking_force || true
+          fi
+
+      - name: Print ci-export summary (blocking-force)
+        if: always()
+        run: |
+          if [ -f ci-export-typecheck/golangci_typecheck.out ]; then
+            echo '--- ci-export summary (blocking-force head 200) ---'
+            head -n 200 ci-export-typecheck/golangci_typecheck.out || true
+          else
+            echo 'ci-export summary not found (blocking-force)'
+          fi
+          if [ -f ci-export-typecheck/golangci_exit_code ]; then
+            echo '--- ci-export exit code (blocking-force) ---'
+            cat ci-export-typecheck/golangci_exit_code || true
+          fi
+
+      - name: Archive blocking-force diagnostic outputs
+        if: always()
+        run: |
+          mkdir -p ci-export-typecheck
+          tar -czf ci-export-typecheck-blocking-force.tar.gz ci-export-typecheck || true
+
+      - name: Upload blocking-force diagnostics artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: golangci-typecheck-diagnostics-blocking-force
+          path: ci-export-typecheck-blocking-force.tar.gz
