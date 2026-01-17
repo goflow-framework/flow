@@ -67,6 +67,12 @@ if [ -x /usr/local/go/bin/go ]; then
   export GOROOT=/usr/local/go
 fi
 
+# Try to write an early marker so we can see the helper started and could write into CI_EXPORT_DIR
+if [ -n "${CI_EXPORT_DIR:-}" ]; then
+  mkdir -p "${CI_EXPORT_DIR}" 2>/dev/null || true
+  echo "helper_started: $(date --utc) $$" > "${CI_EXPORT_DIR}/helper_started.txt" 2>/dev/null || true
+fi
+
 # Ensure we're running from the repository root inside the container. When the
 # workspace is mounted with different ownership, git may complain about dubious
 # ownership and commands like `go list` (which use the vcs) can fail. Force the
