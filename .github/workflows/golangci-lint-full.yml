@@ -181,7 +181,13 @@ jobs:
                 -w /app \
                 -e CI_EXPORT_DIR=/ci-export-typecheck \
                 golangci-analyzer:1.24.11-1.59.0 \
-                sh -euxc 'printf "%s\n" "container-entered: $(date -u)" > /ci-export-typecheck/container_started.txt || true; CI_EXPORT_DIR=/ci-export-typecheck /bin/bash .github/scripts/run-golangci-in-container.sh _nonblocking' > ./ci-export-typecheck/docker_run.stdout 2> ./ci-export-typecheck/docker_run.stderr
+                sh -euxc '
+                  printf "%s\n" "container-entered: $(date -u)" > /ci-export-typecheck/container_started.txt || true
+                  command -v bash > /ci-export-typecheck/bash_present.txt 2>&1 || true
+                  ls -la /ci-export-typecheck > /ci-export-typecheck/ls_container_export.txt 2>&1 || true
+                  # Capture helper stdout/stderr and exit code inside the container so the host files show what happened
+                  CI_EXPORT_DIR=/ci-export-typecheck /bin/bash .github/scripts/run-golangci-in-container.sh _nonblocking > /ci-export-typecheck/helper_stdout.txt 2> /ci-export-typecheck/helper_stderr.txt || echo "$?" > /ci-export-typecheck/helper_exit_code
+                ' > ./ci-export-typecheck/docker_run.stdout 2> ./ci-export-typecheck/docker_run.stderr
             rc=$?; echo "$rc" > ./ci-export-typecheck/docker_run.return_code || true
           else
             echo "helper script not found" > ./ci-export-typecheck/golangci_typecheck.out || true
@@ -294,7 +300,12 @@ jobs:
                 -w /app \
                 -e CI_EXPORT_DIR=/ci-export-typecheck \
                 golangci-analyzer:1.24.11-1.59.0 \
-                sh -euxc 'printf "%s\n" "container-entered: $(date -u)" > /ci-export-typecheck/container_started.txt || true; CI_EXPORT_DIR=/ci-export-typecheck /bin/bash .github/scripts/run-golangci-in-container.sh _nonblocking' > ./ci-export-typecheck/docker_run.stdout 2> ./ci-export-typecheck/docker_run.stderr
+                sh -euxc '
+                  printf "%s\n" "container-entered: $(date -u)" > /ci-export-typecheck/container_started.txt || true
+                  command -v bash > /ci-export-typecheck/bash_present.txt 2>&1 || true
+                  ls -la /ci-export-typecheck > /ci-export-typecheck/ls_container_export.txt 2>&1 || true
+                  CI_EXPORT_DIR=/ci-export-typecheck /bin/bash .github/scripts/run-golangci-in-container.sh _nonblocking > /ci-export-typecheck/helper_stdout.txt 2> /ci-export-typecheck/helper_stderr.txt || echo "$?" > /ci-export-typecheck/helper_exit_code
+                ' > ./ci-export-typecheck/docker_run.stdout 2> ./ci-export-typecheck/docker_run.stderr
             rc=$?; echo "$rc" > ./ci-export-typecheck/docker_run.return_code || true
           else
             echo "helper script not found" > ./ci-export-typecheck/golangci_typecheck_blocking.out || true
@@ -408,7 +419,12 @@ jobs:
                 -e CI_EXPORT_DIR=/ci-export-typecheck \
                 -e ULTRA_AGGRESSIVE_CLEAN=1 \
                 golangci-analyzer:1.24.11-1.59.0 \
-                sh -euxc 'printf "%s\n" "container-entered: $(date -u)" > /ci-export-typecheck/container_started.txt || true; CI_EXPORT_DIR=/ci-export-typecheck /bin/bash .github/scripts/run-golangci-in-container.sh _blocking_force' > ./ci-export-typecheck/docker_run.stdout 2> ./ci-export-typecheck/docker_run.stderr
+                sh -euxc '
+                  printf "%s\n" "container-entered: $(date -u)" > /ci-export-typecheck/container_started.txt || true
+                  command -v bash > /ci-export-typecheck/bash_present.txt 2>&1 || true
+                  ls -la /ci-export-typecheck > /ci-export-typecheck/ls_container_export.txt 2>&1 || true
+                  CI_EXPORT_DIR=/ci-export-typecheck /bin/bash .github/scripts/run-golangci-in-container.sh _blocking_force > /ci-export-typecheck/helper_stdout.txt 2> /ci-export-typecheck/helper_stderr.txt || echo "$?" > /ci-export-typecheck/helper_exit_code
+                ' > ./ci-export-typecheck/docker_run.stdout 2> ./ci-export-typecheck/docker_run.stderr
             rc=$?; echo "$rc" > ./ci-export-typecheck/docker_run.return_code || true
           else
             echo "helper script not found" > ./ci-export-typecheck/golangci_typecheck_blocking_force.out || true
