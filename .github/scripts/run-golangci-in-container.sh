@@ -42,6 +42,12 @@ GOLANGCI_URL="https://github.com/golangci/golangci-lint/releases/download/v1.59.
 
 mkdir -p "$OUTDIR" /tmp/gomodcache /tmp/gocache
 # quick checkpoint so we know the container executed this script
+# Guaranteed helper marker written immediately from inside the helper so
+# CI artifacts include at least one in-container file even if the helper
+# later fails. Also echo a short line to stdout so the host-captured
+# docker_run.stdout shows activity from inside the container.
+printf "%s\n" "container_started_from_helper: $(date --utc) uid=$(id -u 2>/dev/null || echo n/a) pid=$$" > "${OUTDIR}/container_started_from_helper${SUFFIX}.txt" 2>/dev/null || true
+printf "%s\n" "helper-stdout-announce: helper started at $(date --utc) pid=$$" || true
 echo "container_started: $(date) uid=$(id -u 2>/dev/null || echo n/a)" > "$OUTDIR/container_started${SUFFIX}.txt" 2>/dev/null || true
 
 # Start a background heartbeat that writes to stderr (so the runner logs show
