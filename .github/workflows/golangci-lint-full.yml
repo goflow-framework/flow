@@ -175,7 +175,6 @@ jobs:
             chmod +x .github/scripts/run-golangci-in-container.sh || true
             # Run the analyzer container and capture stdout/stderr into the export dir.
             docker run --rm \
-              --user "$(id -u):$(id -g)" \
                 -v "$GITHUB_WORKSPACE":/app \
                 -v "$GITHUB_WORKSPACE/ci-export-typecheck":/ci-export-typecheck \
                 -w /app \
@@ -294,7 +293,6 @@ jobs:
 
             chmod +x .github/scripts/run-golangci-in-container.sh || true
             docker run --rm \
-              --user "$(id -u):$(id -g)" \
                 -v "$GITHUB_WORKSPACE":/app \
                 -v "$GITHUB_WORKSPACE/ci-export-typecheck":/ci-export-typecheck \
                 -w /app \
@@ -351,7 +349,6 @@ jobs:
             # Run the analyzer container and capture output directly into the
             # mounted ci-export-typecheck directory to avoid streaming issues.
             docker run --rm \
-              --user "$(id -u):$(id -g)" \
                 -v "$GITHUB_WORKSPACE":/app \
                 -v "$GITHUB_WORKSPACE/ci-export-typecheck":/ci-export-typecheck \
                 -w /app \
@@ -412,7 +409,6 @@ jobs:
 
             chmod +x .github/scripts/run-golangci-in-container.sh || true
             docker run --rm \
-              --user "$(id -u):$(id -g)" \
                 -v "$GITHUB_WORKSPACE":/app \
                 -v "$GITHUB_WORKSPACE/ci-export-typecheck":/ci-export-typecheck \
                 -w /app \
