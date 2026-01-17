@@ -67,6 +67,26 @@ if [ -x /usr/local/go/bin/go ]; then
   export GOROOT=/usr/local/go
 fi
 
+# Make sure CI_EXPORT_DIR is set and writable (fall back to the default mount)
+: "${CI_EXPORT_DIR:=/ci-export-typecheck}"
+mkdir -p "$CI_EXPORT_DIR" 2>/dev/null || true
+
+# Early marker so the runner artifact tells us the helper started and could write
+echo "helper_started: $(date --utc) $$" > "$CI_EXPORT_DIR/helper_started.txt" 2>/dev/null || true
+
+# Always write a final exit code on exit so artifacts include it
+_cleanup() {
+  rc=$?
+  echo "$rc" > "$CI_EXPORT_DIR/golangci_exit_code" 2>/dev/null || true
+}
+trap _cleanup EXIT
+
+# ensure there's always at least a placeholder output file
+: "${CI_EXPORT_DIR:=/ci-export-typecheck}"
+if [ ! -s "$CI_EXPORT_DIR/golangci_typecheck.out" ]; then
+  echo "no golangci output produced" > "$CI_EXPORT_DIR/golangci_typecheck.out" 2>/dev/null || true
+fi
+
 # Try to write an early marker so we can see the helper started and could write into CI_EXPORT_DIR
 if [ -n "${CI_EXPORT_DIR:-}" ]; then
   mkdir -p "${CI_EXPORT_DIR}" 2>/dev/null || true
