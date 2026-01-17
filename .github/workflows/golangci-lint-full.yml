@@ -171,6 +171,9 @@ jobs:
             # write diagnostics directly to a shared directory. This avoids
             # streaming the outbound tar over stdout which has shown truncation
             # failures in the runner.
+            # Ensure helper is executable inside the container (host-side chmod)
+            chmod +x .github/scripts/run-golangci-in-container.sh || true
+            # Run the analyzer container and capture stdout/stderr into the export dir.
             docker run --rm \
               --user "$(id -u):$(id -g)" \
                 -v "$GITHUB_WORKSPACE":/app \
@@ -178,8 +181,8 @@ jobs:
                 -w /app \
                 -e CI_EXPORT_DIR=/ci-export-typecheck \
                 golangci-analyzer:1.24.11-1.59.0 \
-                sh -euxc 'CI_EXPORT_DIR=/ci-export-typecheck /bin/sh .github/scripts/run-golangci-in-container.sh _nonblocking' > ./ci-export-typecheck/docker_run.stdout 2> ./ci-export-typecheck/docker_run.stderr || true
-            echo $? > ./ci-export-typecheck/docker_run.return_code || true
+                sh -euxc 'CI_EXPORT_DIR=/ci-export-typecheck /bin/bash .github/scripts/run-golangci-in-container.sh _nonblocking' > ./ci-export-typecheck/docker_run.stdout 2> ./ci-export-typecheck/docker_run.stderr
+            rc=$?; echo "$rc" > ./ci-export-typecheck/docker_run.return_code || true
           else
             echo "helper script not found" > ./ci-export-typecheck/golangci_typecheck.out || true
             echo 2 > ./ci-export-typecheck/golangci_exit_code || true
@@ -283,6 +286,7 @@ jobs:
               echo "not found" > ./ci-export-typecheck/run_helper_stat.txt || true
             fi
 
+            chmod +x .github/scripts/run-golangci-in-container.sh || true
             docker run --rm \
               --user "$(id -u):$(id -g)" \
                 -v "$GITHUB_WORKSPACE":/app \
@@ -290,8 +294,8 @@ jobs:
                 -w /app \
                 -e CI_EXPORT_DIR=/ci-export-typecheck \
                 golangci-analyzer:1.24.11-1.59.0 \
-                sh -euxc 'CI_EXPORT_DIR=/ci-export-typecheck /bin/sh .github/scripts/run-golangci-in-container.sh _nonblocking' > ./ci-export-typecheck/docker_run.stdout 2> ./ci-export-typecheck/docker_run.stderr || true
-            echo $? > ./ci-export-typecheck/docker_run.return_code || true
+                sh -euxc 'CI_EXPORT_DIR=/ci-export-typecheck /bin/bash .github/scripts/run-golangci-in-container.sh _nonblocking' > ./ci-export-typecheck/docker_run.stdout 2> ./ci-export-typecheck/docker_run.stderr
+            rc=$?; echo "$rc" > ./ci-export-typecheck/docker_run.return_code || true
           else
             echo "helper script not found" > ./ci-export-typecheck/golangci_typecheck_blocking.out || true
             echo 2 > ./ci-export-typecheck/golangci_exit_code_blocking || true
@@ -330,15 +334,20 @@ jobs:
               echo "not found" > ./ci-export-typecheck/run_helper_stat.txt || true
             fi
 
+            # Ensure the helper is executable on the host so the container can run it
+            chmod +x .github/scripts/run-golangci-in-container.sh || true
+
+            # Run the analyzer container and capture output directly into the
+            # mounted ci-export-typecheck directory to avoid streaming issues.
             docker run --rm \
-                --user "$(id -u):$(id -g)" \
-                -v "$GITHUB_WORKSPACE":/app \
-                -v "$GITHUB_WORKSPACE/ci-export-typecheck":/ci-export-typecheck \
-                -w /app \
-                -e CI_EXPORT_DIR=/ci-export-typecheck \
-                golangci-analyzer:1.24.11-1.59.0 \
-                sh -euxc 'CI_EXPORT_DIR=/ci-export-typecheck /bin/sh .github/scripts/run-golangci-in-container.sh _nonblocking' > ./ci-export-typecheck/docker_run.stdout 2> ./ci-export-typecheck/docker_run.stderr || true
-            echo $? > ./ci-export-typecheck/docker_run.return_code || true
+              --user "$(id -u):$(id -g)" \
+              -v "$GITHUB_WORKSPACE":/app \
+              -v "$GITHUB_WORKSPACE/ci-export-typecheck":/ci-export-typecheck \
+              -w /app \
+              -e CI_EXPORT_DIR=/ci-export-typecheck \
+              golangci-analyzer:1.24.11-1.59.0 \
+              sh -euxc 'CI_EXPORT_DIR=/ci-export-typecheck /bin/bash .github/scripts/run-golangci-in-container.sh _nonblocking' > ./ci-export-typecheck/docker_run.stdout 2> ./ci-export-typecheck/docker_run.stderr
+            rc=$?; echo "$rc" > ./ci-export-typecheck/docker_run.return_code || true
           else
             echo "helper script not found" > ./ci-export-typecheck/golangci_typecheck_blocking_debug.out || true
             echo 2 > ./ci-export-typecheck/golangci_exit_code_blocking_debug || true
@@ -390,6 +399,7 @@ jobs:
               echo "not found" > ./ci-export-typecheck/run_helper_stat.txt || true
             fi
 
+            chmod +x .github/scripts/run-golangci-in-container.sh || true
             docker run --rm \
               --user "$(id -u):$(id -g)" \
                 -v "$GITHUB_WORKSPACE":/app \
@@ -398,8 +408,8 @@ jobs:
                 -e CI_EXPORT_DIR=/ci-export-typecheck \
                 -e ULTRA_AGGRESSIVE_CLEAN=1 \
                 golangci-analyzer:1.24.11-1.59.0 \
-                sh -euxc 'CI_EXPORT_DIR=/ci-export-typecheck /bin/sh .github/scripts/run-golangci-in-container.sh _blocking_force' > ./ci-export-typecheck/docker_run.stdout 2> ./ci-export-typecheck/docker_run.stderr || true
-            echo $? > ./ci-export-typecheck/docker_run.return_code || true
+                sh -euxc 'CI_EXPORT_DIR=/ci-export-typecheck /bin/bash .github/scripts/run-golangci-in-container.sh _blocking_force' > ./ci-export-typecheck/docker_run.stdout 2> ./ci-export-typecheck/docker_run.stderr
+            rc=$?; echo "$rc" > ./ci-export-typecheck/docker_run.return_code || true
           else
             echo "helper script not found" > ./ci-export-typecheck/golangci_typecheck_blocking_force.out || true
             echo 2 > ./ci-export-typecheck/golangci_exit_code_blocking_force || true

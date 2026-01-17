@@ -1,4 +1,7 @@
-#!/bin/sh
+#!/usr/bin/env bash
+# Use bash: this script relies on bash features (pipefail, better set handling)
+# and is intended to run inside the pinned analyzer/container which provides
+# a full shell. Using bash makes the script simpler and more robust.
 set -euo pipefail
 set -x
 # run-golangci-in-container.sh — tiny README
