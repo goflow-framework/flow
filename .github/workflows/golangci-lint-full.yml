@@ -288,7 +288,7 @@ jobs:
           if [ -f .github/scripts/run-golangci-in-container.sh ]; then
             mkdir -p ./ci-export-typecheck || true
             echo "Preflight: ls .github/scripts" > ./ci-export-typecheck/ls_dot_github_scripts.txt || true
-            ls -la .github/scripts >> ./ci-export_typecheck/ls_dot_github_scripts.txt 2>&1 || true
+            ls -la .github/scripts >> ./ci-export-typecheck/ls_dot_github_scripts.txt 2>&1 || true
             if [ -f .github/scripts/run-golangci-in-container.sh ]; then
               stat -c '%a %U %G %n' .github/scripts/run-golangci-in-container.sh > ./ci-export-typecheck/run_helper_stat.txt 2>&1 || true
             else
@@ -332,7 +332,7 @@ jobs:
 
             chmod +x .github/scripts/run-golangci-in-container.sh || true
             printf "%s\n" "container-entered: $(date -u)" > ./ci-export-typecheck/container_started.txt || true
-            CI_EXPORT_DIR=./ci-export-typecheck /bin/bash .github/scripts/run-golangci-in-container.sh _blocking_debug > ./ci-export-typecheck/helper_stdout.txt 2> ./ci-export-typecheck/helper_stderr.txt || echo "$?" > ./ci-export_typecheck/helper_exit_code
+            CI_EXPORT_DIR=./ci-export-typecheck /bin/bash .github/scripts/run-golangci-in-container.sh _blocking_debug > ./ci-export-typecheck/helper_stdout.txt 2> ./ci-export-typecheck/helper_stderr.txt || echo "$?" > ./ci-export-typecheck/helper_exit_code
           else
             echo "helper script not found" > ./ci-export-typecheck/golangci_typecheck_blocking_debug.out || true
             echo 2 > ./ci-export-typecheck/golangci_exit_code_blocking_debug || true
@@ -370,7 +370,7 @@ jobs:
           if [ -f .github/scripts/run-golangci-in-container.sh ]; then
             mkdir -p ./ci-export-typecheck || true
             echo "Preflight: ls .github/scripts" > ./ci-export-typecheck/ls_dot_github_scripts.txt || true
-            ls -la .github/scripts >> ./ci-export_typecheck/ls_dot_github_scripts.txt 2>&1 || true
+            ls -la .github/scripts >> ./ci-export-typecheck/ls_dot_github_scripts.txt 2>&1 || true
             if [ -f .github/scripts/run-golangci-in-container.sh ]; then
               stat -c '%a %U %G %n' .github/scripts/run-golangci-in-container.sh > ./ci-export-typecheck/run_helper_stat.txt 2>&1 || true
             else
