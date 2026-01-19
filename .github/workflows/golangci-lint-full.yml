@@ -105,12 +105,23 @@ jobs:
         run: |
           # Tag the image with the GHCR repo + commit sha so it can be referenced
           echo "image-tag=ghcr.io/${{ github.repository_owner }}/golangci-analyzer:1.24.11-1.59.0-${{ github.sha }}" >> "$GITHUB_OUTPUT"
-      - name: Log in to GHCR (use PAT if provided, fallback to GITHUB_TOKEN)
-        uses: docker/login-action@v2
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GHCR_PAT != '' && secrets.GHCR_PAT || secrets.GITHUB_TOKEN }}
+      - name: Log in to GHCR (try GHCR_PAT then fallback to GITHUB_TOKEN)
+        run: |
+          set -euxo pipefail
+          echo "Attempting to login to ghcr.io"
+          # If GHCR_PAT is provided, try it first. If it fails, try GITHUB_TOKEN.
+          if [ -n "${{ secrets.GHCR_PAT }}" ]; then
+            echo "GHCR_PAT present — attempting login with GHCR_PAT"
+            if echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin; then
+              echo "Logged in to ghcr.io with GHCR_PAT"
+            else
+              echo "GHCR_PAT login failed — attempting login with GITHUB_TOKEN"
+              echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+            fi
+          else
+            echo "GHCR_PAT not set — using GITHUB_TOKEN"
+            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          fi
 
       - name: Build and push analyzer image to GHCR
         run: |
@@ -277,7 +288,7 @@ jobs:
           if [ -f .github/scripts/run-golangci-in-container.sh ]; then
             mkdir -p ./ci-export-typecheck || true
             echo "Preflight: ls .github/scripts" > ./ci-export-typecheck/ls_dot_github_scripts.txt || true
-            ls -la .github/scripts >> ./ci-export-typecheck/ls_dot_github_scripts.txt 2>&1 || true
+            ls -la .github/scripts >> ./ci-export_typecheck/ls_dot_github_scripts.txt 2>&1 || true
             if [ -f .github/scripts/run-golangci-in-container.sh ]; then
               stat -c '%a %U %G %n' .github/scripts/run-golangci-in-container.sh > ./ci-export-typecheck/run_helper_stat.txt 2>&1 || true
             else
