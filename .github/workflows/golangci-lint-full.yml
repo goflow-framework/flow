@@ -118,7 +118,7 @@ jobs:
           docker images | grep golangci-analyzer || true
           docker push "${{ steps.set-tag.outputs.image-tag }}"
 
-      - name: Debug: show built images and inspect tag
+      - name: Debug:- show built images and inspect tag
         if: always()
         run: |
           echo "== docker images (machine-readable) =="
