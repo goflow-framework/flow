@@ -94,26 +94,26 @@ jobs:
     name: Build analyzer image
     runs-on: ubuntu-latest
     outputs:
-      image-tag: ${{ steps.set-tag.outputs.tag }}
+      image-tag: ${{ steps.set-tag.outputs.image-tag }}
     steps:
       - uses: actions/checkout@v4
       - name: Set image tag
         id: set-tag
         run: |
-          echo "tag=golangci-analyzer:1.24.11-1.59.0" >> "$GITHUB_OUTPUT"
-      - name: Build analyzer image
-        run: |
-          docker build --pull -t golangci-analyzer:1.24.11-1.59.0 .github/containers/golangci-analyzer || true
-          docker images | grep golangci-analyzer || true
-      - name: Save image artifact
-        run: |
-          docker save golangci-analyzer:1.24.11-1.59.0 -o analyzer-image.tar
-          ls -la analyzer-image.tar || true
-      - name: Upload analyzer image artifact
-        uses: actions/upload-artifact@v4
+          # Tag the image with the GHCR repo + commit sha so it can be referenced
+          echo "image-tag=ghcr.io/${{ github.repository_owner }}/golangci-analyzer:1.24.11-1.59.0-${{ github.sha }}" >> "$GITHUB_OUTPUT"
+      - name: Log in to GHCR (use PAT if provided, fallback to GITHUB_TOKEN)
+        uses: docker/login-action@v2
         with:
-          name: analyzer-image
-          path: analyzer-image.tar
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GHCR_PAT != '' && secrets.GHCR_PAT || secrets.GITHUB_TOKEN }}
+
+      - name: Build and push analyzer image to GHCR
+        run: |
+          docker build --pull -t "${{ steps.set-tag.outputs.image-tag }}" .github/containers/golangci-analyzer
+          docker images | grep golangci-analyzer || true
+          docker push "${{ steps.set-tag.outputs.image-tag }}"
 
   # Gated rollout: run type-aware 'typecheck' first in a non-blocking job.
   # If the non-blocking run completes successfully, the blocking job below
@@ -122,20 +122,13 @@ jobs:
     name: Typecheck (non-blocking rollout)
     needs: build-analyzer-image
     runs-on: ubuntu-latest
+    container:
+      image: ${{ needs.build-analyzer-image.outputs.image-tag }}
     continue-on-error: true
     outputs:
       has_issues: ${{ steps.check.outputs.has_issues }}
     steps:
       - uses: actions/checkout@v4
-      - name: Download analyzer image artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: analyzer-image
-          path: .
-      - name: Load analyzer image into Docker
-        run: |
-          docker load -i analyzer-image.tar
-          docker images | grep golangci-analyzer || true
       - name: Create export dir
         run: |
           mkdir -p ./ci-export-typecheck
@@ -167,27 +160,12 @@ jobs:
               echo "not found" > ./ci-export-typecheck/run_helper_stat.txt || true
             fi
 
-            # Use a host bind-mount for ci-export-typecheck so the container can
-            # write diagnostics directly to a shared directory. This avoids
-            # streaming the outbound tar over stdout which has shown truncation
-            # failures in the runner.
-            # Ensure helper is executable inside the container (host-side chmod)
             chmod +x .github/scripts/run-golangci-in-container.sh || true
-            # Run the analyzer container and capture stdout/stderr into the export dir.
-            docker run --rm \
-                -v "$GITHUB_WORKSPACE":/app \
-                -v "$GITHUB_WORKSPACE/ci-export-typecheck":/ci-export-typecheck \
-                -w /app \
-                -e CI_EXPORT_DIR=/ci-export-typecheck \
-                golangci-analyzer:1.24.11-1.59.0 \
-                sh -euxc '
-                  printf "%s\n" "container-entered: $(date -u)" > /ci-export-typecheck/container_started.txt || true
-                  command -v bash > /ci-export-typecheck/bash_present.txt 2>&1 || true
-                  ls -la /ci-export-typecheck > /ci-export-typecheck/ls_container_export.txt 2>&1 || true
-                  # Capture helper stdout/stderr and exit code inside the container so the host files show what happened
-                  CI_EXPORT_DIR=/ci-export-typecheck /bin/bash .github/scripts/run-golangci-in-container.sh _nonblocking > /ci-export-typecheck/helper_stdout.txt 2> /ci-export-typecheck/helper_stderr.txt || echo "$?" > /ci-export-typecheck/helper_exit_code
-                ' > ./ci-export-typecheck/docker_run.stdout 2> ./ci-export-typecheck/docker_run.stderr
-            rc=$?; echo "$rc" > ./ci-export-typecheck/docker_run.return_code || true
+            # Write an immediate marker into the workspace-mounted export dir so the runner log shows activity
+            printf "%s\n" "container-entered: $(date -u)" > ./ci-export-typecheck/container_started.txt || true
+            command -v bash > ./ci-export-typecheck/bash_present.txt 2>&1 || true
+            ls -la ./ci-export-typecheck > ./ci-export-typecheck/ls_container_export.txt 2>&1 || true
+            CI_EXPORT_DIR=./ci-export-typecheck /bin/bash .github/scripts/run-golangci-in-container.sh _nonblocking > ./ci-export-typecheck/helper_stdout.txt 2> ./ci-export-typecheck/helper_stderr.txt || echo "$?" > ./ci-export-typecheck/helper_exit_code
           else
             echo "helper script not found" > ./ci-export-typecheck/golangci_typecheck.out || true
             echo 2 > ./ci-export-typecheck/golangci_exit_code || true
@@ -275,6 +253,8 @@ jobs:
     name: Typecheck (blocking, gated)
     needs: [build-analyzer-image, typecheck-nonblocking]
     runs-on: ubuntu-latest
+    container:
+      image: ${{ needs.build-analyzer-image.outputs.image-tag }}
     if: needs.typecheck-nonblocking.outputs.has_issues == 'false'
     steps:
       - uses: actions/checkout@v4
@@ -290,21 +270,11 @@ jobs:
             else
               echo "not found" > ./ci-export-typecheck/run_helper_stat.txt || true
             fi
-
             chmod +x .github/scripts/run-golangci-in-container.sh || true
-            docker run --rm \
-                -v "$GITHUB_WORKSPACE":/app \
-                -v "$GITHUB_WORKSPACE/ci-export-typecheck":/ci-export-typecheck \
-                -w /app \
-                -e CI_EXPORT_DIR=/ci-export-typecheck \
-                golangci-analyzer:1.24.11-1.59.0 \
-                sh -euxc '
-                  printf "%s\n" "container-entered: $(date -u)" > /ci-export-typecheck/container_started.txt || true
-                  command -v bash > /ci-export-typecheck/bash_present.txt 2>&1 || true
-                  ls -la /ci-export-typecheck > /ci-export-typecheck/ls_container_export.txt 2>&1 || true
-                  CI_EXPORT_DIR=/ci-export-typecheck /bin/bash .github/scripts/run-golangci-in-container.sh _nonblocking > /ci-export-typecheck/helper_stdout.txt 2> /ci-export-typecheck/helper_stderr.txt || echo "$?" > /ci-export-typecheck/helper_exit_code
-                ' > ./ci-export-typecheck/docker_run.stdout 2> ./ci-export-typecheck/docker_run.stderr
-            rc=$?; echo "$rc" > ./ci-export-typecheck/docker_run.return_code || true
+            printf "%s\n" "container-entered: $(date -u)" > ./ci-export-typecheck/container_started.txt || true
+            command -v bash > ./ci-export-typecheck/bash_present.txt 2>&1 || true
+            ls -la ./ci-export-typecheck > ./ci-export-typecheck/ls_container_export.txt 2>&1 || true
+            CI_EXPORT_DIR=./ci-export-typecheck /bin/bash .github/scripts/run-golangci-in-container.sh _blocking > ./ci-export-typecheck/helper_stdout.txt 2> ./ci-export-typecheck/helper_stderr.txt || echo "$?" > ./ci-export-typecheck/helper_exit_code
           else
             echo "helper script not found" > ./ci-export-typecheck/golangci_typecheck_blocking.out || true
             echo 2 > ./ci-export-typecheck/golangci_exit_code_blocking || true
@@ -316,21 +286,14 @@ jobs:
     name: Typecheck (blocking, debug - always run)
     needs: [build-analyzer-image, typecheck-nonblocking]
     runs-on: ubuntu-latest
+    container:
+      image: ${{ needs.build-analyzer-image.outputs.image-tag }}
     if: always()
     steps:
       - uses: actions/checkout@v4
       - name: Create export dir (debug)
         run: |
           mkdir -p ./ci-export-typecheck
-      - name: Download analyzer image artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: analyzer-image
-          path: .
-      - name: Load analyzer image into Docker
-        run: |
-          docker load -i analyzer-image.tar
-          docker images | grep golangci-analyzer || true
       - name: Run blocking typecheck (debug) inside analyzer container
         run: |
           if [ -f .github/scripts/run-golangci-in-container.sh ]; then
@@ -343,19 +306,9 @@ jobs:
               echo "not found" > ./ci-export-typecheck/run_helper_stat.txt || true
             fi
 
-            # Ensure the helper is executable on the host so the container can run it
             chmod +x .github/scripts/run-golangci-in-container.sh || true
-
-            # Run the analyzer container and capture output directly into the
-            # mounted ci-export-typecheck directory to avoid streaming issues.
-            docker run --rm \
-                -v "$GITHUB_WORKSPACE":/app \
-                -v "$GITHUB_WORKSPACE/ci-export-typecheck":/ci-export-typecheck \
-                -w /app \
-                -e CI_EXPORT_DIR=/ci-export-typecheck \
-                golangci-analyzer:1.24.11-1.59.0 \
-                sh -euxc 'printf "%s\n" "container-entered: $(date -u)" > /ci-export-typecheck/container_started.txt || true; CI_EXPORT_DIR=/ci-export-typecheck /bin/bash .github/scripts/run-golangci-in-container.sh _nonblocking' > ./ci-export-typecheck/docker_run.stdout 2> ./ci-export-typecheck/docker_run.stderr
-            rc=$?; echo "$rc" > ./ci-export-typecheck/docker_run.return_code || true
+            printf "%s\n" "container-entered: $(date -u)" > ./ci-export-typecheck/container_started.txt || true
+            CI_EXPORT_DIR=./ci-export-typecheck /bin/bash .github/scripts/run-golangci-in-container.sh _blocking_debug > ./ci-export-typecheck/helper_stdout.txt 2> ./ci-export-typecheck/helper_stderr.txt || echo "$?" > ./ci-export-typecheck/helper_exit_code
           else
             echo "helper script not found" > ./ci-export-typecheck/golangci_typecheck_blocking_debug.out || true
             echo 2 > ./ci-export-typecheck/golangci_exit_code_blocking_debug || true
@@ -378,6 +331,8 @@ jobs:
     name: Typecheck (blocking, forced - debug)
     needs: [build-analyzer-image, typecheck-nonblocking]
     runs-on: ubuntu-latest
+    container:
+      image: ${{ needs.build-analyzer-image.outputs.image-tag }}
     env:
       ULTRA_AGGRESSIVE_CLEAN: '1'
     if: always()
@@ -386,15 +341,6 @@ jobs:
       - name: Create export dir (blocking-force)
         run: |
           mkdir -p ./ci-export-typecheck
-      - name: Download analyzer image artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: analyzer-image
-          path: .
-      - name: Load analyzer image into Docker
-        run: |
-          docker load -i analyzer-image.tar
-          docker images | grep golangci-analyzer || true
       - name: Run blocking typecheck (force) inside analyzer container
         run: |
           if [ -f .github/scripts/run-golangci-in-container.sh ]; then
@@ -408,48 +354,9 @@ jobs:
             fi
 
             chmod +x .github/scripts/run-golangci-in-container.sh || true
-            docker run --rm \
-                -v "$GITHUB_WORKSPACE":/app \
-                -v "$GITHUB_WORKSPACE/ci-export-typecheck":/ci-export-typecheck \
-                -w /app \
-                -e CI_EXPORT_DIR=/ci-export-typecheck \
-                -e ULTRA_AGGRESSIVE_CLEAN=1 \
-                golangci-analyzer:1.24.11-1.59.0 \
-                sh -euxc '
-                  printf "%s\n" "container-entered: $(date -u)" > /ci-export-typecheck/container_started.txt || true
-                  command -v bash > /ci-export-typecheck/bash_present.txt 2>&1 || true
-                  ls -la /ci-export-typecheck > /ci-export-typecheck/ls_container_export.txt 2>&1 || true
-                  CI_EXPORT_DIR=/ci-export-typecheck /bin/bash .github/scripts/run-golangci-in-container.sh _blocking_force > /ci-export-typecheck/helper_stdout.txt 2> /ci-export-typecheck/helper_stderr.txt || echo "$?" > /ci-export-typecheck/helper_exit_code
-                ' > ./ci-export-typecheck/docker_run.stdout 2> ./ci-export-typecheck/docker_run.stderr
-            rc=$?; echo "$rc" > ./ci-export-typecheck/docker_run.return_code || true
+            printf "%s\n" "container-entered: $(date -u)" > ./ci-export-typecheck/container_started.txt || true
+            CI_EXPORT_DIR=./ci-export-typecheck ULTRA_AGGRESSIVE_CLEAN=1 /bin/bash .github/scripts/run-golangci-in-container.sh _blocking_force > ./ci-export-typecheck/helper_stdout.txt 2> ./ci-export-typecheck/helper_stderr.txt || echo "$?" > ./ci-export-typecheck/helper_exit_code
           else
             echo "helper script not found" > ./ci-export-typecheck/golangci_typecheck_blocking_force.out || true
             echo 2 > ./ci-export-typecheck/golangci_exit_code_blocking_force || true
           fi
-
-      - name: Print ci-export summary (blocking-force)
-        if: always()
-        run: |
-          if [ -f ci-export-typecheck/golangci_typecheck.out ]; then
-            echo '--- ci-export summary (blocking-force head 200) ---'
-            head -n 200 ci-export-typecheck/golangci_typecheck.out || true
-          else
-            echo 'ci-export summary not found (blocking-force)'
-          fi
-          if [ -f ci-export-typecheck/golangci_exit_code ]; then
-            echo '--- ci-export exit code (blocking-force) ---'
-            cat ci-export-typecheck/golangci_exit_code || true
-          fi
-
-      - name: Archive blocking-force diagnostic outputs
-        if: always()
-        run: |
-          mkdir -p ci-export-typecheck
-          tar -czf ci-export-typecheck-blocking-force.tar.gz ci-export-typecheck || true
-
-      - name: Upload blocking-force diagnostics artifact
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: golangci-typecheck-diagnostics-blocking-force
-          path: ci-export-typecheck-blocking-force.tar.gz
