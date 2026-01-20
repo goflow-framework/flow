@@ -213,15 +213,24 @@ if echo "${SUFFIX}" | grep -q "_blocking_force_ultra" || [ "${ULTRA_AGGRESSIVE_C
   GOMODCACHE=/tmp/gomodcache GOCACHE=/tmp/gocache /usr/local/go/bin/go mod download || true
 fi
 
-# Download and run golangci-lint from /tmp to avoid mv/timing/permission issues
+## Install and run golangci-lint using the container's Go toolchain.
+## Building golangci-lint inside the image ensures the export-data
+## formats used by the tool match the container's compiler (fixes
+## "unsupported version" import errors).
 rc=0
-curl -sSfL "$GOLANGCI_URL" | tar -xz -C /tmp || rc=2
-if [ "$rc" -eq 0 ]; then
-  # Ensure the container's go binary is on PATH when golangci-lint looks it up.
-  PATH=/usr/local/go/bin:/go/bin:$PATH /tmp/golangci-lint-1.59.0-linux-amd64/golangci-lint run --config .golangci.yml --enable typecheck ./... > "$OUTDIR/golangci_typecheck${SUFFIX}.out" 2>&1 || rc=$?
-  # Marker indicating golangci completed (successfully or not).
-  echo "marker_after_golangci: $(date) rc=${rc:-}" > "$OUTDIR/marker_after_golangci${SUFFIX}.txt" 2>/dev/null || true
+echo "Installing golangci-lint v1.59.0 with container go" > "$OUTDIR/golangci_install_log${SUFFIX}.txt" 2>&1 || true
+GOBIN=/go/bin /usr/local/go/bin/go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.59.0 2>> "$OUTDIR/golangci_install_log${SUFFIX}.txt" || rc=$?
+# Record go/golangci version info for debugging
+/usr/local/go/bin/go version >> "$OUTDIR/golangci_install_log${SUFFIX}.txt" 2>&1 || true
+if [ -x /go/bin/golangci-lint ]; then
+  /go/bin/golangci-lint --version >> "$OUTDIR/golangci_install_log${SUFFIX}.txt" 2>&1 || true
+  /go/bin/golangci-lint run --config .golangci.yml --enable typecheck ./... > "$OUTDIR/golangci_typecheck${SUFFIX}.out" 2>&1 || rc=$?
+else
+  echo "golangci-lint not found after install" >> "$OUTDIR/golangci_install_log${SUFFIX}.txt" 2>&1 || true
+  rc=2
 fi
+# Marker indicating golangci completed (successfully or not).
+echo "marker_after_golangci: $(date) rc=${rc:-}" > "$OUTDIR/marker_after_golangci${SUFFIX}.txt" 2>/dev/null || true
 echo "$rc" > "$OUTDIR/golangci_exit_code${SUFFIX}" || true
 # final checkpoint so we know the container finished running the helper
 echo "container_finished: $(date) rc=$rc" > "$OUTDIR/container_finished${SUFFIX}.txt" 2>/dev/null || true
