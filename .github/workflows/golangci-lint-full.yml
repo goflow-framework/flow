@@ -1,8 +1,5 @@
 name: golangci-lint-full
 
-permissions:
-  packages: write
-
 on:
   pull_request:
   push:
@@ -96,6 +93,8 @@ jobs:
   build-analyzer-image:
     name: Build analyzer image
     runs-on: ubuntu-latest
+    env:
+      GHCR_PAT: ${{ secrets.GHCR_PAT }}
     outputs:
       image-tag: ${{ steps.set-tag.outputs.image-tag }}
     steps:
@@ -105,39 +104,27 @@ jobs:
         run: |
           # Tag the image with the GHCR repo + commit sha so it can be referenced
           echo "image-tag=ghcr.io/${{ github.repository_owner }}/golangci-analyzer:1.24.11-1.59.0-${{ github.sha }}" >> "$GITHUB_OUTPUT"
-      - name: Log in to GHCR (try GHCR_PAT then fallback to GITHUB_TOKEN)
-        run: |
-          set -euxo pipefail
-          echo "Attempting to login to ghcr.io"
-          # If GHCR_PAT is provided, try it first. If it fails, try GITHUB_TOKEN.
-          if [ -n "${{ secrets.GHCR_PAT }}" ]; then
-            echo "GHCR_PAT present — attempting login with GHCR_PAT"
-            if echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin; then
-              echo "Logged in to ghcr.io with GHCR_PAT"
-            else
-              echo "GHCR_PAT login failed — attempting login with GITHUB_TOKEN"
-              echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
-            fi
-          else
-            echo "GHCR_PAT not set — using GITHUB_TOKEN"
-            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
-          fi
+      - name: Log in to GHCR (use PAT if provided)
+        if: ${{ env.GHCR_PAT != '' }}
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GHCR_PAT }}
+
+      - name: Log in to GHCR (fallback to GITHUB_TOKEN)
+        if: ${{ env.GHCR_PAT == '' }}
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and push analyzer image to GHCR
         run: |
           docker build --pull -t "${{ steps.set-tag.outputs.image-tag }}" .github/containers/golangci-analyzer
           docker images | grep golangci-analyzer || true
           docker push "${{ steps.set-tag.outputs.image-tag }}"
-
-      - name: Debug:- show built images and inspect tag
-        if: always()
-        run: |
-          echo "== docker images (machine-readable) =="
-          docker images --format '{{.Repository}}:{{.Tag}}\t{{.ID}}' | grep golangci-analyzer || true
-          echo "\n== inspect expected image tag =="
-          docker image inspect "${{ steps.set-tag.outputs.image-tag }}" || true
-          echo "\n== docker info =="
-          docker info || true
 
   # Gated rollout: run type-aware 'typecheck' first in a non-blocking job.
   # If the non-blocking run completes successfully, the blocking job below
@@ -189,6 +176,9 @@ jobs:
             printf "%s\n" "container-entered: $(date -u)" > ./ci-export-typecheck/container_started.txt || true
             command -v bash > ./ci-export-typecheck/bash_present.txt 2>&1 || true
             ls -la ./ci-export-typecheck > ./ci-export-typecheck/ls_container_export.txt 2>&1 || true
+            # CI debug preflight: record where golangci-lint is and its version (if present)
+            command -v golangci-lint > ./ci-export-typecheck/which_golangci_preflight.txt 2>&1 || true
+            golangci-lint --version > ./ci-export-typecheck/golangci_version_preflight.txt 2>&1 || true
             CI_EXPORT_DIR=./ci-export-typecheck /bin/bash .github/scripts/run-golangci-in-container.sh _nonblocking > ./ci-export-typecheck/helper_stdout.txt 2> ./ci-export-typecheck/helper_stderr.txt || echo "$?" > ./ci-export-typecheck/helper_exit_code
           else
             echo "helper script not found" > ./ci-export-typecheck/golangci_typecheck.out || true
@@ -298,6 +288,9 @@ jobs:
             printf "%s\n" "container-entered: $(date -u)" > ./ci-export-typecheck/container_started.txt || true
             command -v bash > ./ci-export-typecheck/bash_present.txt 2>&1 || true
             ls -la ./ci-export-typecheck > ./ci-export-typecheck/ls_container_export.txt 2>&1 || true
+            # CI debug preflight: record where golangci-lint is and its version (if present)
+            command -v golangci-lint > ./ci-export-typecheck/which_golangci_preflight.txt 2>&1 || true
+            golangci-lint --version > ./ci-export-typecheck/golangci_version_preflight.txt 2>&1 || true
             CI_EXPORT_DIR=./ci-export-typecheck /bin/bash .github/scripts/run-golangci-in-container.sh _blocking > ./ci-export-typecheck/helper_stdout.txt 2> ./ci-export-typecheck/helper_stderr.txt || echo "$?" > ./ci-export-typecheck/helper_exit_code
           else
             echo "helper script not found" > ./ci-export-typecheck/golangci_typecheck_blocking.out || true
@@ -332,6 +325,9 @@ jobs:
 
             chmod +x .github/scripts/run-golangci-in-container.sh || true
             printf "%s\n" "container-entered: $(date -u)" > ./ci-export-typecheck/container_started.txt || true
+            # CI debug preflight: record where golangci-lint is and its version (if present)
+            command -v golangci-lint > ./ci-export-typecheck/which_golangci_preflight.txt 2>&1 || true
+            golangci-lint --version > ./ci-export-typecheck/golangci_version_preflight.txt 2>&1 || true
             CI_EXPORT_DIR=./ci-export-typecheck /bin/bash .github/scripts/run-golangci-in-container.sh _blocking_debug > ./ci-export-typecheck/helper_stdout.txt 2> ./ci-export-typecheck/helper_stderr.txt || echo "$?" > ./ci-export-typecheck/helper_exit_code
           else
             echo "helper script not found" > ./ci-export-typecheck/golangci_typecheck_blocking_debug.out || true
@@ -379,6 +375,9 @@ jobs:
 
             chmod +x .github/scripts/run-golangci-in-container.sh || true
             printf "%s\n" "container-entered: $(date -u)" > ./ci-export-typecheck/container_started.txt || true
+            # CI debug preflight: record where golangci-lint is and its version (if present)
+            command -v golangci-lint > ./ci-export-typecheck/which_golangci_preflight.txt 2>&1 || true
+            golangci-lint --version > ./ci-export-typecheck/golangci_version_preflight.txt 2>&1 || true
             CI_EXPORT_DIR=./ci-export-typecheck ULTRA_AGGRESSIVE_CLEAN=1 /bin/bash .github/scripts/run-golangci-in-container.sh _blocking_force > ./ci-export-typecheck/helper_stdout.txt 2> ./ci-export-typecheck/helper_stderr.txt || echo "$?" > ./ci-export-typecheck/helper_exit_code
           else
             echo "helper script not found" > ./ci-export-typecheck/golangci_typecheck_blocking_force.out || true

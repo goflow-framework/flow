@@ -1,3 +1,114 @@
+#!/bin/sh
+set -euo pipefail
+set -x
+# run-golangci-in-container.sh — tiny README
+#     other's diagnostics.
+#
+# Why we clear /usr/local/go/pkg/*:
+#   The Go toolchain writes compiled package export data under GOROOT/pkg
+#   (the standard library) and in module caches. If those compiled artifacts
+#   were produced by a different Go toolchain or in a different environment
+#   (for example, the runner vs the container), golangci-lint's typecheck
+#   (and other analyzers) can fail with "unsupported version" or "stale"
+#   import/export-data errors. Removing `/usr/local/go/pkg/*` inside the
+#   ephemeral container forces the Go toolchain to rebuild any necessary
+#   stdlib artifacts with the container's Go version, avoiding mismatches.
+#
+#   This is safe in an ephemeral container (we only remove files inside the
+#   container's GOROOT) and prevents hard-to-debug export-data issues.
+#
+# Writes diagnostics into ./ci-export-typecheck and records the golangci exit code.
+
+SUFFIX="${1:-}"
+OUTDIR="./ci-export-typecheck"
+GOLANGCI_URL="https://github.com/golangci/golangci-lint/releases/download/v1.59.0/golangci-lint-1.59.0-linux-amd64.tar.gz"
+
+mkdir -p "$OUTDIR" /tmp/gomodcache /tmp/gocache
+export GOMODCACHE=/tmp/gomodcache
+export GOCACHE=/tmp/gocache
+export PATH=/usr/local/go/bin:/go/bin:$PATH
+export GOFLAGS='-mod=mod -buildvcs=false'
+# Ensure GOROOT is set when the container's Go is available. Some images
+# ship a trimmed 'go' binary or have GOROOT cleared; setting GOROOT to the
+# container's installation path (/usr/local/go) prevents "go: cannot find
+# GOROOT directory: 'go' binary is trimmed and GOROOT is not set" errors.
+if [ -x /usr/local/go/bin/go ]; then
+  export GOROOT=/usr/local/go
+fi
+
+# Ensure we're running from the repository root inside the container. When the
+# workspace is mounted with different ownership, git may complain about dubious
+# ownership and commands like `go list` (which use the vcs) can fail. Force the
+# current directory to the workspace and mark it as a safe directory for git.
+if [ -n "${GITHUB_WORKSPACE:-}" ]; then
+  cd "$GITHUB_WORKSPACE" || true
+fi
+if command -v git >/dev/null 2>&1; then
+  # record the git user and config before we set safe.directory
+  id > "$OUTDIR/id${SUFFIX}.txt" 2>/dev/null || true
+  stat -c '%U %G %a %n' . > "$OUTDIR/pwd_stat${SUFFIX}.txt" 2>/dev/null || true
+  git config --global --list > "$OUTDIR/git_global_config_before${SUFFIX}.txt" 2>/dev/null || true
+  git config --global --add safe.directory "$(pwd)" || true
+  git config --global --list > "$OUTDIR/git_global_config_after${SUFFIX}.txt" 2>/dev/null || true
+fi
+
+# Capture GOROOT pkg layout before we modify it
+ls -la /usr/local/go/pkg > "$OUTDIR/goroot_pkg_before${SUFFIX}.txt" 2>/dev/null || true
+
+# Clear caches and compiled stdlib packages that may cause export-data mismatches
+GOMODCACHE=/tmp/gomodcache GOCACHE=/tmp/gocache /usr/local/go/bin/go clean -cache -modcache -testcache -i || true
+if [ -d /usr/local/go/pkg ]; then
+  for entry in /usr/local/go/pkg/*; do
+    base="$(basename "$entry")"
+    # preserve 'tool' and 'include' directories which contain toolchain
+    # binaries and header files required by the container's go runtime.
+    if [ "$base" = "tool" ] || [ "$base" = "include" ]; then
+      # preserve tool binaries
+      continue
+    fi
+    rm -rf "$entry" || true
+  done
+fi
+GOMODCACHE=/tmp/gomodcache GOCACHE=/tmp/gocache /usr/local/go/bin/go mod download || true
+  # Preserve the toolchain binaries and headers so the 'go' command
+  # remains functional after the ultra-clean. Copy back 'tool' and
+  # 'include' from the backup into the fresh pkg tree. This keeps the
+  # ultra intent of removing compiled package export-data while not
+  # removing required go toolchain binaries (avoids "no such tool
+  # 'compile'" errors).
+  if [ -d /tmp/goroot_pkg_backup/tool ]; then
+    cp -a /tmp/goroot_pkg_backup/tool /usr/local/go/pkg/ || true
+  fi
+  if [ -d /tmp/goroot_pkg_backup/include ]; then
+    cp -a /tmp/goroot_pkg_backup/include /usr/local/go/pkg/ || true
+  fi
+  
+
+# Capture GOROOT pkg layout after cleanup
+ls -la /usr/local/go/pkg > "$OUTDIR/goroot_pkg_after${SUFFIX}.txt" 2>/dev/null || true
+
+# Collect diagnostics
+echo "$PATH" > "$OUTDIR/path${SUFFIX}.txt" 2>/dev/null || true
+which go > "$OUTDIR/which_go${SUFFIX}.txt" 2>&1 || true
+/usr/local/go/bin/go version > "$OUTDIR/go_version${SUFFIX}.txt" 2>&1 || true
+/usr/local/go/bin/go env -json > "$OUTDIR/go_env${SUFFIX}.json" 2>&1 || true
+/usr/local/go/bin/go list -deps -json ./... > "$OUTDIR/deps${SUFFIX}.json" 2>&1 || true
+ /usr/local/go/bin/go list -json sync/atomic > "$OUTDIR/sync_atomic${SUFFIX}.json" 2>&1 || true
+ 
+ # Preflight: ensure we can import sync/atomic with the container's go toolchain.
+ # If this fails, write diagnostics and abort early so CI artifacts show the
+ # underlying `go list` failure instead of only golangci knock-on errors.
+ if /usr/local/go/bin/go list -json sync/atomic > "$OUTDIR/sync_atomic_preflight${SUFFIX}.json" 2>&1; then
+   echo "sync_atomic_preflight: ok" > "$OUTDIR/sync_atomic_preflight_status${SUFFIX}.txt" 2>/dev/null || true
+ else
+   echo "sync_atomic_preflight: failed" > "$OUTDIR/sync_atomic_preflight_status${SUFFIX}.txt" 2>/dev/null || true
+   # Also keep the original failing output in the legacy filename for tools
+   # that read sync_atomic*.json
+   /usr/local/go/bin/go list -json sync/atomic > "$OUTDIR/sync_atomic${SUFFIX}.json" 2>&1 || true
+   echo "preflight_failed: go list sync/atomic failed; aborting before golangci-lint" > "$OUTDIR/preflight_failed${SUFFIX}.txt" 2>/dev/null || true
+   exit 2
+ fi
+ls -la /usr/local/go/bin > "$OUTDIR/goroot_bin_ls${SUFFIX}.txt" 2>&1 || true
 #!/usr/bin/env bash
 # Use bash: this script relies on bash features (pipefail, better set handling)
 # and is intended to run inside the pinned analyzer/container which provides
@@ -163,6 +274,23 @@ which go > "$OUTDIR/which_go${SUFFIX}.txt" 2>&1 || true
 ls -la /usr/local/go/bin > "$OUTDIR/goroot_bin_ls${SUFFIX}.txt" 2>&1 || true
 ls -la /usr/local/go/pkg > "$OUTDIR/goroot_pkg_ls${SUFFIX}.txt" 2>&1 || true
 
+# Preflight: ensure we can import sync/atomic with the container's go toolchain.
+# If this fails, write diagnostics and abort early so CI artifacts show the
+# underlying `go list` failure instead of only golangci knock-on errors.
+if /usr/local/go/bin/go list -json sync/atomic > "$OUTDIR/sync_atomic_preflight${SUFFIX}.json" 2>&1; then
+  echo "sync_atomic_preflight: ok" > "$OUTDIR/sync_atomic_preflight_status${SUFFIX}.txt" 2>/dev/null || true
+else
+  echo "sync_atomic_preflight: failed" > "$OUTDIR/sync_atomic_preflight_status${SUFFIX}.txt" 2>/dev/null || true
+  # Also keep the original failing output in the legacy filename for tools
+  # that read sync_atomic*.json
+  /usr/local/go/bin/go list -json sync/atomic > "$OUTDIR/sync_atomic${SUFFIX}.json" 2>&1 || true
+  echo "preflight_failed: go list sync/atomic failed; aborting before golangci-lint" > "$OUTDIR/preflight_failed${SUFFIX}.txt" 2>/dev/null || true
+  exit 2
+fi
+
+ls -la /usr/local/go/bin > "$OUTDIR/goroot_bin_ls${SUFFIX}.txt" 2>&1 || true
+ls -la /usr/local/go/pkg > "$OUTDIR/goroot_pkg_ls${SUFFIX}.txt" 2>&1 || true
+
 # Marker to show the script reached the golangci invocation step. This will
 # be included in the ci-export tar if the outbound tar stream succeeds.
 echo "marker_before_golangci: $(date)" > "$OUTDIR/marker_before_golangci${SUFFIX}.txt" 2>/dev/null || true
@@ -218,15 +346,28 @@ fi
 ## formats used by the tool match the container's compiler (fixes
 ## "unsupported version" import errors).
 rc=0
-echo "Installing golangci-lint v1.59.0 with container go" > "$OUTDIR/golangci_install_log${SUFFIX}.txt" 2>&1 || true
-GOBIN=/go/bin /usr/local/go/bin/go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.59.0 2>> "$OUTDIR/golangci_install_log${SUFFIX}.txt" || rc=$?
+echo "golangci_install: checking for golangci-lint in PATH" > "$OUTDIR/golangci_install_log${SUFFIX}.txt" 2>&1 || true
+# If golangci-lint is already present in PATH (for example, baked into the
+# analyzer image), prefer it and skip rebuilding. Otherwise install into
+# /go/bin (image-built location) using the container's go toolchain.
+if command -v golangci-lint >/dev/null 2>&1; then
+  GOLANGCI_BIN=$(command -v golangci-lint)
+  echo "found golangci-lint at ${GOLANGCI_BIN}" >> "$OUTDIR/golangci_install_log${SUFFIX}.txt" 2>&1 || true
+else
+  echo "Installing golangci-lint v1.59.0 with container go" >> "$OUTDIR/golangci_install_log${SUFFIX}.txt" 2>&1 || true
+  GOBIN=/go/bin /usr/local/go/bin/go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.59.0 2>> "$OUTDIR/golangci_install_log${SUFFIX}.txt" || rc=$?
+  GOLANGCI_BIN=/go/bin/golangci-lint
+fi
 # Record go/golangci version info for debugging
 /usr/local/go/bin/go version >> "$OUTDIR/golangci_install_log${SUFFIX}.txt" 2>&1 || true
-if [ -x /go/bin/golangci-lint ]; then
-  /go/bin/golangci-lint --version >> "$OUTDIR/golangci_install_log${SUFFIX}.txt" 2>&1 || true
-  /go/bin/golangci-lint run --config .golangci.yml --enable typecheck ./... > "$OUTDIR/golangci_typecheck${SUFFIX}.out" 2>&1 || rc=$?
+if [ -n "${GOLANGCI_BIN:-}" ] && [ -x "$GOLANGCI_BIN" ]; then
+  "$GOLANGCI_BIN" --version >> "$OUTDIR/golangci_install_log${SUFFIX}.txt" 2>&1 || true
+  # CI debug: also write which and version into the main export dir for quick inspection
+  command -v golangci-lint > "$OUTDIR/which_golangci${SUFFIX}.txt" 2>&1 || true
+  "$GOLANGCI_BIN" --version > "$OUTDIR/golangci_version${SUFFIX}.txt" 2>&1 || true
+  "$GOLANGCI_BIN" run --config .golangci.yml --enable typecheck ./... > "$OUTDIR/golangci_typecheck${SUFFIX}.out" 2>&1 || rc=$?
 else
-  echo "golangci-lint not found after install" >> "$OUTDIR/golangci_install_log${SUFFIX}.txt" 2>&1 || true
+  echo "golangci-lint not found or not executable: ${GOLANGCI_BIN:-<none>}" >> "$OUTDIR/golangci_install_log${SUFFIX}.txt" 2>&1 || true
   rc=2
 fi
 # Marker indicating golangci completed (successfully or not).
