@@ -265,6 +265,20 @@ if [ -n "${GOLANGCI_BIN:-}" ] && [ -x "$GOLANGCI_BIN" ]; then
   # CI debug: also write which and version into the main export dir for quick inspection
   command -v golangci-lint > "$OUTDIR/which_golangci${SUFFIX}.txt" 2>&1 || true
   "$GOLANGCI_BIN" --version > "$OUTDIR/golangci_version${SUFFIX}.txt" 2>&1 || true
+
+  # Rebuild the Go standard library so compiled export data under GOROOT
+  # matches the container's toolchain. This helps avoid "unsupported
+  # version" errors when golangci's typecheck imports stdlib packages.
+  echo "Rebuilding Go stdlib (go install std) for consistent export-data" >> "$OUTDIR/golangci_install_log${SUFFIX}.txt" 2>&1 || true
+  if /usr/local/go/bin/go install std > /tmp/gobuild_std_${SUFFIX}.log 2>&1; then
+    echo "Rebuilt stdlib: success" >> "$OUTDIR/golangci_install_log${SUFFIX}.txt" 2>&1 || true
+    tail -n 200 /tmp/gobuild_std_${SUFFIX}.log >> "$OUTDIR/golangci_install_log${SUFFIX}.txt" 2>&1 || true
+  else
+    echo "Rebuilt stdlib: failed (see /tmp/gobuild_std_${SUFFIX}.log)" >> "$OUTDIR/golangci_install_log${SUFFIX}.txt" 2>&1 || true
+    tail -n 200 /tmp/gobuild_std_${SUFFIX}.log >> "$OUTDIR/golangci_install_log${SUFFIX}.txt" 2>&1 || true
+  fi
+
+  # Run golangci-lint (typecheck) after ensuring stdlib export-data matches.
   "$GOLANGCI_BIN" run --config .golangci.yml --enable typecheck ./... > "$OUTDIR/golangci_typecheck${SUFFIX}.out" 2>&1 || rc=$?
 else
   echo "golangci-lint not found or not executable: ${GOLANGCI_BIN:-<none>}" >> "$OUTDIR/golangci_install_log${SUFFIX}.txt" 2>&1 || true
