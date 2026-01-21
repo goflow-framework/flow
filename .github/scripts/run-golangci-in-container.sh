@@ -278,6 +278,24 @@ if [ -n "${GOLANGCI_BIN:-}" ] && [ -x "$GOLANGCI_BIN" ]; then
     tail -n 200 /tmp/gobuild_std_${SUFFIX}.log >> "$OUTDIR/golangci_install_log${SUFFIX}.txt" 2>&1 || true
   fi
 
+    # Diagnostic: record GOROOT/GOOS/GOARCH and list compiled stdlib packages so
+  # we can confirm export-data was rebuilt inside the container. This helps
+  # diagnose "unsupported version" import errors by showing timestamps,
+  # sizes, and presence of arch-specific package object files.
+  /usr/local/go/bin/go env GOROOT GOOS GOARCH > "$OUTDIR/go_env_goroot_arch${SUFFIX}.txt" 2>&1 || true
+  GOROOT_DIR=$(/usr/local/go/bin/go env GOROOT 2>/dev/null || echo "/usr/local/go")
+  GOOS_VAL=$(/usr/local/go/bin/go env GOOS 2>/dev/null || echo "linux")
+  GOARCH_VAL=$(/usr/local/go/bin/go env GOARCH 2>/dev/null || echo "amd64")
+  # top-level pkg listing
+  ls -la "$GOROOT_DIR/pkg" > "$OUTDIR/goroot_pkg_listing${SUFFIX}.txt" 2>&1 || true
+  du -sh "$GOROOT_DIR/pkg" > "$OUTDIR/goroot_pkg_du${SUFFIX}.txt" 2>&1 || true
+  # arch-specific directory listing (e.g. linux_amd64)
+  ls -la "$GOROOT_DIR/pkg/${GOOS_VAL}_${GOARCH_VAL}" > "$OUTDIR/goroot_pkg_arch_listing${SUFFIX}.txt" 2>&1 || true
+  # Show a sample of the arch dir (first 200 lines) to avoid huge files
+  if [ -d "$GOROOT_DIR/pkg/${GOOS_VAL}_${GOARCH_VAL}" ]; then
+    ls -la "$GOROOT_DIR/pkg/${GOOS_VAL}_${GOARCH_VAL}" | sed -n '1,200p' > "$OUTDIR/goroot_pkg_arch_sample${SUFFIX}.txt" 2>&1 || true
+  fi
+
   # Run golangci-lint (typecheck) after ensuring stdlib export-data matches.
   "$GOLANGCI_BIN" run --config .golangci.yml --enable typecheck ./... > "$OUTDIR/golangci_typecheck${SUFFIX}.out" 2>&1 || rc=$?
 else
