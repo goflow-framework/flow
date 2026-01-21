@@ -133,6 +133,8 @@ jobs:
     name: Typecheck (non-blocking rollout)
     needs: build-analyzer-image
     runs-on: ubuntu-latest
+    env:
+      FORCE_REBUILD_GOLANGCI: '1'
     container:
       image: ${{ needs.build-analyzer-image.outputs.image-tag }}
     continue-on-error: true
@@ -303,6 +305,8 @@ jobs:
     name: Typecheck (blocking, debug - always run)
     needs: [build-analyzer-image, typecheck-nonblocking]
     runs-on: ubuntu-latest
+    env:
+      FORCE_REBUILD_GOLANGCI: '1'
     container:
       image: ${{ needs.build-analyzer-image.outputs.image-tag }}
     if: always()
@@ -355,6 +359,7 @@ jobs:
       image: ${{ needs.build-analyzer-image.outputs.image-tag }}
     env:
       ULTRA_AGGRESSIVE_CLEAN: '1'
+      FORCE_REBUILD_GOLANGCI: '1'
     if: always()
     steps:
       - uses: actions/checkout@v4
