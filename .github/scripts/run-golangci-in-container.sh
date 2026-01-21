@@ -321,6 +321,35 @@ if [ -n "${GOLANGCI_BIN:-}" ] && [ -x "$GOLANGCI_BIN" ]; then
     hexdump -n 256 -C "$firstmoda" > "$OUTDIR/gomodcache_sample_hexdump${SUFFIX}.txt" 2>&1 || true
   fi
 
+  # Ensure diagnostics are copied into the job-bound CI export dir so the
+  # workflow artifact uploader picks them up reliably. We copy (not move)
+  # from the helper's local OUTDIR into CI_EXPORT_DIR and emit a small
+  # manifest listing the files and sizes.
+  mkdir -p "${CI_EXPORT_DIR}" 2>/dev/null || true
+  files_to_copy=(
+    "sync_atomic_preflight${SUFFIX}.json"
+    "sync_atomic_preflight_status${SUFFIX}.txt"
+    "go_env_goroot_arch${SUFFIX}.txt"
+    "goroot_pkg_listing${SUFFIX}.txt"
+    "goroot_pkg_du${SUFFIX}.txt"
+    "goroot_pkg_arch_listing${SUFFIX}.txt"
+    "goroot_pkg_arch_sample${SUFFIX}.txt"
+    "goroot_pkg_sync_stat${SUFFIX}.txt"
+    "sync_atomic_hexdump${SUFFIX}.txt"
+    "gomodcache_ls${SUFFIX}.txt"
+    "gomodcache_a_files${SUFFIX}.txt"
+    "gomodcache_sample_hexdump${SUFFIX}.txt"
+    "golangci_install_log${SUFFIX}.txt"
+    "golangci_typecheck${SUFFIX}.out"
+  )
+  for fname in "${files_to_copy[@]}"; do
+    if [ -e "$OUTDIR/$fname" ]; then
+      cp -a "$OUTDIR/$fname" "$CI_EXPORT_DIR/" 2>/dev/null || true
+    fi
+  done
+  # Always write a manifest so the artifact summary shows these files exist.
+  (cd "$CI_EXPORT_DIR" 2>/dev/null && ls -la > "files_manifest${SUFFIX}.txt" 2>/dev/null) || true
+
   # Run golangci-lint (typecheck) after ensuring stdlib export-data matches.
   "$GOLANGCI_BIN" run --config .golangci.yml --enable typecheck ./... > "$OUTDIR/golangci_typecheck${SUFFIX}.out" 2>&1 || rc=$?
 else
