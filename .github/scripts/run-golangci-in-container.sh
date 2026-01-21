@@ -296,7 +296,6 @@ if [ -n "${GOLANGCI_BIN:-}" ] && [ -x "$GOLANGCI_BIN" ]; then
     ls -la "$GOROOT_DIR/pkg/${GOOS_VAL}_${GOARCH_VAL}" | sed -n '1,200p' > "$OUTDIR/goroot_pkg_arch_sample${SUFFIX}.txt" 2>&1 || true
   fi
 
-  
   # Targeted diagnostics for problematic stdlib package(s)
   # - stat matching files under the arch dir (timestamps, sizes, owner)
   # - hexdump the first 256 bytes of sync/atomic archive if present
