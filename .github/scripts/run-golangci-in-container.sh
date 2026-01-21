@@ -296,6 +296,32 @@ if [ -n "${GOLANGCI_BIN:-}" ] && [ -x "$GOLANGCI_BIN" ]; then
     ls -la "$GOROOT_DIR/pkg/${GOOS_VAL}_${GOARCH_VAL}" | sed -n '1,200p' > "$OUTDIR/goroot_pkg_arch_sample${SUFFIX}.txt" 2>&1 || true
   fi
 
+  
+  # Targeted diagnostics for problematic stdlib package(s)
+  # - stat matching files under the arch dir (timestamps, sizes, owner)
+  # - hexdump the first 256 bytes of sync/atomic archive if present
+  ARCH_DIR="$GOROOT_DIR/pkg/${GOOS_VAL}_${GOARCH_VAL}"
+  echo "Collecting targeted sync/atomic diagnostics from $ARCH_DIR" >> "$OUTDIR/golangci_install_log${SUFFIX}.txt" 2>&1 || true
+  for f in "$ARCH_DIR"/sync* "$ARCH_DIR"/*/sync*; do
+    if [ -e "$f" ]; then
+      stat -c '%n %s %Y %U %G' "$f" >> "$OUTDIR/goroot_pkg_sync_stat${SUFFIX}.txt" 2>&1 || true
+    fi
+  done
+  # hexdump the sync/atomic .a if present
+  if [ -f "$ARCH_DIR/sync/atomic.a" ]; then
+    hexdump -n 256 -C "$ARCH_DIR/sync/atomic.a" > "$OUTDIR/sync_atomic_hexdump${SUFFIX}.txt" 2>&1 || true
+  elif [ -f "$ARCH_DIR/sync/atomic.a" ]; then
+    hexdump -n 256 -C "$ARCH_DIR/sync/atomic.a" > "$OUTDIR/sync_atomic_hexdump${SUFFIX}.txt" 2>&1 || true
+  fi
+
+  # Module and cache diagnostics: list module cache root and find any compiled .a files
+  ls -la /tmp/gomodcache > "$OUTDIR/gomodcache_ls${SUFFIX}.txt" 2>&1 || true
+  find /tmp/gomodcache -type f -name '*.a' -print > "$OUTDIR/gomodcache_a_files${SUFFIX}.txt" 2>&1 || true
+  firstmoda=$(find /tmp/gomodcache -type f -name '*sync*atomic*.a' -print -quit 2>/dev/null || true)
+  if [ -n "$firstmoda" ]; then
+    hexdump -n 256 -C "$firstmoda" > "$OUTDIR/gomodcache_sample_hexdump${SUFFIX}.txt" 2>&1 || true
+  fi
+
   # Run golangci-lint (typecheck) after ensuring stdlib export-data matches.
   "$GOLANGCI_BIN" run --config .golangci.yml --enable typecheck ./... > "$OUTDIR/golangci_typecheck${SUFFIX}.out" 2>&1 || rc=$?
 else
