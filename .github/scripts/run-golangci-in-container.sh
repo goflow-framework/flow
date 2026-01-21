@@ -308,9 +308,17 @@ if [ -n "${GOLANGCI_BIN:-}" ] && [ -x "$GOLANGCI_BIN" ]; then
   done
   # hexdump the sync/atomic .a if present
   if [ -f "$ARCH_DIR/sync/atomic.a" ]; then
-    hexdump -n 256 -C "$ARCH_DIR/sync/atomic.a" > "$OUTDIR/sync_atomic_hexdump${SUFFIX}.txt" 2>&1 || true
-  elif [ -f "$ARCH_DIR/sync/atomic.a" ]; then
-    hexdump -n 256 -C "$ARCH_DIR/sync/atomic.a" > "$OUTDIR/sync_atomic_hexdump${SUFFIX}.txt" 2>&1 || true
+    # prefer hexdump/xxd but fall back to od if not available in the analyzer image
+    if command -v hexdump >/dev/null 2>&1; then
+      hexdump -n 256 -C "$ARCH_DIR/sync/atomic.a" > "$OUTDIR/sync_atomic_hexdump${SUFFIX}.txt" 2>&1 || true
+    elif command -v xxd >/dev/null 2>&1; then
+      xxd -l 256 "$ARCH_DIR/sync/atomic.a" > "$OUTDIR/sync_atomic_hexdump${SUFFIX}.txt" 2>&1 || true
+    elif command -v od >/dev/null 2>&1; then
+      # od prints bytes in hex; mimic a short hexdump for triage
+      od -An -v -tx1 -N256 "$ARCH_DIR/sync/atomic.a" | sed -E 's/^\s*//' > "$OUTDIR/sync_atomic_hexdump${SUFFIX}.txt" 2>&1 || true
+    else
+      echo "no hexdump/xxd/od available to dump $ARCH_DIR/sync/atomic.a" > "$OUTDIR/sync_atomic_hexdump${SUFFIX}.txt" 2>&1 || true
+    fi
   fi
 
   # Module and cache diagnostics: list module cache root and find any compiled .a files
@@ -345,6 +353,15 @@ if [ -n "${GOLANGCI_BIN:-}" ] && [ -x "$GOLANGCI_BIN" ]; then
   for fname in "${files_to_copy[@]}"; do
     if [ -e "$OUTDIR/$fname" ]; then
       cp -a "$OUTDIR/$fname" "$CI_EXPORT_DIR/" 2>/dev/null || true
+    fi
+    # also copy legacy/unsuffixed names so older post-mortem tooling can find them
+    legacy="${fname%${SUFFIX}.txt}.txt"
+    legacy_json="${fname%${SUFFIX}.json}.json"
+    if [ -e "$OUTDIR/$legacy" ]; then
+      cp -a "$OUTDIR/$legacy" "$CI_EXPORT_DIR/" 2>/dev/null || true
+    fi
+    if [ -e "$OUTDIR/$legacy_json" ]; then
+      cp -a "$OUTDIR/$legacy_json" "$CI_EXPORT_DIR/" 2>/dev/null || true
     fi
   done
   # Always write a manifest so the artifact summary shows these files exist.
