@@ -181,7 +181,7 @@ jobs:
             # CI debug preflight: record where golangci-lint is and its version (if present)
             command -v golangci-lint > ./ci-export-typecheck/which_golangci_preflight.txt 2>&1 || true
             golangci-lint --version > ./ci-export-typecheck/golangci_version_preflight.txt 2>&1 || true
-            CI_EXPORT_DIR=./ci-export-typecheck /bin/bash .github/scripts/run-golangci-in-container.sh _nonblocking > ./ci-export-typecheck/helper_stdout.txt 2> ./ci-export-typecheck/helper_stderr.txt || echo "$?" > ./ci-export-typecheck/helper_exit_code
+            HOST_UID="$(id -u)" HOST_GID="$(id -g)" CI_EXPORT_DIR=./ci-export-typecheck /bin/bash .github/scripts/run-golangci-in-container.sh _nonblocking > ./ci-export-typecheck/helper_stdout.txt 2> ./ci-export-typecheck/helper_stderr.txt || echo "$?" > ./ci-export-typecheck/helper_exit_code
           else
             echo "helper script not found" > ./ci-export-typecheck/golangci_typecheck.out || true
             echo 2 > ./ci-export-typecheck/golangci_exit_code || true
@@ -293,7 +293,7 @@ jobs:
             # CI debug preflight: record where golangci-lint is and its version (if present)
             command -v golangci-lint > ./ci-export-typecheck/which_golangci_preflight.txt 2>&1 || true
             golangci-lint --version > ./ci-export-typecheck/golangci_version_preflight.txt 2>&1 || true
-            CI_EXPORT_DIR=./ci-export-typecheck /bin/bash .github/scripts/run-golangci-in-container.sh _blocking > ./ci-export-typecheck/helper_stdout.txt 2> ./ci-export-typecheck/helper_stderr.txt || echo "$?" > ./ci-export-typecheck/helper_exit_code
+            HOST_UID="$(id -u)" HOST_GID="$(id -g)" CI_EXPORT_DIR=./ci-export-typecheck /bin/bash .github/scripts/run-golangci-in-container.sh _blocking > ./ci-export-typecheck/helper_stdout.txt 2> ./ci-export-typecheck/helper_stderr.txt || echo "$?" > ./ci-export-typecheck/helper_exit_code
           else
             echo "helper script not found" > ./ci-export-typecheck/golangci_typecheck_blocking.out || true
             echo 2 > ./ci-export-typecheck/golangci_exit_code_blocking || true
@@ -332,7 +332,7 @@ jobs:
             # CI debug preflight: record where golangci-lint is and its version (if present)
             command -v golangci-lint > ./ci-export-typecheck/which_golangci_preflight.txt 2>&1 || true
             golangci-lint --version > ./ci-export-typecheck/golangci_version_preflight.txt 2>&1 || true
-            CI_EXPORT_DIR=./ci-export-typecheck /bin/bash .github/scripts/run-golangci-in-container.sh _blocking_debug > ./ci-export-typecheck/helper_stdout.txt 2> ./ci-export-typecheck/helper_stderr.txt || echo "$?" > ./ci-export-typecheck/helper_exit_code
+            HOST_UID="$(id -u)" HOST_GID="$(id -g)" CI_EXPORT_DIR=./ci-export-typecheck /bin/bash .github/scripts/run-golangci-in-container.sh _blocking_debug > ./ci-export-typecheck/helper_stdout.txt 2> ./ci-export-typecheck/helper_stderr.txt || echo "$?" > ./ci-export-typecheck/helper_exit_code
           else
             echo "helper script not found" > ./ci-export-typecheck/golangci_typecheck_blocking_debug.out || true
             echo 2 > ./ci-export-typecheck/golangci_exit_code_blocking_debug || true
@@ -383,7 +383,7 @@ jobs:
             # CI debug preflight: record where golangci-lint is and its version (if present)
             command -v golangci-lint > ./ci-export-typecheck/which_golangci_preflight.txt 2>&1 || true
             golangci-lint --version > ./ci-export-typecheck/golangci_version_preflight.txt 2>&1 || true
-            CI_EXPORT_DIR=./ci-export-typecheck ULTRA_AGGRESSIVE_CLEAN=1 /bin/bash .github/scripts/run-golangci-in-container.sh _blocking_force > ./ci-export-typecheck/helper_stdout.txt 2> ./ci-export-typecheck/helper_stderr.txt || echo "$?" > ./ci-export-typecheck/helper_exit_code
+            HOST_UID="$(id -u)" HOST_GID="$(id -g)" CI_EXPORT_DIR=./ci-export-typecheck ULTRA_AGGRESSIVE_CLEAN=1 /bin/bash .github/scripts/run-golangci-in-container.sh _blocking_force > ./ci-export-typecheck/helper_stdout.txt 2> ./ci-export-typecheck/helper_stderr.txt || echo "$?" > ./ci-export-typecheck/helper_exit_code
           else
             echo "helper script not found" > ./ci-export-typecheck/golangci_typecheck_blocking_force.out || true
             echo 2 > ./ci-export-typecheck/golangci_exit_code_blocking_force || true
