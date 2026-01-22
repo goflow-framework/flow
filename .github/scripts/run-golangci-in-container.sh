@@ -149,6 +149,15 @@ if [ -d /usr/local/go/pkg ]; then
       # preserve tool binaries
       continue
     fi
+    # If the image includes a preserved snapshot of this arch dir, skip
+    # removing it so we can rely on the baked-in stdlib compiled at image
+    # build time. The Dockerfile creates /usr/local/go/preserved/<arch>.tar.gz
+    # when it builds the image; skip deletion when that tarball exists.
+    PRESERVE_TAR="/usr/local/go/preserved/${base}.tar.gz"
+    if [ -f "$PRESERVE_TAR" ]; then
+      echo "preserve: found $PRESERVE_TAR; skipping removal of /usr/local/go/pkg/$base" >> "$OUTDIR/early_debug_ls_outdir${SUFFIX}.txt" 2>/dev/null || true
+      continue
+    fi
     rm -rf "$entry" || true
   done
 fi
