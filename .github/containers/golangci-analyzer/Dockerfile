@@ -124,6 +124,58 @@ RUN set -eux; \
         exit 1; \
     fi
 
+# Preserve a compressed snapshot of the built arch package directory so
+# containers that aggressively remove /usr/local/go/pkg can restore a
+# deterministic copy on startup. The startup wrapper (installed below)
+# checks for a missing/empty arch dir and extracts this tarball into place.
+RUN set -eux; \
+        GOROOT_DIR=$(/usr/local/go/bin/go env GOROOT); \
+        GOOS_VAL=$(/usr/local/go/bin/go env GOOS); \
+        GOARCH_VAL=$(/usr/local/go/bin/go env GOARCH); \
+        ARCH_DIR="$GOROOT_DIR/pkg/${GOOS_VAL}_${GOARCH_VAL}"; \
+        PRESERVE_DIR="$GOROOT_DIR/preserved"; \
+        mkdir -p "$PRESERVE_DIR"; \
+        if [ -d "$ARCH_DIR" ] && [ "$(ls -A "$ARCH_DIR" 2>/dev/null || true)" != "" ]; then \
+                echo "Creating preserved tarball for $ARCH_DIR"; \
+                tar -C "$GOROOT_DIR/pkg" -czf "$PRESERVE_DIR/${GOOS_VAL}_${GOARCH_VAL}.tar.gz" "${GOOS_VAL}_${GOARCH_VAL}" || true; \
+        else \
+                echo "No arch dir to preserve at $ARCH_DIR"; \
+        fi
+
+# Install an entrypoint wrapper that restores the preserved stdlib archive
+# into GOROOT/pkg at container startup if the arch dir is missing or empty.
+RUN cat > /usr/local/bin/entrypoint-ensure-goroot.sh <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+# If go is present, compute the arch dir
+if [ -x /usr/local/go/bin/go ]; then
+    GOROOT_DIR=$(/usr/local/go/bin/go env GOROOT)
+    GOOS_VAL=$(/usr/local/go/bin/go env GOOS)
+    GOARCH_VAL=$(/usr/local/go/bin/go env GOARCH)
+else
+    GOROOT_DIR=/usr/local/go
+    GOOS_VAL=linux
+    GOARCH_VAL=amd64
+fi
+ARCH_DIR="$GOROOT_DIR/pkg/${GOOS_VAL}_${GOARCH_VAL}"
+PRESERVE_TAR="$GOROOT_DIR/preserved/${GOOS_VAL}_${GOARCH_VAL}.tar.gz"
+if [ ! -d "$ARCH_DIR" ] || [ -z "$(ls -A "$ARCH_DIR" 2>/dev/null || true)" ]; then
+    if [ -f "$PRESERVE_TAR" ]; then
+        mkdir -p "$ARCH_DIR"
+        echo "Restoring preserved stdlib into $ARCH_DIR from $PRESERVE_TAR"
+        tar -C "$GOROOT_DIR/pkg" -xzf "$PRESERVE_TAR" || true
+        chmod -R 0755 "$ARCH_DIR" || true
+    else
+        echo "No preserved stdlib tarball found at $PRESERVE_TAR; continuing" >&2 || true
+    fi
+fi
+# forward to the requested command
+exec "$@"
+EOF
+RUN chmod +x /usr/local/bin/entrypoint-ensure-goroot.sh
+
 WORKDIR /app
 
-ENTRYPOINT ["/bin/sh", "-c"]
+# Use an entrypoint wrapper that ensures GOROOT/pkg has the preserved
+# stdlib archive (if available) before executing the container's command.
+ENTRYPOINT ["/usr/local/bin/entrypoint-ensure-goroot.sh"]

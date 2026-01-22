@@ -19,6 +19,8 @@
 # Local temp/cache
 /tmp/
 /.cache/
+/ci-export-typecheck/*
+/ci-local-debug/*
 
 # Vendor (if you vendor dependencies locally)
 /vendor/
@@ -72,9 +74,6 @@ Thumbs.db
 **/*.tar.gz
 **/*.zip
 
-# End of .gitignore
-
-
 # Ignore repo-level built executables
 /flow
 /flow-cli
@@ -85,3 +84,5 @@ Thumbs.db
 # Ignore tool-built binaries
 /tools/**/bin/
 /tools/**/bin/*
+
+# End of .gitignore
