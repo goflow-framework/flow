@@ -1,7 +1,10 @@
+#!/bin/sh
+set -euo pipefail
+set -x
 #!/usr/bin/env bash
-# Use bash: this script relies on bash features (pipefail, arrays, and other
-# bashisms). Ensure the interpreter is bash so array assignments and other
-# constructs don't cause a syntax error when executed directly.
+# Use bash: this script relies on bash features (pipefail, better set handling)
+# and is intended to run inside the pinned analyzer/container which provides
+# a full shell. Using bash makes the script simpler and more robust.
 set -euo pipefail
 set -x
 # run-golangci-in-container.sh — tiny README
@@ -34,30 +37,13 @@ set -x
 #
 # Writes diagnostics into ./ci-export-typecheck and records the golangci exit code.
 
-# suffix for filenames
 SUFFIX="${1:-}"
-# at top, after shebang
-if [ -z "${BASH_VERSION:-}" ]; then
-  exec /usr/bin/env bash "$0" "$@"
-fi
 # Allow caller to override where diagnostics should be written (useful when
 # the host binds a directory into the container at /ci-export-typecheck).
-# Ensure CI_EXPORT_DIR gets a sensible default before computing OUTDIR so
-# env-provided values are honoured and we don't accidentally write into the
-# repository workspace path when the caller expects /ci-export-typecheck.
-: "${CI_EXPORT_DIR:=/ci-export-typecheck}"
-OUTDIR="${CI_EXPORT_DIR}" 
+OUTDIR="${CI_EXPORT_DIR:-./ci-export-typecheck}"
 GOLANGCI_URL="https://github.com/golangci/golangci-lint/releases/download/v1.59.0/golangci-lint-1.59.0-linux-amd64.tar.gz"
 
 mkdir -p "$OUTDIR" /tmp/gomodcache /tmp/gocache
-# Defensive double-marker and permission diagnostics (help debug mounts/permissions)
-echo "early-debug: uid=$(id -u 2>/dev/null || echo n/a) gid=$(id -g 2>/dev/null || echo n/a)" > "$OUTDIR/early_debug_uid_gid${SUFFIX}.txt" 2>/dev/null || true
-echo "early-debug-hostpath: /ci-export-typecheck" > "/ci-export-typecheck/early_debug_hostpath${SUFFIX}.txt" 2>/dev/null || true
-# Attempt to make the mount writable as a diagnostic; this will show permission failures
-chmod 0777 "$OUTDIR" 2>/dev/null || true
-chmod 0777 /ci-export-typecheck 2>/dev/null || true
-ls -la "$OUTDIR" > "$OUTDIR/early_debug_ls_outdir${SUFFIX}.txt" 2>/dev/null || true
-ls -la /ci-export-typecheck > "$OUTDIR/early_debug_ls_host_mount${SUFFIX}.txt" 2>/dev/null || true
 # quick checkpoint so we know the container executed this script
 # Guaranteed helper marker written immediately from inside the helper so
 # CI artifacts include at least one in-container file even if the helper
@@ -147,15 +133,6 @@ if [ -d /usr/local/go/pkg ]; then
     # binaries and header files required by the container's go runtime.
     if [ "$base" = "tool" ] || [ "$base" = "include" ]; then
       # preserve tool binaries
-      continue
-    fi
-    # If the image includes a preserved snapshot of this arch dir, skip
-    # removing it so we can rely on the baked-in stdlib compiled at image
-    # build time. The Dockerfile creates /usr/local/go/preserved/<arch>.tar.gz
-    # when it builds the image; skip deletion when that tarball exists.
-    PRESERVE_TAR="/usr/local/go/preserved/${base}.tar.gz"
-    if [ -f "$PRESERVE_TAR" ]; then
-      echo "preserve: found $PRESERVE_TAR; skipping removal of /usr/local/go/pkg/$base" >> "$OUTDIR/early_debug_ls_outdir${SUFFIX}.txt" 2>/dev/null || true
       continue
     fi
     rm -rf "$entry" || true
@@ -293,41 +270,7 @@ if [ -n "${GOLANGCI_BIN:-}" ] && [ -x "$GOLANGCI_BIN" ]; then
   # matches the container's toolchain. This helps avoid "unsupported
   # version" errors when golangci's typecheck imports stdlib packages.
   echo "Rebuilding Go stdlib (go install std) for consistent export-data" >> "$OUTDIR/golangci_install_log${SUFFIX}.txt" 2>&1 || true
-  # Optionally remove stray compiled .a files in module cache or /go/pkg
-  # when ULTRA_DELETE_AFILES=1 is set. This is safe in ephemeral CI.
-  if [ "${ULTRA_DELETE_AFILES:-0}" = "1" ]; then
-    echo "ULTRA_DELETE_AFILES=1: removing candidate .a files from module cache and /go/pkg" >> "$OUTDIR/golangci_install_log${SUFFIX}.txt" 2>&1 || true
-    GOMODCACHE=$(/usr/local/go/bin/go env GOMODCACHE 2>/dev/null || echo /tmp/gomodcache)
-    find "$GOMODCACHE" -type f -name '*sync*atomic*.a' -print -delete 2>>"$OUTDIR/golangci_install_log${SUFFIX}.txt" || true
-    find /go/pkg -type f -name '*sync*atomic*.a' -print -delete 2>>"$OUTDIR/golangci_install_log${SUFFIX}.txt" || true
-  fi
-
-  # Ensure arch dir exists and is writable so `go install std` can write
-  # compiled stdlib objects into GOROOT/pkg/<GOOS>_<GOARCH>.
-  GOROOT_DIR=$(/usr/local/go/bin/go env GOROOT 2>/dev/null || echo /usr/local/go)
-  GOOS_VAL=$(/usr/local/go/bin/go env GOOS 2>/dev/null || echo linux)
-  GOARCH_VAL=$(/usr/local/go/bin/go env GOARCH 2>/dev/null || echo amd64)
-  ARCH_DIR="$GOROOT_DIR/pkg/${GOOS_VAL}_${GOARCH_VAL}"
-  mkdir -p "$ARCH_DIR" 2>/dev/null || true
-  chmod 0755 "$GOROOT_DIR/pkg" 2>/dev/null || true
-  chmod 0755 "$ARCH_DIR" 2>/dev/null || true
-
-  # If the helper is being run as a non-root user (local debugging with
-  # --user), the current UID may not be able to write into GOROOT/pkg even
-  # after creating the arch dir. In that case chown the pkg tree to the
-  # current UID:GID so `go install std` can write compiled stdlib objects.
-  # In CI (container run as root) this is a no-op.
-  if [ "$(id -u 2>/dev/null || echo 0)" -ne 0 ]; then
-    echo "helper: non-root uid=$(id -u):$(id -g) detected, attempting chown $GOROOT_DIR/pkg" >> "$OUTDIR/golangci_install_log${SUFFIX}.txt" 2>&1 || true
-    chown -R "$(id -u):$(id -g)" "$GOROOT_DIR/pkg" 2>>"$OUTDIR/golangci_install_log${SUFFIX}.txt" || true
-  fi
-
-  # Use the helper's temp caches so builds are isolated
-  export GOMODCACHE=/tmp/gomodcache
-  export GOCACHE=/tmp/gocache
-
-  # Run a verbose install and capture output for diagnostics.
-  if /usr/local/go/bin/go install -v std > /tmp/gobuild_std_${SUFFIX}.log 2>&1; then
+  if /usr/local/go/bin/go install std > /tmp/gobuild_std_${SUFFIX}.log 2>&1; then
     echo "Rebuilt stdlib: success" >> "$OUTDIR/golangci_install_log${SUFFIX}.txt" 2>&1 || true
     tail -n 200 /tmp/gobuild_std_${SUFFIX}.log >> "$OUTDIR/golangci_install_log${SUFFIX}.txt" 2>&1 || true
   else
@@ -335,40 +278,7 @@ if [ -n "${GOLANGCI_BIN:-}" ] && [ -x "$GOLANGCI_BIN" ]; then
     tail -n 200 /tmp/gobuild_std_${SUFFIX}.log >> "$OUTDIR/golangci_install_log${SUFFIX}.txt" 2>&1 || true
   fi
 
-  # Check whether the expected sync/atomic .a now exists and record status.
-  if [ -f "$ARCH_DIR/sync/atomic.a" ]; then
-    echo "sync_atomic_a_present: yes" > "$OUTDIR/sync_atomic_a_status${SUFFIX}.txt" 2>/dev/null || true
-    if command -v hexdump >/dev/null 2>&1; then
-      hexdump -n 256 -C "$ARCH_DIR/sync/atomic.a" > "$OUTDIR/sync_atomic_hexdump${SUFFIX}.txt" 2>&1 || true
-    elif command -v xxd >/dev/null 2>&1; then
-      xxd -l 256 "$ARCH_DIR/sync/atomic.a" > "$OUTDIR/sync_atomic_hexdump${SUFFIX}.txt" 2>&1 || true
-    elif command -v od >/dev/null 2>&1; then
-      od -An -v -tx1 -N256 "$ARCH_DIR/sync/atomic.a" | sed -E 's/^\s*//' > "$OUTDIR/sync_atomic_hexdump${SUFFIX}.txt" 2>&1 || true
-    else
-      echo "no hexdump/xxd/od available to dump $ARCH_DIR/sync/atomic.a" > "$OUTDIR/sync_atomic_hexdump${SUFFIX}.txt" 2>&1 || true
-    fi
-  else
-    echo "sync_atomic_a_present: no" > "$OUTDIR/sync_atomic_a_status${SUFFIX}.txt" 2>/dev/null || true
-  fi
-
-  # Fail fast if the stdlib sync/atomic archive is not present. Write a
-  # preflight failure marker into both OUTDIR and the CI export dir so the
-  # artifact uploader picks it up even if we exit early.
-  if [ -f "$OUTDIR/sync_atomic_a_status${SUFFIX}.txt" ] && grep -q "no" "$OUTDIR/sync_atomic_a_status${SUFFIX}.txt" 2>/dev/null; then
-    echo "preflight_failed: sync/atomic .a missing after stdlib rebuild" > "$OUTDIR/preflight_failed${SUFFIX}.txt" 2>/dev/null || true
-    # also write into CI_EXPORT_DIR for artifact collection
-    mkdir -p "${CI_EXPORT_DIR:-/ci-export-typecheck}" 2>/dev/null || true
-    echo "preflight_failed: sync/atomic .a missing after stdlib rebuild" > "${CI_EXPORT_DIR}/preflight_failed${SUFFIX}.txt" 2>/dev/null || true
-    # set explicit exit code file and marker for quick visibility
-    echo 2 > "$OUTDIR/golangci_exit_code${SUFFIX}" 2>/dev/null || true
-    echo 2 > "${CI_EXPORT_DIR}/golangci_exit_code${SUFFIX}" 2>/dev/null || true
-    echo "marker_after_golangci: preflight-failed rc=2" > "$OUTDIR/marker_after_golangci${SUFFIX}.txt" 2>/dev/null || true
-    echo "marker_after_golangci: preflight-failed rc=2" > "${CI_EXPORT_DIR}/marker_after_golangci${SUFFIX}.txt" 2>/dev/null || true
-    # exit now to avoid running golangci with ambiguous state
-    exit 2
-  fi
-
-    # Diagnostic: record GOROOT/GOOS/GOARCH and list compiled stdlib packages so
+  # Diagnostic: record GOROOT/GOOS/GOARCH and list compiled stdlib packages so
   # we can confirm export-data was rebuilt inside the container. This helps
   # diagnose "unsupported version" import errors by showing timestamps,
   # sizes, and presence of arch-specific package object files.
@@ -398,17 +308,9 @@ if [ -n "${GOLANGCI_BIN:-}" ] && [ -x "$GOLANGCI_BIN" ]; then
   done
   # hexdump the sync/atomic .a if present
   if [ -f "$ARCH_DIR/sync/atomic.a" ]; then
-    # prefer hexdump/xxd but fall back to od if not available in the analyzer image
-    if command -v hexdump >/dev/null 2>&1; then
-      hexdump -n 256 -C "$ARCH_DIR/sync/atomic.a" > "$OUTDIR/sync_atomic_hexdump${SUFFIX}.txt" 2>&1 || true
-    elif command -v xxd >/dev/null 2>&1; then
-      xxd -l 256 "$ARCH_DIR/sync/atomic.a" > "$OUTDIR/sync_atomic_hexdump${SUFFIX}.txt" 2>&1 || true
-    elif command -v od >/dev/null 2>&1; then
-      # od prints bytes in hex; mimic a short hexdump for triage
-      od -An -v -tx1 -N256 "$ARCH_DIR/sync/atomic.a" | sed -E 's/^\s*//' > "$OUTDIR/sync_atomic_hexdump${SUFFIX}.txt" 2>&1 || true
-    else
-      echo "no hexdump/xxd/od available to dump $ARCH_DIR/sync/atomic.a" > "$OUTDIR/sync_atomic_hexdump${SUFFIX}.txt" 2>&1 || true
-    fi
+    hexdump -n 256 -C "$ARCH_DIR/sync/atomic.a" > "$OUTDIR/sync_atomic_hexdump${SUFFIX}.txt" 2>&1 || true
+  elif [ -f "$ARCH_DIR/sync/atomic.a" ]; then
+    hexdump -n 256 -C "$ARCH_DIR/sync/atomic.a" > "$OUTDIR/sync_atomic_hexdump${SUFFIX}.txt" 2>&1 || true
   fi
 
   # Module and cache diagnostics: list module cache root and find any compiled .a files
@@ -416,18 +318,7 @@ if [ -n "${GOLANGCI_BIN:-}" ] && [ -x "$GOLANGCI_BIN" ]; then
   find /tmp/gomodcache -type f -name '*.a' -print > "$OUTDIR/gomodcache_a_files${SUFFIX}.txt" 2>&1 || true
   firstmoda=$(find /tmp/gomodcache -type f -name '*sync*atomic*.a' -print -quit 2>/dev/null || true)
   if [ -n "$firstmoda" ]; then
-    # Dump the first 256 bytes of the found module-cache .a using a
-    # fallback chain (hexdump -> xxd -> od) so we can inspect the
-    # export-data header even on minimal images that lack hexdump.
-    if command -v hexdump >/dev/null 2>&1; then
-      hexdump -n 256 -C "$firstmoda" > "$OUTDIR/gomodcache_sample_hexdump${SUFFIX}.txt" 2>&1 || true
-    elif command -v xxd >/dev/null 2>&1; then
-      xxd -l 256 "$firstmoda" > "$OUTDIR/gomodcache_sample_hexdump${SUFFIX}.txt" 2>&1 || true
-    elif command -v od >/dev/null 2>&1; then
-      od -An -v -tx1 -N256 "$firstmoda" | sed -E 's/^\s*//' > "$OUTDIR/gomodcache_sample_hexdump${SUFFIX}.txt" 2>&1 || true
-    else
-      echo "no hexdump/xxd/od available to dump $firstmoda" > "$OUTDIR/gomodcache_sample_hexdump${SUFFIX}.txt" 2>&1 || true
-    fi
+    hexdump -n 256 -C "$firstmoda" > "$OUTDIR/gomodcache_sample_hexdump${SUFFIX}.txt" 2>&1 || true
   fi
 
   # Ensure diagnostics are copied into the job-bound CI export dir so the
@@ -448,6 +339,13 @@ if [ -n "${GOLANGCI_BIN:-}" ] && [ -x "$GOLANGCI_BIN" ]; then
     "gomodcache_ls${SUFFIX}.txt"
     "gomodcache_a_files${SUFFIX}.txt"
     "gomodcache_sample_hexdump${SUFFIX}.txt"
+    # Additional diagnostics useful for post-mortem
+    "go_env_full${SUFFIX}.json"
+    "env_before_golangci${SUFFIX}.txt"
+    "golangci_bin_modinfo${SUFFIX}.txt"
+    "go_list_deps_tmp_min${SUFFIX}.json"
+    "go_build_tmp_min${SUFFIX}.txt"
+    "golangci_verbose_run${SUFFIX}.txt"
     "golangci_install_log${SUFFIX}.txt"
     "golangci_typecheck${SUFFIX}.out"
   )
@@ -455,40 +353,16 @@ if [ -n "${GOLANGCI_BIN:-}" ] && [ -x "$GOLANGCI_BIN" ]; then
     if [ -e "$OUTDIR/$fname" ]; then
       cp -a "$OUTDIR/$fname" "$CI_EXPORT_DIR/" 2>/dev/null || true
     fi
-    # also copy legacy/unsuffixed names so older post-mortem tooling can find them
-    legacy="${fname%${SUFFIX}.txt}.txt"
-    legacy_json="${fname%${SUFFIX}.json}.json"
-    if [ -e "$OUTDIR/$legacy" ]; then
-      cp -a "$OUTDIR/$legacy" "$CI_EXPORT_DIR/" 2>/dev/null || true
-    fi
-    if [ -e "$OUTDIR/$legacy_json" ]; then
-      cp -a "$OUTDIR/$legacy_json" "$CI_EXPORT_DIR/" 2>/dev/null || true
-    fi
   done
   # Always write a manifest so the artifact summary shows these files exist.
   (cd "$CI_EXPORT_DIR" 2>/dev/null && ls -la > "files_manifest${SUFFIX}.txt" 2>/dev/null) || true
 
-  # Best-effort: try to make copied diagnostics owned/readable by the host
-  # If the CI runner passes HOST_UID/HOST_GID we try to chown the files to
-  # that UID/GID so subsequent host-side steps (non-root) can read/remove
-  # them. This is intentionally best-effort and will not fail the run.
-  : "${HOST_UID:=}" || true
-  : "${HOST_GID:=}" || true
-  if [ -n "${HOST_UID}" ] && [ -n "${HOST_GID}" ]; then
-    echo "attempting to chown ${CI_EXPORT_DIR} -> ${HOST_UID}:${HOST_GID}" > "$OUTDIR/host_chown_attempt${SUFFIX}.txt" 2>/dev/null || true
-    if chown -R "${HOST_UID}:${HOST_GID}" "$CI_EXPORT_DIR" 2>"$OUTDIR/host_chown_err${SUFFIX}.txt"; then
-      echo "host_chown: success" >> "$OUTDIR/host_chown_attempt${SUFFIX}.txt" 2>/dev/null || true
-    else
-      echo "host_chown: failed (see host_chown_err)" >> "$OUTDIR/host_chown_attempt${SUFFIX}.txt" 2>/dev/null || true
-    fi
-  else
-    # If no HOST_UID/GID provided, attempt best-effort chmod so files are readable
-    echo "no HOST_UID/GID provided; attempting chmod a+rX on ${CI_EXPORT_DIR}" > "$OUTDIR/host_chown_attempt${SUFFIX}.txt" 2>/dev/null || true
-    chmod -R a+rX "$CI_EXPORT_DIR" 2>"$OUTDIR/host_chmod_err${SUFFIX}.txt" || true
-  fi
-
   # Run golangci-lint (typecheck) after ensuring stdlib export-data matches.
-  "$GOLANGCI_BIN" run --config .golangci.yml --enable typecheck ./... > "$OUTDIR/golangci_typecheck${SUFFIX}.out" 2>&1 || rc=$?
+  # Force GOROOT/GOMODCACHE/GOCACHE so golangci runs with the container's
+  # rebuilt stdlib and isolated caches. Capture stdout and stderr separately
+  # so we have a verbose run log for post-mortem analysis.
+  GOROOT_DIR=$(/usr/local/go/bin/go env GOROOT 2>/dev/null || echo "/usr/local/go")
+  ( GOROOT="$GOROOT_DIR" GOMODCACHE=/tmp/gomodcache GOCACHE=/tmp/gocache "$GOLANGCI_BIN" run --config .golangci.yml --enable typecheck ./... ) > "$OUTDIR/golangci_typecheck${SUFFIX}.out" 2> "$OUTDIR/golangci_verbose_run${SUFFIX}.txt" || rc=$?
 else
   echo "golangci-lint not found or not executable: ${GOLANGCI_BIN:-<none>}" >> "$OUTDIR/golangci_install_log${SUFFIX}.txt" 2>&1 || true
   rc=2
@@ -586,7 +460,9 @@ if [ -n "${GOLANGCI_BIN:-}" ] && [ -x "$GOLANGCI_BIN" ]; then
   # CI debug: also write which and version into the main export dir for quick inspection
   command -v golangci-lint > "$OUTDIR/which_golangci${SUFFIX}.txt" 2>&1 || true
   "$GOLANGCI_BIN" --version > "$OUTDIR/golangci_version${SUFFIX}.txt" 2>&1 || true
-  "$GOLANGCI_BIN" run --config .golangci.yml --enable typecheck ./... > "$OUTDIR/golangci_typecheck${SUFFIX}.out" 2>&1 || rc=$?
+  # Force environment when invoking golangci here as well (defensive/duplicate path)
+  GOROOT_DIR=$(/usr/local/go/bin/go env GOROOT 2>/dev/null || echo "/usr/local/go")
+  ( GOROOT="$GOROOT_DIR" GOMODCACHE=/tmp/gomodcache GOCACHE=/tmp/gocache "$GOLANGCI_BIN" run --config .golangci.yml --enable typecheck ./... ) > "$OUTDIR/golangci_typecheck${SUFFIX}.out" 2> "$OUTDIR/golangci_verbose_run${SUFFIX}.txt" || rc=$?
 else
   echo "golangci-lint not found or not executable: ${GOLANGCI_BIN:-<none>}" >> "$OUTDIR/golangci_install_log${SUFFIX}.txt" 2>&1 || true
   rc=2
