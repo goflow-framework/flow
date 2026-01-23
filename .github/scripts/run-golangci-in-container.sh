@@ -360,9 +360,21 @@ if [ -n "${GOLANGCI_BIN:-}" ] && [ -x "$GOLANGCI_BIN" ]; then
   # Run golangci-lint (typecheck) after ensuring stdlib export-data matches.
   # Force GOROOT/GOMODCACHE/GOCACHE so golangci runs with the container's
   # rebuilt stdlib and isolated caches. Capture stdout and stderr separately
-  # so we have a verbose run log for post-mortem analysis.
+  # so we have a verbose run log for post-mortem analysis. If `strace` is
+  # available in the analyzer image, run golangci under strace to capture
+  # the exact files it opens (helps find which .a is being read).
   GOROOT_DIR=$(/usr/local/go/bin/go env GOROOT 2>/dev/null || echo "/usr/local/go")
-  ( GOROOT="$GOROOT_DIR" GOMODCACHE=/tmp/gomodcache GOCACHE=/tmp/gocache "$GOLANGCI_BIN" run --config .golangci.yml --enable typecheck ./... ) > "$OUTDIR/golangci_typecheck${SUFFIX}.out" 2> "$OUTDIR/golangci_verbose_run${SUFFIX}.txt" || rc=$?
+  STRACE_CMD=""
+  if command -v strace >/dev/null 2>&1; then
+    # -ff: follow forks, -e trace=open,openat: only log open syscalls
+    STRACE_CMD="strace -ff -e trace=open,openat -o '$OUTDIR/strace_golangci${SUFFIX}' --"
+  fi
+  if [ -n "$STRACE_CMD" ]; then
+    # Use env to set the environment for the traced process
+    eval "$STRACE_CMD env GOROOT=\"$GOROOT_DIR\" GOMODCACHE=/tmp/gomodcache GOCACHE=/tmp/gocache \"$GOLANGCI_BIN\" run --config .golangci.yml --enable typecheck ./..." > "$OUTDIR/golangci_typecheck${SUFFIX}.out" 2> "$OUTDIR/golangci_verbose_run${SUFFIX}.txt" || rc=$?
+  else
+    ( GOROOT="$GOROOT_DIR" GOMODCACHE=/tmp/gomodcache GOCACHE=/tmp/gocache "$GOLANGCI_BIN" run --config .golangci.yml --enable typecheck ./... ) > "$OUTDIR/golangci_typecheck${SUFFIX}.out" 2> "$OUTDIR/golangci_verbose_run${SUFFIX}.txt" || rc=$?
+  fi
 else
   echo "golangci-lint not found or not executable: ${GOLANGCI_BIN:-<none>}" >> "$OUTDIR/golangci_install_log${SUFFIX}.txt" 2>&1 || true
   rc=2
