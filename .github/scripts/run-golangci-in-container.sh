@@ -300,6 +300,42 @@ if [ -n "${GOLANGCI_BIN:-}" ] && [ -x "$GOLANGCI_BIN" ]; then
   # - stat matching files under the arch dir (timestamps, sizes, owner)
   # - hexdump the first 256 bytes of sync/atomic archive if present
   ARCH_DIR="$GOROOT_DIR/pkg/${GOOS_VAL}_${GOARCH_VAL}"
+  # Aggressive scan: find all .a files under the arch dir and record
+  # short hexdumps so we can inspect their export-data headers without
+  # shipping whole archives. We also scan the module cache for candidate
+  # .a files. Write a simple summary with the candidate paths.
+  AFILES_DIR="$OUTDIR/a_files${SUFFIX}"
+  mkdir -p "$AFILES_DIR" 2>/dev/null || true
+  echo "a_files_summary: candidates under $ARCH_DIR and /tmp/gomodcache" > "$OUTDIR/a_files_summary${SUFFIX}.txt" 2>/dev/null || true
+  if [ -d "$ARCH_DIR" ]; then
+    find "$ARCH_DIR" -type f -name '*.a' -print 2>/dev/null | while IFS= read -r f; do
+      shortname=$(echo "$f" | sed 's#/#_#g')
+      # produce a small header hexdump (256 bytes)
+      if command -v hexdump >/dev/null 2>&1; then
+        hexdump -n 256 -C "$f" > "$AFILES_DIR/${shortname}.hexdump" 2>/dev/null || true
+      elif command -v xxd >/dev/null 2>&1; then
+        xxd -l 256 "$f" > "$AFILES_DIR/${shortname}.hexdump" 2>/dev/null || true
+      else
+        od -An -v -tx1 -N256 "$f" | sed -E 's/^\s*//' > "$AFILES_DIR/${shortname}.hexdump" 2>/dev/null || true
+      fi
+      echo "$f -> $AFILES_DIR/${shortname}.hexdump" >> "$OUTDIR/a_files_summary${SUFFIX}.txt" 2>/dev/null || true
+    done
+  else
+    echo "arch_dir_missing: $ARCH_DIR" >> "$OUTDIR/a_files_summary${SUFFIX}.txt" 2>/dev/null || true
+  fi
+
+  # Scan module cache for .a files too
+  find /tmp/gomodcache -type f -name '*.a' -print 2>/dev/null | while IFS= read -r f; do
+    shortname=$(echo "$f" | sed 's#/#_#g')
+    if command -v hexdump >/dev/null 2>&1; then
+      hexdump -n 256 -C "$f" > "$AFILES_DIR/${shortname}.hexdump" 2>/dev/null || true
+    elif command -v xxd >/dev/null 2>&1; then
+      xxd -l 256 "$f" > "$AFILES_DIR/${shortname}.hexdump" 2>/dev/null || true
+    else
+      od -An -v -tx1 -N256 "$f" | sed -E 's/^\s*//' > "$AFILES_DIR/${shortname}.hexdump" 2>/dev/null || true
+    fi
+    echo "$f -> $AFILES_DIR/${shortname}.hexdump" >> "$OUTDIR/a_files_summary${SUFFIX}.txt" 2>/dev/null || true
+  done || true
   echo "Collecting targeted sync/atomic diagnostics from $ARCH_DIR" >> "$OUTDIR/golangci_install_log${SUFFIX}.txt" 2>&1 || true
   for f in "$ARCH_DIR"/sync* "$ARCH_DIR"/*/sync*; do
     if [ -e "$f" ]; then
@@ -346,6 +382,8 @@ if [ -n "${GOLANGCI_BIN:-}" ] && [ -x "$GOLANGCI_BIN" ]; then
     "go_list_deps_tmp_min${SUFFIX}.json"
     "go_build_tmp_min${SUFFIX}.txt"
     "golangci_verbose_run${SUFFIX}.txt"
+  "a_files_summary${SUFFIX}.txt"
+  "a_files${SUFFIX}"
     "golangci_install_log${SUFFIX}.txt"
     "golangci_typecheck${SUFFIX}.out"
   )
@@ -356,6 +394,29 @@ if [ -n "${GOLANGCI_BIN:-}" ] && [ -x "$GOLANGCI_BIN" ]; then
   done
   # Always write a manifest so the artifact summary shows these files exist.
   (cd "$CI_EXPORT_DIR" 2>/dev/null && ls -la > "files_manifest${SUFFIX}.txt" 2>/dev/null) || true
+
+  # Also copy a small set of important diagnostics without the suffix so
+  # legacy tooling and the artifact summary can find them at stable paths.
+  # This ensures files like sync_atomic_preflight.json are present unsuffixed
+  # even when the helper runs with a suffix (nonblocking/blocking/etc.).
+  if [ -f "$OUTDIR/sync_atomic_preflight${SUFFIX}.json" ]; then
+    cp -a "$OUTDIR/sync_atomic_preflight${SUFFIX}.json" "$CI_EXPORT_DIR/sync_atomic_preflight.json" 2>/dev/null || true
+  fi
+  if [ -f "$OUTDIR/sync_atomic_preflight_status${SUFFIX}.txt" ]; then
+    cp -a "$OUTDIR/sync_atomic_preflight_status${SUFFIX}.txt" "$CI_EXPORT_DIR/sync_atomic_preflight_status.txt" 2>/dev/null || true
+  fi
+  if [ -f "$OUTDIR/golangci_typecheck${SUFFIX}.out" ]; then
+    cp -a "$OUTDIR/golangci_typecheck${SUFFIX}.out" "$CI_EXPORT_DIR/golangci_typecheck.out" 2>/dev/null || true
+  fi
+  if [ -f "$OUTDIR/golangci_verbose_run${SUFFIX}.txt" ]; then
+    cp -a "$OUTDIR/golangci_verbose_run${SUFFIX}.txt" "$CI_EXPORT_DIR/golangci_verbose_run.txt" 2>/dev/null || true
+  fi
+  if [ -f "$OUTDIR/golangci_install_log${SUFFIX}.txt" ]; then
+    cp -a "$OUTDIR/golangci_install_log${SUFFIX}.txt" "$CI_EXPORT_DIR/golangci_install_log.txt" 2>/dev/null || true
+  fi
+  if [ -f "$OUTDIR/go_env_full${SUFFIX}.json" ]; then
+    cp -a "$OUTDIR/go_env_full${SUFFIX}.json" "$CI_EXPORT_DIR/go_env_full.json" 2>/dev/null || true
+  fi
 
   # Run golangci-lint (typecheck) after ensuring stdlib export-data matches.
   # Force GOROOT/GOMODCACHE/GOCACHE so golangci runs with the container's
