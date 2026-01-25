@@ -1,6 +1,3 @@
-#!/bin/sh
-set -euo pipefail
-set -x
 #!/usr/bin/env bash
 # Use bash: this script relies on bash features (pipefail, better set handling)
 # and is intended to run inside the pinned analyzer/container which provides
@@ -425,6 +422,17 @@ if [ -n "${GOLANGCI_BIN:-}" ] && [ -x "$GOLANGCI_BIN" ]; then
   # available in the analyzer image, run golangci under strace to capture
   # the exact files it opens (helps find which .a is being read).
   GOROOT_DIR=$(/usr/local/go/bin/go env GOROOT 2>/dev/null || echo "/usr/local/go")
+  # Defensive: record module-cache .a files and delete them to avoid stale
+  # compiled archives being opened by golangci's typecheck loader. We save
+  # the list into OUTDIR and copy it to CI_EXPORT_DIR for auditing.
+  if [ -d /tmp/gomodcache ]; then
+    find /tmp/gomodcache -type f -name '*.a' -print > "$OUTDIR/gomodcache_a_files_before_delete${SUFFIX}.txt" 2>/dev/null || true
+    cp -a "$OUTDIR/gomodcache_a_files_before_delete${SUFFIX}.txt" "$CI_EXPORT_DIR/" 2>/dev/null || true
+    # Delete any .a files found so the loader cannot accidentally open stale
+    # compiled archives. Keep the audit list above so we can inspect what was
+    # removed after the run.
+    find /tmp/gomodcache -type f -name '*.a' -print -delete 2>/dev/null || true
+  fi
   STRACE_CMD=""
   if command -v strace >/dev/null 2>&1; then
     # -ff: follow forks, -e trace=open,openat: only log open syscalls
