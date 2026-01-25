@@ -21,6 +21,7 @@
 /.cache/
 /ci-export-typecheck/*
 /ci-local-debug/*
+/ci-export-local/*
 
 # Vendor (if you vendor dependencies locally)
 /vendor/
