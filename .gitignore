@@ -8,6 +8,7 @@
 *.o
 *.out
 *.test
+/ci-export-*/*
 
 # Common build/output directories
 /bin/
@@ -19,7 +20,6 @@
 # Local temp/cache
 /tmp/
 /.cache/
-/ci-export-*/*
 
 # Vendor (if you vendor dependencies locally)
 /vendor/
