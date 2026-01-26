@@ -123,17 +123,22 @@ ls -la /usr/local/go/pkg > "$OUTDIR/goroot_pkg_before${SUFFIX}.txt" 2>/dev/null 
 
 # Clear caches and compiled stdlib packages that may cause export-data mismatches
 GOMODCACHE=/tmp/gomodcache GOCACHE=/tmp/gocache /usr/local/go/bin/go clean -cache -modcache -testcache -i || true
-if [ -d /usr/local/go/pkg ]; then
-  for entry in /usr/local/go/pkg/*; do
-    base="$(basename "$entry")"
-    # preserve 'tool' and 'include' directories which contain toolchain
-    # binaries and header files required by the container's go runtime.
-    if [ "$base" = "tool" ] || [ "$base" = "include" ]; then
-      # preserve tool binaries
-      continue
-    fi
-    rm -rf "$entry" || true
-  done
+# By default we DO NOT aggressively remove the container's GOROOT/pkg tree.
+# Removing and rebuilding the entire stdlib on every run is expensive (~minutes)
+# and unnecessary in most CI runs. When deep debug is required you can enable
+# ULTRA_AGGRESSIVE_CLEAN=1 or REMOVE_GOROOT_PKG=1 (or run a debug suffix).
+if [ "${REMOVE_GOROOT_PKG:-0}" = "1" ] || [ "${ULTRA_AGGRESSIVE_CLEAN:-0}" = "1" ] || echo "${SUFFIX}" | grep -q "_blocking_force_ultra"; then
+  if [ -d /usr/local/go/pkg ]; then
+    for entry in /usr/local/go/pkg/*; do
+      base="$(basename "$entry")"
+      # preserve 'tool' and 'include' directories which contain toolchain
+      # binaries and header files required by the container's go runtime.
+      if [ "$base" = "tool" ] || [ "$base" = "include" ]; then
+        continue
+      fi
+      rm -rf "$entry" || true
+    done
+  fi
 fi
 GOMODCACHE=/tmp/gomodcache GOCACHE=/tmp/gocache /usr/local/go/bin/go mod download || true
   # Preserve the toolchain binaries and headers so the 'go' command
@@ -263,26 +268,35 @@ if [ -n "${GOLANGCI_BIN:-}" ] && [ -x "$GOLANGCI_BIN" ]; then
   command -v golangci-lint > "$OUTDIR/which_golangci${SUFFIX}.txt" 2>&1 || true
   "$GOLANGCI_BIN" --version > "$OUTDIR/golangci_version${SUFFIX}.txt" 2>&1 || true
 
-  # Rebuild the Go standard library so compiled export data under GOROOT
-  # matches the container's toolchain. This helps avoid "unsupported
-  # version" errors when golangci's typecheck imports stdlib packages.
-  echo "Rebuilding Go stdlib (go install std) for consistent export-data" >> "$OUTDIR/golangci_install_log${SUFFIX}.txt" 2>&1 || true
-  if /usr/local/go/bin/go install std > /tmp/gobuild_std_${SUFFIX}.log 2>&1; then
-    echo "Rebuilt stdlib: success" >> "$OUTDIR/golangci_install_log${SUFFIX}.txt" 2>&1 || true
-    tail -n 200 /tmp/gobuild_std_${SUFFIX}.log >> "$OUTDIR/golangci_install_log${SUFFIX}.txt" 2>&1 || true
-  else
-    echo "Rebuilt stdlib: failed (see /tmp/gobuild_std_${SUFFIX}.log)" >> "$OUTDIR/golangci_install_log${SUFFIX}.txt" 2>&1 || true
-    tail -n 200 /tmp/gobuild_std_${SUFFIX}.log >> "$OUTDIR/golangci_install_log${SUFFIX}.txt" 2>&1 || true
-  fi
-
-  # Diagnostic: record GOROOT/GOOS/GOARCH and list compiled stdlib packages so
-  # we can confirm export-data was rebuilt inside the container. This helps
-  # diagnose "unsupported version" import errors by showing timestamps,
-  # sizes, and presence of arch-specific package object files.
+  # Decide whether to rebuild the Go stdlib. Rebuilding on every run is
+  # expensive. We only rebuild when explicitly requested (FORCE_REBUILD_STD=1),
+  # when an ultra aggressive cleanup is requested, or when the arch-specific
+  # pkg directory is missing (which indicates we removed compiled stdlib
+  # artifacts earlier). Debug runs (suffix contains '_debug') also rebuild.
   /usr/local/go/bin/go env GOROOT GOOS GOARCH > "$OUTDIR/go_env_goroot_arch${SUFFIX}.txt" 2>&1 || true
   GOROOT_DIR=$(/usr/local/go/bin/go env GOROOT 2>/dev/null || echo "/usr/local/go")
   GOOS_VAL=$(/usr/local/go/bin/go env GOOS 2>/dev/null || echo "linux")
   GOARCH_VAL=$(/usr/local/go/bin/go env GOARCH 2>/dev/null || echo "amd64")
+  ARCH_DIR="$GOROOT_DIR/pkg/${GOOS_VAL}_${GOARCH_VAL}"
+  SHOULD_REBUILD_STD=0
+  if [ "${FORCE_REBUILD_STD:-0}" = "1" ] || [ "${ULTRA_AGGRESSIVE_CLEAN:-0}" = "1" ] || echo "${SUFFIX}" | grep -q "_debug"; then
+    SHOULD_REBUILD_STD=1
+  elif [ ! -d "$ARCH_DIR" ]; then
+    # If arch dir missing, stdlib needs rebuilding for the container toolchain
+    SHOULD_REBUILD_STD=1
+  fi
+  if [ "$SHOULD_REBUILD_STD" = "1" ]; then
+    echo "Rebuilding Go stdlib (go install std) for consistent export-data" >> "$OUTDIR/golangci_install_log${SUFFIX}.txt" 2>&1 || true
+    if /usr/local/go/bin/go install std > /tmp/gobuild_std_${SUFFIX}.log 2>&1; then
+      echo "Rebuilt stdlib: success" >> "$OUTDIR/golangci_install_log${SUFFIX}.txt" 2>&1 || true
+      tail -n 200 /tmp/gobuild_std_${SUFFIX}.log >> "$OUTDIR/golangci_install_log${SUFFIX}.txt" 2>&1 || true
+    else
+      echo "Rebuilt stdlib: failed (see /tmp/gobuild_std_${SUFFIX}.log)" >> "$OUTDIR/golangci_install_log${SUFFIX}.txt" 2>&1 || true
+      tail -n 200 /tmp/gobuild_std_${SUFFIX}.log >> "$OUTDIR/golangci_install_log${SUFFIX}.txt" 2>&1 || true
+    fi
+  else
+    echo "Skipping stdlib rebuild: arch dir present and FORCE_REBUILD_STD not set" >> "$OUTDIR/golangci_install_log${SUFFIX}.txt" 2>&1 || true
+  fi
   # top-level pkg listing
   ls -la "$GOROOT_DIR/pkg" > "$OUTDIR/goroot_pkg_listing${SUFFIX}.txt" 2>&1 || true
   du -sh "$GOROOT_DIR/pkg" > "$OUTDIR/goroot_pkg_du${SUFFIX}.txt" 2>&1 || true
@@ -359,31 +373,52 @@ if [ -n "${GOLANGCI_BIN:-}" ] && [ -x "$GOLANGCI_BIN" ]; then
   # from the helper's local OUTDIR into CI_EXPORT_DIR and emit a small
   # manifest listing the files and sizes.
   mkdir -p "${CI_EXPORT_DIR}" 2>/dev/null || true
-  files_to_copy=(
-    "sync_atomic_preflight${SUFFIX}.json"
-    "sync_atomic_preflight_status${SUFFIX}.txt"
-    "go_env_goroot_arch${SUFFIX}.txt"
-    "goroot_pkg_listing${SUFFIX}.txt"
-    "goroot_pkg_du${SUFFIX}.txt"
-    "goroot_pkg_arch_listing${SUFFIX}.txt"
-    "goroot_pkg_arch_sample${SUFFIX}.txt"
-    "goroot_pkg_sync_stat${SUFFIX}.txt"
-    "sync_atomic_hexdump${SUFFIX}.txt"
-    "gomodcache_ls${SUFFIX}.txt"
-    "gomodcache_a_files${SUFFIX}.txt"
-    "gomodcache_sample_hexdump${SUFFIX}.txt"
-    # Additional diagnostics useful for post-mortem
-    "go_env_full${SUFFIX}.json"
-    "env_before_golangci${SUFFIX}.txt"
-    "golangci_bin_modinfo${SUFFIX}.txt"
-    "go_list_deps_tmp_min${SUFFIX}.json"
-    "go_build_tmp_min${SUFFIX}.txt"
-    "golangci_verbose_run${SUFFIX}.txt"
-  "a_files_summary${SUFFIX}.txt"
-  "a_files${SUFFIX}"
-    "golangci_install_log${SUFFIX}.txt"
-    "golangci_typecheck${SUFFIX}.out"
-  )
+  # Choose which diagnostics to copy into CI_EXPORT_DIR. By default keep
+  # artifacts small: sync preflight, golangci output/log, and minimal lists.
+  # For debug runs (suffix contains '_debug') or when CI_DEBUG_FULL_DIAGS=1
+  # we copy the larger, more detailed diagnostic set.
+  DEBUG_FULL=0
+  if echo "${SUFFIX}" | grep -q "_debug" || [ "${CI_DEBUG_FULL_DIAGS:-0}" = "1" ]; then
+    DEBUG_FULL=1
+  fi
+  if [ "$DEBUG_FULL" -eq 1 ]; then
+    files_to_copy=(
+      "sync_atomic_preflight${SUFFIX}.json"
+      "sync_atomic_preflight_status${SUFFIX}.txt"
+      "go_env_goroot_arch${SUFFIX}.txt"
+      "goroot_pkg_listing${SUFFIX}.txt"
+      "goroot_pkg_du${SUFFIX}.txt"
+      "goroot_pkg_arch_listing${SUFFIX}.txt"
+      "goroot_pkg_arch_sample${SUFFIX}.txt"
+      "goroot_pkg_sync_stat${SUFFIX}.txt"
+      "sync_atomic_hexdump${SUFFIX}.txt"
+      "gomodcache_ls${SUFFIX}.txt"
+      "gomodcache_a_files${SUFFIX}.txt"
+      "gomodcache_sample_hexdump${SUFFIX}.txt"
+      "go_env_full${SUFFIX}.json"
+      "env_before_golangci${SUFFIX}.txt"
+      "golangci_bin_modinfo${SUFFIX}.txt"
+      "go_list_deps_tmp_min${SUFFIX}.json"
+      "go_build_tmp_min${SUFFIX}.txt"
+      "golangci_verbose_run${SUFFIX}.txt"
+      "a_files_summary${SUFFIX}.txt"
+      "a_files${SUFFIX}"
+      "golangci_install_log${SUFFIX}.txt"
+      "golangci_typecheck${SUFFIX}.out"
+    )
+  else
+    # Minimal diagnostics for normal runs (keeps artifacts small)
+    files_to_copy=(
+      "sync_atomic_preflight${SUFFIX}.json"
+      "sync_atomic_preflight_status${SUFFIX}.txt"
+      "which_golangci${SUFFIX}.txt"
+      "golangci_version${SUFFIX}.txt"
+      "golangci_install_log${SUFFIX}.txt"
+      "golangci_typecheck${SUFFIX}.out"
+      "a_files_summary${SUFFIX}.txt"
+      "gomodcache_a_files_before_delete${SUFFIX}.txt"
+    )
+  fi
   for fname in "${files_to_copy[@]}"; do
     if [ -e "$OUTDIR/$fname" ]; then
       cp -a "$OUTDIR/$fname" "$CI_EXPORT_DIR/" 2>/dev/null || true
@@ -434,12 +469,16 @@ if [ -n "${GOLANGCI_BIN:-}" ] && [ -x "$GOLANGCI_BIN" ]; then
     find /tmp/gomodcache -type f -name '*.a' -print -delete 2>/dev/null || true
   fi
   STRACE_CMD=""
-  if command -v strace >/dev/null 2>&1; then
+  # Only enable strace in explicit debug runs to avoid producing many
+  # fork-following trace files during normal PR checks. Enable when the
+  # suffix is a debug run (contains '_debug') or CI_DEBUG_STRACE=1.
+  if command -v strace >/dev/null 2>&1 && { [ "${CI_DEBUG_STRACE:-0}" = "1" ] || echo "${SUFFIX}" | grep -q "_debug"; }; then
     # -ff: follow forks, -e trace=open,openat: only log open syscalls
-    STRACE_CMD="strace -ff -e trace=open,openat -o '$OUTDIR/strace_golangci${SUFFIX}' --"
+    STRACE_CMD="strace -ff -e trace=open,openat -o '${OUTDIR}/strace_golangci${SUFFIX}' --"
   fi
   if [ -n "$STRACE_CMD" ]; then
     # Use env to set the environment for the traced process
+    # Run under strace only when debugging is explicitly requested.
     eval "$STRACE_CMD env GOROOT=\"$GOROOT_DIR\" GOMODCACHE=/tmp/gomodcache GOCACHE=/tmp/gocache \"$GOLANGCI_BIN\" run --config .golangci.yml --enable typecheck ./..." > "$OUTDIR/golangci_typecheck${SUFFIX}.out" 2> "$OUTDIR/golangci_verbose_run${SUFFIX}.txt" || rc=$?
   else
     ( GOROOT="$GOROOT_DIR" GOMODCACHE=/tmp/gomodcache GOCACHE=/tmp/gocache "$GOLANGCI_BIN" run --config .golangci.yml --enable typecheck ./... ) > "$OUTDIR/golangci_typecheck${SUFFIX}.out" 2> "$OUTDIR/golangci_verbose_run${SUFFIX}.txt" || rc=$?

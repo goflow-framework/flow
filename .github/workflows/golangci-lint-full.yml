@@ -134,7 +134,9 @@ jobs:
     needs: build-analyzer-image
     runs-on: ubuntu-latest
     env:
-      FORCE_REBUILD_GOLANGCI: '1'
+      # Keep the non-blocking rollout fast: do not force rebuild of golangci-lint
+      # or the stdlib on every PR run. Use the pinned analyzer image instead.
+      FORCE_REBUILD_GOLANGCI: '0'
     container:
       image: ${{ needs.build-analyzer-image.outputs.image-tag }}
     continue-on-error: true
@@ -306,7 +308,11 @@ jobs:
     needs: [build-analyzer-image, typecheck-nonblocking]
     runs-on: ubuntu-latest
     env:
+      # Debug job: enable full diagnostics and strace so we can collect
+      # export-data and open() traces for post-mortem analysis.
       FORCE_REBUILD_GOLANGCI: '1'
+      CI_DEBUG_STRACE: '1'
+      CI_DEBUG_FULL_DIAGS: '1'
     container:
       image: ${{ needs.build-analyzer-image.outputs.image-tag }}
     if: always()
@@ -360,6 +366,8 @@ jobs:
     env:
       ULTRA_AGGRESSIVE_CLEAN: '1'
       FORCE_REBUILD_GOLANGCI: '1'
+      CI_DEBUG_STRACE: '1'
+      CI_DEBUG_FULL_DIAGS: '1'
     if: always()
     steps:
       - uses: actions/checkout@v4
