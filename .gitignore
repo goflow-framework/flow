@@ -19,10 +19,7 @@
 # Local temp/cache
 /tmp/
 /.cache/
-/ci-export-typecheck/*
-/ci-local-debug/*
-/ci-export-local/*
-/ci-export-strace/*
+/ci-export-*/*
 
 # Vendor (if you vendor dependencies locally)
 /vendor/
