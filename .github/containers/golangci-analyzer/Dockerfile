@@ -179,7 +179,13 @@ fi
 # forward to the requested command
 exec "$@"
 EOF
-RUN chmod +x /usr/local/bin/entrypoint-ensure-goroot.sh
+RUN \
+    # Normalize line endings in the generated entrypoint to avoid CRLF
+    # issues when the repo is checked out on Windows. Some editors/git
+    # configs can introduce '\r' characters which break shebang parsing
+    # inside the image. Strip any trailing CRs and then make executable.
+    sed -i 's/\r$//' /usr/local/bin/entrypoint-ensure-goroot.sh || true; \
+    chmod +x /usr/local/bin/entrypoint-ensure-goroot.sh
 
 WORKDIR /app
 
