@@ -94,7 +94,6 @@ jobs:
   # Build a pinned analyzer container image (golang:1.24.11 + golangci-lint v1.59.0)
   build-analyzer-image:
     name: Build analyzer image
-    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
     runs-on: ubuntu-latest
     env:
       GHCR_PAT: ${{ secrets.GHCR_PAT }}
