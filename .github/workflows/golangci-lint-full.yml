@@ -5,6 +5,8 @@ on:
   push:
     branches: [ main ]
   workflow_dispatch: {}
+env:
+  ANALYZER_IMAGE: ghcr.io/${{ github.repository_owner }}/golangci-analyzer:1.24.11-1.59.0
 
 jobs:
   build-and-run-linters:
@@ -92,6 +94,7 @@ jobs:
   # Build a pinned analyzer container image (golang:1.24.11 + golangci-lint v1.59.0)
   build-analyzer-image:
     name: Build analyzer image
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
     runs-on: ubuntu-latest
     env:
       GHCR_PAT: ${{ secrets.GHCR_PAT }}
@@ -131,14 +134,17 @@ jobs:
   # will run and enforce failures. This allows a safe staged rollout.
   typecheck-nonblocking:
     name: Typecheck (non-blocking rollout)
-    needs: build-analyzer-image
+    # Do not require building the analyzer image for PR runs; PR jobs will
+    # pull a pinned prebuilt image from GHCR (fast). The image build runs only
+    # on main pushes or manual dispatch (see build-analyzer-image job 'if').
+  # no 'needs' so this job runs independently and uses the pinned analyzer image
     runs-on: ubuntu-latest
     env:
       # Keep the non-blocking rollout fast: do not force rebuild of golangci-lint
       # or the stdlib on every PR run. Use the pinned analyzer image instead.
       FORCE_REBUILD_GOLANGCI: '0'
     container:
-      image: ${{ needs.build-analyzer-image.outputs.image-tag }}
+      image: ghcr.io/${{ github.repository_owner }}/golangci-analyzer:1.24.11-1.59.0
     continue-on-error: true
     outputs:
       has_issues: ${{ steps.check.outputs.has_issues }}
@@ -269,10 +275,10 @@ jobs:
   # Blocking job that will only run if the non-blocking run succeeded.
   typecheck-blocking:
     name: Typecheck (blocking, gated)
-    needs: [build-analyzer-image, typecheck-nonblocking]
+    needs: [typecheck-nonblocking]
     runs-on: ubuntu-latest
     container:
-      image: ${{ needs.build-analyzer-image.outputs.image-tag }}
+      image: ghcr.io/${{ github.repository_owner }}/golangci-analyzer:1.24.11-1.59.0
     if: needs.typecheck-nonblocking.outputs.has_issues == 'false'
     steps:
       - uses: actions/checkout@v4
@@ -305,7 +311,7 @@ jobs:
   # Use this to collect blocking outputs when the gated job is skipped.
   typecheck-blocking-debug:
     name: Typecheck (blocking, debug - always run)
-    needs: [build-analyzer-image, typecheck-nonblocking]
+    needs: [typecheck-nonblocking]
     runs-on: ubuntu-latest
     env:
       # Debug job: enable full diagnostics and strace so we can collect
@@ -314,7 +320,7 @@ jobs:
       CI_DEBUG_STRACE: '1'
       CI_DEBUG_FULL_DIAGS: '1'
     container:
-      image: ${{ needs.build-analyzer-image.outputs.image-tag }}
+      image: ghcr.io/${{ github.repository_owner }}/golangci-analyzer:1.24.11-1.59.0
     if: always()
     steps:
       - uses: actions/checkout@v4
@@ -359,10 +365,10 @@ jobs:
   # This is temporary and intended to collect full blocking diagnostics for debugging only.
   typecheck-blocking-force:
     name: Typecheck (blocking, forced - debug)
-    needs: [build-analyzer-image, typecheck-nonblocking]
+    needs: [typecheck-nonblocking]
     runs-on: ubuntu-latest
     container:
-      image: ${{ needs.build-analyzer-image.outputs.image-tag }}
+      image: ghcr.io/${{ github.repository_owner }}/golangci-analyzer:1.24.11-1.59.0
     env:
       ULTRA_AGGRESSIVE_CLEAN: '1'
       FORCE_REBUILD_GOLANGCI: '1'

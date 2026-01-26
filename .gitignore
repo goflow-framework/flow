@@ -8,7 +8,6 @@
 *.o
 *.out
 *.test
-/ci-export-*/*
 
 # Common build/output directories
 /bin/
@@ -39,6 +38,7 @@ nohup.out
 pprof_client.log
 pprof_server.log
 artifacts/*
+/ci-export-*/*
 
 # Databases
 *.db
