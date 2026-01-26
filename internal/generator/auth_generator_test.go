@@ -399,11 +399,10 @@ func TestGeneratedMiddleware_Unit_GetSessionUserID(t *testing.T) {
 	tmpProj := t.TempDir()
 	uid := filepath.Base(tmpProj)
 	moduleName := modName + "/examples/" + uid
-	goMod := "module " + moduleName + "\n\n" +
-		"go 1.20\n\n" +
-		"require " + modName + " v0.0.0\n\n" +
-		"replace " + modName + " => " + repo + "\n"
-	if err := os.WriteFile(filepath.Join(tmpProj, "go.mod"), []byte(goMod), 0o644); err != nil {
+	// Use the shared helper which copies the repo go version and writes an
+	// absolute replace directive so temporary modules resolve local packages
+	// reliably across environments and toolchains.
+	if err := WriteTempGoMod(tmpProj, moduleName, false); err != nil {
 		t.Fatalf("write go.mod: %v", err)
 	}
 
@@ -516,10 +515,9 @@ func TestGetSessionUserID_Roundtrip(t *testing.T) {
 		t.Fatalf("write test file: %v", err)
 	}
 
-	// tidy and run tests in the temp project
-	tidy := exec.Command("go", "mod", "tidy")
-	tidy.Dir = tmpProj
-	if out, err := tidy.CombinedOutput(); err != nil {
+	// tidy and run tests in the temp project (use RunCmdCombined to include
+	// go env in error output for easier triage)
+	if out, err := RunCmdCombined(tmpProj, "go", "mod", "tidy"); err != nil {
 		t.Fatalf("go mod tidy failed: %v\n%s", err, string(out))
 	}
 

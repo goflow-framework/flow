@@ -8,7 +8,7 @@ RUN set -eux; \
     # ensure basic network tooling and build tools so stdlib can be rebuilt
     export DEBIAN_FRONTEND=noninteractive; \
     apt-get update; \
-    apt-get install -y --no-install-recommends ca-certificates curl gnupg2 gcc build-essential make; \
+    apt-get install -y --no-install-recommends ca-certificates curl gnupg2 gcc build-essential make strace; \
     rm -rf /var/lib/apt/lists/*; \
     # install golangci-lint (pinned) into /go/bin
     GOBIN=/go/bin go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.59.0; \
