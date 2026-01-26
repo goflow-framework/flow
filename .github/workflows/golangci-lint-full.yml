@@ -123,11 +123,20 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push analyzer image to GHCR
-        run: |
-          docker build --pull -t "${{ steps.set-tag.outputs.image-tag }}" .github/containers/golangci-analyzer
-          docker images | grep golangci-analyzer || true
-          docker push "${{ steps.set-tag.outputs.image-tag }}"
+      - name: Build and push analyzer image to GHCR (with build cache)
+        uses: docker/build-push-action@v4
+        with:
+          context: .github/containers/golangci-analyzer
+          push: true
+          # Tag both the pinned version and a per-run unique tag so maintainers can
+          # inspect specific builds if needed.
+          tags: |
+            ${{ steps.set-tag.outputs.image-tag }}
+            ghcr.io/${{ github.repository_owner }}/golangci-analyzer:1.24.11-1.59.0
+          build-args: |
+            USE_MAKE_BASH=1
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
   # Gated rollout: run type-aware 'typecheck' first in a non-blocking job.
   # If the non-blocking run completes successfully, the blocking job below

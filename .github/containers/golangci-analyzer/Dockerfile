@@ -1,5 +1,11 @@
 FROM golang:1.24.11
 
+# Build-time flag to opt-in to running the upstream `make.bash` bootstrap
+# (this invokes a full bootstrap build and can be very slow). Default is
+# disabled so image builds are fast by default; registry/release builds can
+# opt-in by passing --build-arg USE_MAKE_BASH=1.
+ARG USE_MAKE_BASH=0
+
 # Install golangci-lint built with this image's Go toolchain so its export
 # data is compatible with the stdlib compiled in this image.
 ENV GOBIN=/go/bin
@@ -19,11 +25,12 @@ RUN set -eux; \
     # export-data matches the image's Go toolchain. First try `go install`.
     GOCACHE=/tmp/gocache GOMODCACHE=/tmp/gomodcache GOOS=linux GOARCH=amd64 /usr/local/go/bin/go install -v -a std; \
     # If `go install` did not populate the arch pkg dir for std packages,
-    # fetch a small bootstrap Go (>=1.22.6), use it as GOROOT_BOOTSTRAP and run
-    # the canonical bootstrap `make.bash` to install the runtime and stdlib
-    # into /usr/local/go/pkg. This ensures exported archive data lives in
-    # GOROOT/pkg where analyzers expect it.
-    if [ ! -d "/usr/local/go/pkg/$(/usr/local/go/bin/go env GOOS)_$(/usr/local/go/bin/go env GOARCH)/sync" ]; then \
+    # optionally fetch a small bootstrap Go (>=1.22.6) and run the canonical
+    # bootstrap `make.bash` to install the runtime and stdlib into
+    # /usr/local/go/pkg. This process is slow; it is gated behind the
+    # build-arg USE_MAKE_BASH. CI/publish builds should pass
+    # --build-arg USE_MAKE_BASH=1 when they need the complete bootstrap.
+    if [ "${USE_MAKE_BASH:-0}" = "1" ] && [ ! -d "/usr/local/go/pkg/$(/usr/local/go/bin/go env GOOS)_$(/usr/local/go/bin/go env GOARCH)/sync" ]; then \
         echo "go install did not populate arch pkg dir; downloading Go 1.22.6 bootstrap"; \
         BOOT_VER=1.22.6; \
         BOOT_TAR=/tmp/go${BOOT_VER}.linux-amd64.tar.gz; \
