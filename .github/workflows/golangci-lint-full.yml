@@ -6,7 +6,7 @@ on:
     branches: [ main ]
   workflow_dispatch: {}
 env:
-  ANALYZER_IMAGE: ghcr.io/${{ github.repository_owner }}/golangci-analyzer:1.24.11-1.59.0
+  ANALYZER_IMAGE: ghcr.io/${{ github.repository_owner }}/golangci-analyzer:1.24.11-2.8.0
 
 jobs:
   build-and-run-linters:
@@ -69,10 +69,10 @@ jobs:
           # NOTE: avoid running `go list`/`go vet` on the runner -- run them inside the
           # container to ensure the same toolchain and working directory are used.
           echo '\n--- Skipping runner-side go list/go vet (will execute inside container when needed) ---\n'
-          # Install prebuilt golangci-lint binary (v1.59.0) to avoid running `go install` (faster and deterministic)
-          echo '\n--- Installing golangci-lint binary (v1.59.0) ---\n'
-          curl -sSfL https://github.com/golangci/golangci-lint/releases/download/v1.59.0/golangci-lint-1.59.0-linux-amd64.tar.gz | tar -xz -C /tmp || (echo 'failed to download golangci-lint binary' && exit 2)
-          mv /tmp/golangci-lint-1.59.0-linux-amd64/golangci-lint /usr/local/bin/golangci-lint
+          # Install prebuilt golangci-lint binary (v2.8.0) to avoid running `go install` (faster and deterministic)
+          echo '\n--- Installing golangci-lint binary (v2.8.0) ---\n'
+          curl -sSfL https://github.com/golangci/golangci-lint/releases/download/v2.8.0/golangci-lint-2.8.0-linux-amd64.tar.gz | tar -xz -C /tmp || (echo 'failed to download golangci-lint binary' && exit 2)
+          mv /tmp/golangci-lint-2.8.0-linux-amd64/golangci-lint /usr/local/bin/golangci-lint
           chmod +x /usr/local/bin/golangci-lint
           echo '\n--- Diagnostic: go env (json) ---\n'
           /usr/local/go/bin/go env -json || true
@@ -120,7 +120,7 @@ jobs:
         id: set-tag
         run: |
           # Tag the image with the GHCR repo + commit sha so it can be referenced
-          echo "image-tag=ghcr.io/${{ github.repository_owner }}/golangci-analyzer:1.24.11-1.59.0-${{ github.sha }}" >> "$GITHUB_OUTPUT"
+          echo "image-tag=ghcr.io/${{ github.repository_owner }}/golangci-analyzer:1.24.11-2.8.0-${{ github.sha }}" >> "$GITHUB_OUTPUT"
       - name: Log in to GHCR (use PAT if provided)
         if: ${{ env.GHCR_PAT != '' }}
         uses: docker/login-action@v2
@@ -151,7 +151,7 @@ jobs:
           # inspect specific builds if needed.
           tags: |
             ${{ steps.set-tag.outputs.image-tag }}
-            ghcr.io/${{ github.repository_owner }}/golangci-analyzer:1.24.11-1.59.0
+            ghcr.io/${{ github.repository_owner }}/golangci-analyzer:1.24.11-2.8.0
           build-args: |
             USE_MAKE_BASH=1
           cache-from: type=gha
@@ -172,7 +172,7 @@ jobs:
       # or the stdlib on every PR run. Use the pinned analyzer image instead.
       FORCE_REBUILD_GOLANGCI: '0'
     container:
-      image: ghcr.io/${{ github.repository_owner }}/golangci-analyzer:1.24.11-1.59.0
+      image: ghcr.io/${{ github.repository_owner }}/golangci-analyzer:1.24.11-2.8.0
     continue-on-error: true
     outputs:
       has_issues: ${{ steps.check.outputs.has_issues }}
@@ -181,6 +181,44 @@ jobs:
       - name: Create export dir
         run: |
           mkdir -p ./ci-export-typecheck
+      - name: Prepare container module cache and clean testdata .a
+        run: |
+          export GOMODCACHE=${GOMODCACHE:-/tmp/gomodcache}
+          mkdir -p "$GOMODCACHE"
+          # Delete gccgo/gcimporter testdata a-files that confuse gc importer
+          find "$GOMODCACHE" -type f -name '*.a' \
+            \( -path '*/go/gccgoexportdata/*' -o -path '*/go/internal/gccgoimporter/*' -o -path '*/internal/gcimporter/*' \) \
+            -print -delete || true
+          # Optional: force rebuild stdlib if you want defense in depth
+          # FORCE_REBUILD_STD=1 /usr/local/go/bin/go install std || true
+      - name: Debug (image & container toolchain)
+        run: |
+          # Record the image the job asked for (rendered by Actions)
+          echo "JOB_CONTAINER_IMAGE: ${{ job.container.image }}" > ./ci-export-typecheck/job_container_image.txt || true
+          echo "ANALYZER_IMAGE env: ${ANALYZER_IMAGE:-}" >> ./ci-export-typecheck/job_container_image.txt || true
+
+          # Probe container-local Go toolchain and preserved stdlib
+          if [ -x /usr/local/go/bin/go ]; then
+            /usr/local/go/bin/go version > ./ci-export-typecheck/go_version_runtime.txt 2>&1 || true
+            /usr/local/go/bin/go env -json > ./ci-export-typecheck/go_env_runtime.json 2>&1 || true
+            echo "Listing /usr/local/go/pkg (first 200 lines):" > ./ci-export-typecheck/goroot_pkg_runtime.txt || true
+            ls -la /usr/local/go/pkg | sed -n '1,200p' >> ./ci-export-typecheck/goroot_pkg_runtime.txt 2>&1 || true
+            ARCH_DIR="/usr/local/go/pkg/$(/usr/local/go/bin/go env GOOS)_$(/usr/local/go/bin/go env GOARCH)"
+            echo "Listing arch dir: $ARCH_DIR" > ./ci-export-typecheck/goroot_pkg_arch_runtime.txt || true
+            ls -la "$ARCH_DIR" | sed -n '1,200p' >> ./ci-export-typecheck/goroot_pkg_arch_runtime.txt 2>&1 || true
+            /usr/local/go/bin/go list -json sync/atomic > ./ci-export-typecheck/sync_atomic_runtime.json 2>&1 || true
+          else
+            echo "/usr/local/go/bin/go not found in container" > ./ci-export-typecheck/go_missing.txt || true
+          fi
+
+          # golangci-lint binary inspection
+          command -v golangci-lint > ./ci-export-typecheck/which_golangci_runtime.txt 2>&1 || true
+          if command -v golangci-lint >/dev/null 2>&1; then
+            golangci-lint --version > ./ci-export-typecheck/golangci_version_runtime.txt 2>&1 || true
+            file $(command -v golangci-lint) > ./ci-export-typecheck/golangci_file_runtime.txt 2>&1 || true
+            sha256sum $(command -v golangci-lint) > ./ci-export-typecheck/golangci_sha256_runtime.txt 2>&1 || true
+            strings $(command -v golangci-lint) | grep -Eo 'go[0-9]+\.[0-9]+' | head -n 10 > ./ci-export-typecheck/golangci_strings_runtime.txt 2>&1 || true
+          fi
       - name: Debug:dump workspace and git info
         run: |
           # Capture working directory and listing to help debug 'no go files to analyze'
@@ -217,7 +255,10 @@ jobs:
             # CI debug preflight: record where golangci-lint is and its version (if present)
             command -v golangci-lint > ./ci-export-typecheck/which_golangci_preflight.txt 2>&1 || true
             golangci-lint --version > ./ci-export-typecheck/golangci_version_preflight.txt 2>&1 || true
-            HOST_UID="$(id -u)" HOST_GID="$(id -g)" CI_EXPORT_DIR=./ci-export-typecheck /bin/bash .github/scripts/run-golangci-in-container.sh _nonblocking > ./ci-export-typecheck/helper_stdout.txt 2> ./ci-export-typecheck/helper_stderr.txt || echo "$?" > ./ci-export-typecheck/helper_exit_code
+            GOMODCACHE=/tmp/gomodcache_fresh GOCACHE=/tmp/gocache_fresh HOST_UID="$(id -u)" HOST_GID="$(id -g)" CI_EXPORT_DIR=./ci-export-typecheck /bin/bash .github/scripts/run-golangci-in-container.sh _nonblocking > ./ci-export-typecheck/helper_stdout.txt 2> ./ci-export-typecheck/helper_stderr.txt || echo "$?" > ./ci-export-typecheck/helper_exit_code
+            mkdir -p ./ci-export-typecheck
+            touch ./ci-export-typecheck/.writable_check || true
+            ls -la ./ci-export-typecheck > ./ci-export-typecheck/ls_before_helper.txt 2>&1 || true
           else
             echo "helper script not found" > ./ci-export-typecheck/golangci_typecheck.out || true
             echo 2 > ./ci-export-typecheck/golangci_exit_code || true
@@ -306,7 +347,7 @@ jobs:
     needs: [typecheck-nonblocking]
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/${{ github.repository_owner }}/golangci-analyzer:1.24.11-1.59.0
+      image: ghcr.io/${{ github.repository_owner }}/golangci-analyzer:1.24.11-2.8.0
     if: needs.typecheck-nonblocking.outputs.has_issues == 'false'
     steps:
       - uses: actions/checkout@v4
@@ -329,7 +370,7 @@ jobs:
             # CI debug preflight: record where golangci-lint is and its version (if present)
             command -v golangci-lint > ./ci-export-typecheck/which_golangci_preflight.txt 2>&1 || true
             golangci-lint --version > ./ci-export-typecheck/golangci_version_preflight.txt 2>&1 || true
-            HOST_UID="$(id -u)" HOST_GID="$(id -g)" CI_EXPORT_DIR=./ci-export-typecheck /bin/bash .github/scripts/run-golangci-in-container.sh _blocking > ./ci-export-typecheck/helper_stdout.txt 2> ./ci-export-typecheck/helper_stderr.txt || echo "$?" > ./ci-export-typecheck/helper_exit_code
+            GOMODCACHE=/tmp/gomodcache_fresh GOCACHE=/tmp/gocache_fresh HOST_UID="$(id -u)" HOST_GID="$(id -g)" CI_EXPORT_DIR=./ci-export-typecheck /bin/bash .github/scripts/run-golangci-in-container.sh _blocking > ./ci-export-typecheck/helper_stdout.txt 2> ./ci-export-typecheck/helper_stderr.txt || echo "$?" > ./ci-export-typecheck/helper_exit_code
           else
             echo "helper script not found" > ./ci-export-typecheck/golangci_typecheck_blocking.out || true
             echo 2 > ./ci-export-typecheck/golangci_exit_code_blocking || true
@@ -348,13 +389,41 @@ jobs:
       CI_DEBUG_STRACE: '1'
       CI_DEBUG_FULL_DIAGS: '1'
     container:
-      image: ghcr.io/${{ github.repository_owner }}/golangci-analyzer:1.24.11-1.59.0
+      image: ghcr.io/${{ github.repository_owner }}/golangci-analyzer:1.24.11-2.8.0
     if: always()
     steps:
       - uses: actions/checkout@v4
       - name: Create export dir (debug)
         run: |
           mkdir -p ./ci-export-typecheck
+      - name: Debug (image & container toolchain)
+        run: |
+          # Record the image the job asked for (rendered by Actions)
+          echo "JOB_CONTAINER_IMAGE: ${{ job.container.image }}" > ./ci-export-typecheck/job_container_image.txt || true
+          echo "ANALYZER_IMAGE env: ${ANALYZER_IMAGE:-}" >> ./ci-export-typecheck/job_container_image.txt || true
+
+          # Probe container-local Go toolchain and preserved stdlib
+          if [ -x /usr/local/go/bin/go ]; then
+            /usr/local/go/bin/go version > ./ci-export-typecheck/go_version_runtime.txt 2>&1 || true
+            /usr/local/go/bin/go env -json > ./ci-export-typecheck/go_env_runtime.json 2>&1 || true
+            echo "Listing /usr/local/go/pkg (first 200 lines):" > ./ci-export-typecheck/goroot_pkg_runtime.txt || true
+            ls -la /usr/local/go/pkg | sed -n '1,200p' >> ./ci-export-typecheck/goroot_pkg_runtime.txt 2>&1 || true
+            ARCH_DIR="/usr/local/go/pkg/$(/usr/local/go/bin/go env GOOS)_$(/usr/local/go/bin/go env GOARCH)"
+            echo "Listing arch dir: $ARCH_DIR" > ./ci-export-typecheck/goroot_pkg_arch_runtime.txt || true
+            ls -la "$ARCH_DIR" | sed -n '1,200p' >> ./ci-export-typecheck/goroot_pkg_arch_runtime.txt 2>&1 || true
+            /usr/local/go/bin/go list -json sync/atomic > ./ci-export-typecheck/sync_atomic_runtime.json 2>&1 || true
+          else
+            echo "/usr/local/go/bin/go not found in container" > ./ci-export-typecheck/go_missing.txt || true
+          fi
+
+          # golangci-lint binary inspection
+          command -v golangci-lint > ./ci-export-typecheck/which_golangci_runtime.txt 2>&1 || true
+          if command -v golangci-lint >/dev/null 2>&1; then
+            golangci-lint --version > ./ci-export-typecheck/golangci_version_runtime.txt 2>&1 || true
+            file $(command -v golangci-lint) > ./ci-export-typecheck/golangci_file_runtime.txt 2>&1 || true
+            sha256sum $(command -v golangci-lint) > ./ci-export-typecheck/golangci_sha256_runtime.txt 2>&1 || true
+            strings $(command -v golangci-lint) | grep -Eo 'go[0-9]+\.[0-9]+' | head -n 10 > ./ci-export-typecheck/golangci_strings_runtime.txt 2>&1 || true
+          fi
       - name: Run blocking typecheck (debug) inside analyzer container
         run: |
           if [ -f .github/scripts/run-golangci-in-container.sh ]; then
@@ -372,7 +441,10 @@ jobs:
             # CI debug preflight: record where golangci-lint is and its version (if present)
             command -v golangci-lint > ./ci-export-typecheck/which_golangci_preflight.txt 2>&1 || true
             golangci-lint --version > ./ci-export-typecheck/golangci_version_preflight.txt 2>&1 || true
-            HOST_UID="$(id -u)" HOST_GID="$(id -g)" CI_EXPORT_DIR=./ci-export-typecheck /bin/bash .github/scripts/run-golangci-in-container.sh _blocking_debug > ./ci-export-typecheck/helper_stdout.txt 2> ./ci-export-typecheck/helper_stderr.txt || echo "$?" > ./ci-export-typecheck/helper_exit_code
+            GOMODCACHE=/tmp/gomodcache_fresh GOCACHE=/tmp/gocache_fresh HOST_UID="$(id -u)" HOST_GID="$(id -g)" CI_EXPORT_DIR=./ci-export-typecheck /bin/bash .github/scripts/run-golangci-in-container.sh _blocking_debug > ./ci-export-typecheck/helper_stdout.txt 2> ./ci-export-typecheck/helper_stderr.txt || echo "$?" > ./ci-export-typecheck/helper_exit_code
+            mkdir -p ./ci-export-typecheck
+            touch ./ci-export-typecheck/.writable_check || true
+            ls -la ./ci-export-typecheck > ./ci-export-typecheck/ls_before_helper.txt 2>&1 || true
           else
             echo "helper script not found" > ./ci-export-typecheck/golangci_typecheck_blocking_debug.out || true
             echo 2 > ./ci-export-typecheck/golangci_exit_code_blocking_debug || true
@@ -396,7 +468,7 @@ jobs:
     needs: [typecheck-nonblocking]
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/${{ github.repository_owner }}/golangci-analyzer:1.24.11-1.59.0
+      image: ghcr.io/${{ github.repository_owner }}/golangci-analyzer:1.24.11-2.8.0
     env:
       ULTRA_AGGRESSIVE_CLEAN: '1'
       FORCE_REBUILD_GOLANGCI: '1'
@@ -408,6 +480,34 @@ jobs:
       - name: Create export dir (blocking-force)
         run: |
           mkdir -p ./ci-export-typecheck
+      - name: Debug (image & container toolchain)
+        run: |
+          # Record the image the job asked for (rendered by Actions)
+          echo "JOB_CONTAINER_IMAGE: ${{ job.container.image }}" > ./ci-export-typecheck/job_container_image.txt || true
+          echo "ANALYZER_IMAGE env: ${ANALYZER_IMAGE:-}" >> ./ci-export-typecheck/job_container_image.txt || true
+
+          # Probe container-local Go toolchain and preserved stdlib
+          if [ -x /usr/local/go/bin/go ]; then
+            /usr/local/go/bin/go version > ./ci-export-typecheck/go_version_runtime.txt 2>&1 || true
+            /usr/local/go/bin/go env -json > ./ci-export-typecheck/go_env_runtime.json 2>&1 || true
+            echo "Listing /usr/local/go/pkg (first 200 lines):" > ./ci-export-typecheck/goroot_pkg_runtime.txt || true
+            ls -la /usr/local/go/pkg | sed -n '1,200p' >> ./ci-export-typecheck/goroot_pkg_runtime.txt 2>&1 || true
+            ARCH_DIR="/usr/local/go/pkg/$(/usr/local/go/bin/go env GOOS)_$(/usr/local/go/bin/go env GOARCH)"
+            echo "Listing arch dir: $ARCH_DIR" > ./ci-export-typecheck/goroot_pkg_arch_runtime.txt || true
+            ls -la "$ARCH_DIR" | sed -n '1,200p' >> ./ci-export-typecheck/goroot_pkg_arch_runtime.txt 2>&1 || true
+            /usr/local/go/bin/go list -json sync/atomic > ./ci-export-typecheck/sync_atomic_runtime.json 2>&1 || true
+          else
+            echo "/usr/local/go/bin/go not found in container" > ./ci-export-typecheck/go_missing.txt || true
+          fi
+
+          # golangci-lint binary inspection
+          command -v golangci-lint > ./ci-export-typecheck/which_golangci_runtime.txt 2>&1 || true
+          if command -v golangci-lint >/dev/null 2>&1; then
+            golangci-lint --version > ./ci-export-typecheck/golangci_version_runtime.txt 2>&1 || true
+            file $(command -v golangci-lint) > ./ci-export-typecheck/golangci_file_runtime.txt 2>&1 || true
+            sha256sum $(command -v golangci-lint) > ./ci-export-typecheck/golangci_sha256_runtime.txt 2>&1 || true
+            strings $(command -v golangci-lint) | grep -Eo 'go[0-9]+\.[0-9]+' | head -n 10 > ./ci-export-typecheck/golangci_strings_runtime.txt 2>&1 || true
+          fi
       - name: Run blocking typecheck (force) inside analyzer container
         run: |
           if [ -f .github/scripts/run-golangci-in-container.sh ]; then
@@ -425,7 +525,10 @@ jobs:
             # CI debug preflight: record where golangci-lint is and its version (if present)
             command -v golangci-lint > ./ci-export-typecheck/which_golangci_preflight.txt 2>&1 || true
             golangci-lint --version > ./ci-export-typecheck/golangci_version_preflight.txt 2>&1 || true
-            HOST_UID="$(id -u)" HOST_GID="$(id -g)" CI_EXPORT_DIR=./ci-export-typecheck ULTRA_AGGRESSIVE_CLEAN=1 /bin/bash .github/scripts/run-golangci-in-container.sh _blocking_force > ./ci-export-typecheck/helper_stdout.txt 2> ./ci-export-typecheck/helper_stderr.txt || echo "$?" > ./ci-export-typecheck/helper_exit_code
+            GOMODCACHE=/tmp/gomodcache_fresh GOCACHE=/tmp/gocache_fresh HOST_UID="$(id -u)" HOST_GID="$(id -g)" CI_EXPORT_DIR=./ci-export-typecheck ULTRA_AGGRESSIVE_CLEAN=1 /bin/bash .github/scripts/run-golangci-in-container.sh _blocking_force > ./ci-export-typecheck/helper_stdout.txt 2> ./ci-export-typecheck/helper_stderr.txt || echo "$?" > ./ci-export-typecheck/helper_exit_code
+            mkdir -p ./ci-export-typecheck
+            touch ./ci-export-typecheck/.writable_check || true
+            ls -la ./ci-export-typecheck > ./ci-export-typecheck/ls_before_helper.txt 2>&1 || true
           else
             echo "helper script not found" > ./ci-export-typecheck/golangci_typecheck_blocking_force.out || true
             echo 2 > ./ci-export-typecheck/golangci_exit_code_blocking_force || true

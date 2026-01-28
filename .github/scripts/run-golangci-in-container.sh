@@ -64,8 +64,9 @@ HEARTBEAT_FILE="$OUTDIR/heartbeat${SUFFIX}.log"
 HEART_PID=$!
 trap 'kill ${HEART_PID} 2>/dev/null || true' EXIT
 
-export GOMODCACHE=/tmp/gomodcache
-export GOCACHE=/tmp/gocache
+: "${GOMODCACHE:=/tmp/gomodcache}"
+: "${GOCACHE:=/tmp/gocache}"
+export GOMODCACHE GOCACHE
 export PATH=/usr/local/go/bin:/go/bin:$PATH
 export GOFLAGS='-mod=mod -buildvcs=false'
 # Ensure GOROOT is set when the container's Go is available. Some images
@@ -122,7 +123,8 @@ fi
 ls -la /usr/local/go/pkg > "$OUTDIR/goroot_pkg_before${SUFFIX}.txt" 2>/dev/null || true
 
 # Clear caches and compiled stdlib packages that may cause export-data mismatches
-GOMODCACHE=/tmp/gomodcache GOCACHE=/tmp/gocache /usr/local/go/bin/go clean -cache -modcache -testcache -i || true
+# Use exported GOMODCACHE/GOCACHE (caller can override by setting env before invoking)
+/usr/local/go/bin/go clean -cache -modcache -testcache -i || true
 # By default we DO NOT aggressively remove the container's GOROOT/pkg tree.
 # Removing and rebuilding the entire stdlib on every run is expensive (~minutes)
 # and unnecessary in most CI runs. When deep debug is required you can enable
@@ -140,7 +142,8 @@ if [ "${REMOVE_GOROOT_PKG:-0}" = "1" ] || [ "${ULTRA_AGGRESSIVE_CLEAN:-0}" = "1"
     done
   fi
 fi
-GOMODCACHE=/tmp/gomodcache GOCACHE=/tmp/gocache /usr/local/go/bin/go mod download || true
+# Populate the caller-provided module cache (GOMODCACHE) using the container's go
+/usr/local/go/bin/go mod download || true
   # Preserve the toolchain binaries and headers so the 'go' command
   # remains functional after the ultra-clean. Copy back 'tool' and
   # 'include' from the backup into the fresh pkg tree. This keeps the
@@ -230,8 +233,8 @@ if echo "${SUFFIX}" | grep -q "_blocking_force_ultra" || [ "${ULTRA_AGGRESSIVE_C
     mv /tmp/goroot_pkg_backup /usr/local/go/pkg || true
     echo "restored /usr/local/go/pkg from backup" >> "$OUTDIR/ultra${SUFFIX}.txt" || true
   fi
-  # Ensure module cache populated after aggressive cleanup
-  GOMODCACHE=/tmp/gomodcache GOCACHE=/tmp/gocache /usr/local/go/bin/go mod download || true
+  # Ensure module cache populated after aggressive cleanup (use exported vars)
+  /usr/local/go/bin/go mod download || true
 fi
 
 ## Install and run golangci-lint using the container's Go toolchain.
@@ -317,7 +320,7 @@ if [ -n "${GOLANGCI_BIN:-}" ] && [ -x "$GOLANGCI_BIN" ]; then
   # .a files. Write a simple summary with the candidate paths.
   AFILES_DIR="$OUTDIR/a_files${SUFFIX}"
   mkdir -p "$AFILES_DIR" 2>/dev/null || true
-  echo "a_files_summary: candidates under $ARCH_DIR and /tmp/gomodcache" > "$OUTDIR/a_files_summary${SUFFIX}.txt" 2>/dev/null || true
+  echo "a_files_summary: candidates under $ARCH_DIR and $GOMODCACHE" > "$OUTDIR/a_files_summary${SUFFIX}.txt" 2>/dev/null || true
   if [ -d "$ARCH_DIR" ]; then
     find "$ARCH_DIR" -type f -name '*.a' -print 2>/dev/null | while IFS= read -r f; do
       shortname=$(echo "$f" | sed 's#/#_#g')
@@ -336,7 +339,7 @@ if [ -n "${GOLANGCI_BIN:-}" ] && [ -x "$GOLANGCI_BIN" ]; then
   fi
 
   # Scan module cache for .a files too
-  find /tmp/gomodcache -type f -name '*.a' -print 2>/dev/null | while IFS= read -r f; do
+  find "$GOMODCACHE" -type f -name '*.a' -print 2>/dev/null | while IFS= read -r f; do
     shortname=$(echo "$f" | sed 's#/#_#g')
     if command -v hexdump >/dev/null 2>&1; then
       hexdump -n 256 -C "$f" > "$AFILES_DIR/${shortname}.hexdump" 2>/dev/null || true
@@ -361,9 +364,9 @@ if [ -n "${GOLANGCI_BIN:-}" ] && [ -x "$GOLANGCI_BIN" ]; then
   fi
 
   # Module and cache diagnostics: list module cache root and find any compiled .a files
-  ls -la /tmp/gomodcache > "$OUTDIR/gomodcache_ls${SUFFIX}.txt" 2>&1 || true
-  find /tmp/gomodcache -type f -name '*.a' -print > "$OUTDIR/gomodcache_a_files${SUFFIX}.txt" 2>&1 || true
-  firstmoda=$(find /tmp/gomodcache -type f -name '*sync*atomic*.a' -print -quit 2>/dev/null || true)
+  ls -la "$GOMODCACHE" > "$OUTDIR/gomodcache_ls${SUFFIX}.txt" 2>&1 || true
+  find "$GOMODCACHE" -type f -name '*.a' -print > "$OUTDIR/gomodcache_a_files${SUFFIX}.txt" 2>&1 || true
+  firstmoda=$(find "$GOMODCACHE" -type f -name '*sync*atomic*.a' -print -quit 2>/dev/null || true)
   if [ -n "$firstmoda" ]; then
     hexdump -n 256 -C "$firstmoda" > "$OUTDIR/gomodcache_sample_hexdump${SUFFIX}.txt" 2>&1 || true
   fi
@@ -460,13 +463,13 @@ if [ -n "${GOLANGCI_BIN:-}" ] && [ -x "$GOLANGCI_BIN" ]; then
   # Defensive: record module-cache .a files and delete them to avoid stale
   # compiled archives being opened by golangci's typecheck loader. We save
   # the list into OUTDIR and copy it to CI_EXPORT_DIR for auditing.
-  if [ -d /tmp/gomodcache ]; then
-    find /tmp/gomodcache -type f -name '*.a' -print > "$OUTDIR/gomodcache_a_files_before_delete${SUFFIX}.txt" 2>/dev/null || true
+  if [ -d "$GOMODCACHE" ]; then
+    find "$GOMODCACHE" -type f -name '*.a' -print > "$OUTDIR/gomodcache_a_files_before_delete${SUFFIX}.txt" 2>/dev/null || true
     cp -a "$OUTDIR/gomodcache_a_files_before_delete${SUFFIX}.txt" "$CI_EXPORT_DIR/" 2>/dev/null || true
     # Delete any .a files found so the loader cannot accidentally open stale
     # compiled archives. Keep the audit list above so we can inspect what was
     # removed after the run.
-    find /tmp/gomodcache -type f -name '*.a' -print -delete 2>/dev/null || true
+    find "$GOMODCACHE" -type f -name '*.a' -print -delete 2>/dev/null || true
   fi
   STRACE_CMD=""
   # Only enable strace in explicit debug runs to avoid producing many
@@ -479,9 +482,9 @@ if [ -n "${GOLANGCI_BIN:-}" ] && [ -x "$GOLANGCI_BIN" ]; then
   if [ -n "$STRACE_CMD" ]; then
     # Use env to set the environment for the traced process
     # Run under strace only when debugging is explicitly requested.
-    eval "$STRACE_CMD env GOROOT=\"$GOROOT_DIR\" GOMODCACHE=/tmp/gomodcache GOCACHE=/tmp/gocache \"$GOLANGCI_BIN\" run --config .golangci.yml --enable typecheck ./..." > "$OUTDIR/golangci_typecheck${SUFFIX}.out" 2> "$OUTDIR/golangci_verbose_run${SUFFIX}.txt" || rc=$?
+  eval "$STRACE_CMD env GOROOT=\"$GOROOT_DIR\" GOMODCACHE=\"$GOMODCACHE\" GOCACHE=\"$GOCACHE\" \"$GOLANGCI_BIN\" run --config .golangci.yml --enable typecheck ./..." > "$OUTDIR/golangci_typecheck${SUFFIX}.out" 2> "$OUTDIR/golangci_verbose_run${SUFFIX}.txt" || rc=$?
   else
-    ( GOROOT="$GOROOT_DIR" GOMODCACHE=/tmp/gomodcache GOCACHE=/tmp/gocache "$GOLANGCI_BIN" run --config .golangci.yml --enable typecheck ./... ) > "$OUTDIR/golangci_typecheck${SUFFIX}.out" 2> "$OUTDIR/golangci_verbose_run${SUFFIX}.txt" || rc=$?
+  ( GOROOT="$GOROOT_DIR" GOMODCACHE="$GOMODCACHE" GOCACHE="$GOCACHE" "$GOLANGCI_BIN" run --config .golangci.yml --enable typecheck ./... ) > "$OUTDIR/golangci_typecheck${SUFFIX}.out" 2> "$OUTDIR/golangci_verbose_run${SUFFIX}.txt" || rc=$?
   fi
 else
   echo "golangci-lint not found or not executable: ${GOLANGCI_BIN:-<none>}" >> "$OUTDIR/golangci_install_log${SUFFIX}.txt" 2>&1 || true
@@ -499,13 +502,14 @@ if [ -x /usr/local/go/bin/go ]; then
   # Ensure module files available
   # `go mod tidy` accepts no package arguments; run without './...' so it
   # operates on the repository's modules and writes output to diagnostics.
-  GOMODCACHE=/tmp/gomodcache GOCACHE=/tmp/gocache /usr/local/go/bin/go mod tidy > "$OUTDIR/go_mod_tidy${SUFFIX}.txt" 2>&1 || true
+  # Use exported cache vars (caller may have overridden them)
+  /usr/local/go/bin/go mod tidy > "$OUTDIR/go_mod_tidy${SUFFIX}.txt" 2>&1 || true
   # list module cache
-  ls -la /tmp/gomodcache > "$OUTDIR/gomodcache_ls${SUFFIX}.txt" 2>/dev/null || true
+  ls -la "$GOMODCACHE" > "$OUTDIR/gomodcache_ls${SUFFIX}.txt" 2>/dev/null || true
   # capture dependency graph after rebuild
-  GOMODCACHE=/tmp/gomodcache GOCACHE=/tmp/gocache /usr/local/go/bin/go list -deps -json ./... > "$OUTDIR/deps_after${SUFFIX}.json" 2>&1 || true
+  /usr/local/go/bin/go list -deps -json ./... > "$OUTDIR/deps_after${SUFFIX}.json" 2>&1 || true
   # capture package list for workspace
-  GOMODCACHE=/tmp/gomodcache GOCACHE=/tmp/gocache /usr/local/go/bin/go list -json ./... > "$OUTDIR/go_list${SUFFIX}.json" 2>&1 || true
+  /usr/local/go/bin/go list -json ./... > "$OUTDIR/go_list${SUFFIX}.json" 2>&1 || true
   # list toolchain linux_amd64 tools
   ls -la /usr/local/go/pkg/tool/linux_amd64 > "$OUTDIR/goroot_tool_linux_list${SUFFIX}.txt" 2>/dev/null || true
 fi
@@ -553,8 +557,15 @@ if echo "${SUFFIX}" | grep -q "_blocking_force_ultra" || [ "${ULTRA_AGGRESSIVE_C
     echo "restored /usr/local/go/pkg from backup" >> "$OUTDIR/ultra${SUFFIX}.txt" || true
   fi
   # Ensure module cache populated after aggressive cleanup
-  GOMODCACHE=/tmp/gomodcache GOCACHE=/tmp/gocache /usr/local/go/bin/go mod download || true
+  /usr/local/go/bin/go mod download || true
 fi
+
+# Ensure we use the helper's module cache path or default to /tmp/gomodcache
+GOMODCACHE="${GOMODCACHE:-/tmp/gomodcache}"
+# Remove known problematic testdata a-files (gccgo/gcimporter test artifacts)
+find "$GOMODCACHE" -type f -name '*.a' \
+  \( -path '*/go/gccgoexportdata/*' -o -path '*/go/internal/gccgoimporter/*' -o -path '*/internal/gcimporter/*' \) \
+  -print -delete || true
 
 ## Install and run golangci-lint using the container's Go toolchain.
 ## Building golangci-lint inside the image ensures the export-data
@@ -582,7 +593,7 @@ if [ -n "${GOLANGCI_BIN:-}" ] && [ -x "$GOLANGCI_BIN" ]; then
   "$GOLANGCI_BIN" --version > "$OUTDIR/golangci_version${SUFFIX}.txt" 2>&1 || true
   # Force environment when invoking golangci here as well (defensive/duplicate path)
   GOROOT_DIR=$(/usr/local/go/bin/go env GOROOT 2>/dev/null || echo "/usr/local/go")
-  ( GOROOT="$GOROOT_DIR" GOMODCACHE=/tmp/gomodcache GOCACHE=/tmp/gocache "$GOLANGCI_BIN" run --config .golangci.yml --enable typecheck ./... ) > "$OUTDIR/golangci_typecheck${SUFFIX}.out" 2> "$OUTDIR/golangci_verbose_run${SUFFIX}.txt" || rc=$?
+  ( GOROOT="$GOROOT_DIR" GOMODCACHE="$GOMODCACHE" GOCACHE="$GOCACHE" "$GOLANGCI_BIN" run --config .golangci.yml --enable typecheck ./... ) > "$OUTDIR/golangci_typecheck${SUFFIX}.out" 2> "$OUTDIR/golangci_verbose_run${SUFFIX}.txt" || rc=$?
 else
   echo "golangci-lint not found or not executable: ${GOLANGCI_BIN:-<none>}" >> "$OUTDIR/golangci_install_log${SUFFIX}.txt" 2>&1 || true
   rc=2
@@ -595,7 +606,7 @@ echo "container_finished: $(date) rc=$rc" > "$OUTDIR/container_finished${SUFFIX}
 exit "$rc"
 
   # Recreate the module cache after rebuilding stdlib
-  GOMODCACHE=/tmp/gomodcache GOCACHE=/tmp/gocache /usr/local/go/bin/go mod download ./... || true
+  /usr/local/go/bin/go mod download ./... || true
   # Ultra-aggressive option: when specifically requested (suffix contains
   # '_blocking_force_ultra' or ULTRA_AGGRESSIVE_CLEAN=1), back up and remove
   # the entire GOROOT pkg tree (including 'tool' and 'include') to ensure
@@ -643,8 +654,8 @@ exit "$rc"
       mv /tmp/goroot_pkg_backup /usr/local/go/pkg || true
       echo "restored /usr/local/go/pkg from backup" || true
     fi
-    # ensure module cache populated
-    GOMODCACHE=/tmp/gomodcache GOCACHE=/tmp/gocache /usr/local/go/bin/go mod download ./... || true
+  # ensure module cache populated
+  /usr/local/go/bin/go mod download ./... || true
   fi
 
 if [ -x /usr/local/go/bin/go ]; then
@@ -652,13 +663,14 @@ if [ -x /usr/local/go/bin/go ]; then
   # Ensure module files available
   # `go mod tidy` accepts no package arguments; run without './...' so it
   # operates on the repository's modules and writes output to diagnostics.
-  GOMODCACHE=/tmp/gomodcache GOCACHE=/tmp/gocache /usr/local/go/bin/go mod tidy > "$OUTDIR/go_mod_tidy${SUFFIX}.txt" 2>&1 || true
+  # Use exported cache vars (caller may have overridden them)
+  /usr/local/go/bin/go mod tidy > "$OUTDIR/go_mod_tidy${SUFFIX}.txt" 2>&1 || true
   # list module cache
-  ls -la /tmp/gomodcache > "$OUTDIR/gomodcache_ls${SUFFIX}.txt" 2>/dev/null || true
+  ls -la "$GOMODCACHE" > "$OUTDIR/gomodcache_ls${SUFFIX}.txt" 2>/dev/null || true
   # capture dependency graph after rebuild
-  GOMODCACHE=/tmp/gomodcache GOCACHE=/tmp/gocache /usr/local/go/bin/go list -deps -json ./... > "$OUTDIR/deps_after${SUFFIX}.json" 2>&1 || true
+  /usr/local/go/bin/go list -deps -json ./... > "$OUTDIR/deps_after${SUFFIX}.json" 2>&1 || true
   # capture package list for workspace
-  GOMODCACHE=/tmp/gomodcache GOCACHE=/tmp/gocache /usr/local/go/bin/go list -json ./... > "$OUTDIR/go_list${SUFFIX}.json" 2>&1 || true
+  /usr/local/go/bin/go list -json ./... > "$OUTDIR/go_list${SUFFIX}.json" 2>&1 || true
   # list toolchain linux_amd64 tools
   ls -la /usr/local/go/pkg/tool/linux_amd64 > "$OUTDIR/goroot_tool_linux_list${SUFFIX}.txt" 2>/dev/null || true
 fi
