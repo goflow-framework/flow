@@ -465,7 +465,7 @@ jobs:
   # This is temporary and intended to collect full blocking diagnostics for debugging only.
   typecheck-blocking-force:
     name: Typecheck (blocking, forced - debug)
-    needs: [typecheck-nonblocking]
+    needs: [build-analyzer-image, typecheck-nonblocking]
     runs-on: ubuntu-latest
     container:
       image: ghcr.io/${{ github.repository_owner }}/golangci-analyzer:1.24.11-2.8.0
