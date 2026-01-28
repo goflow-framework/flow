@@ -165,7 +165,7 @@ jobs:
     # Do not require building the analyzer image for PR runs; PR jobs will
     # pull a pinned prebuilt image from GHCR (fast). The image build runs only
     # on main pushes or manual dispatch (see build-analyzer-image job 'if').
-  # no 'needs' so this job runs independently and uses the pinned analyzer image
+    needs: [build-analyzer-image]
     runs-on: ubuntu-latest
     env:
       # Keep the non-blocking rollout fast: do not force rebuild of golangci-lint
@@ -344,7 +344,7 @@ jobs:
   # Blocking job that will only run if the non-blocking run succeeded.
   typecheck-blocking:
     name: Typecheck (blocking, gated)
-    needs: [typecheck-nonblocking]
+    needs: [build-analyzer-image, typecheck-nonblocking]
     runs-on: ubuntu-latest
     container:
       image: ghcr.io/${{ github.repository_owner }}/golangci-analyzer:1.24.11-2.8.0
@@ -380,7 +380,7 @@ jobs:
   # Use this to collect blocking outputs when the gated job is skipped.
   typecheck-blocking-debug:
     name: Typecheck (blocking, debug - always run)
-    needs: [typecheck-nonblocking]
+    needs: [build-analyzer-image,typecheck-nonblocking]
     runs-on: ubuntu-latest
     env:
       # Debug job: enable full diagnostics and strace so we can collect
