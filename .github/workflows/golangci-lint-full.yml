@@ -152,6 +152,7 @@ jobs:
           tags: |
             ${{ steps.set-tag.outputs.image-tag }}
             ghcr.io/${{ github.repository_owner }}/golangci-analyzer:1.24.11-2.8.0
+            ghcr.io/${{ github.repository_owner }}/golangci-analyzer:1.24.11-1.59.0
           build-args: |
             USE_MAKE_BASH=1
           cache-from: type=gha
