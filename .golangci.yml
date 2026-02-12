@@ -17,6 +17,14 @@ run:
 
 linters:
   disable-all: false
+  # Explicitly disable type-aware linters that require compatible compiled
+  # export-data in the environment where the analyzer runs. These produce
+  # "could not import sync/atomic (unsupported version)" when the analyzer
+  # binary or stdlib were built with a differing toolchain. We disable them
+  # here (main lint job) and run them in a dedicated, pinned job instead.
+  disable:
+    - staticcheck
+    - typecheck
   # Full linter list (includes type-aware linters). A separate CI job builds
   # the linter in a clean module cache to avoid export-data mismatches.
   enable:
