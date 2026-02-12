@@ -134,6 +134,17 @@ jobs:
           mkdir -p $CI_EXPORT_DIR || true
           chmod +x .github/scripts/run-golangci-in-container.sh || true
           .github/scripts/run-golangci-in-container.sh _typecheck || true
+      - name: Archive debug diagnostic outputs (typecheck)
+        if: always()
+        run: |
+          mkdir -p ci-export-typecheck-typecheck || true
+          tar -czf ci-export-typecheck-typecheck.tar.gz ci-export-typecheck-typecheck || true
+      - name: Upload debug diagnostics artifact (typecheck)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: golangci-typecheck-diagnostics
+          path: ci-export-typecheck-typecheck.tar.gz
   # Forced blocking job: run the blocking typecheck regardless of the gate.
   # This is temporary and intended to collect full blocking diagnostics for debugging only.
   typecheck-blocking-force:
