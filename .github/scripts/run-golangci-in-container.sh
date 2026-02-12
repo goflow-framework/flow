@@ -67,6 +67,21 @@ trap 'kill ${HEART_PID} 2>/dev/null || true' EXIT
 : "${GOMODCACHE:=/tmp/gomodcache}"
 : "${GOCACHE:=/tmp/gocache}"
 export GOMODCACHE GOCACHE
+
+# Immediately remove known problematic module-cache .a testdata that can
+# confuse the gc importer (golang.org/x/tools testdata, gccgo, etc). Doing
+# this early (before any `go list`/build) reduces the chance the importer
+# will read incompatible archives.
+find "$GOMODCACHE" -type f -name '*.a' \
+  \( -path '*/golang.org/x/tools@*/*/internal/gcimporter/testdata/*' \
+     -o -path '*/golang.org/x/tools@*/*/go/internal/gccgoimporter/*' \
+     -o -path '*/golang.org/x/tools@*/*/go/gccgoexportdata/*' \
+     -o -path '*/golang.org/x/tools@*/*/testdata/*' \
+     -o -path '*/go/gccgoexportdata/*' \
+     -o -path '*/go/internal/gccgoimporter/*' \
+     -o -path '*/internal/gcimporter/*' \) \
+  -print -delete 2>/dev/null || true
+
 export PATH=/usr/local/go/bin:/go/bin:$PATH
 export GOFLAGS='-mod=mod -buildvcs=false'
 # Ensure GOROOT is set when the container's Go is available. Some images
@@ -565,6 +580,14 @@ GOMODCACHE="${GOMODCACHE:-/tmp/gomodcache}"
 # Remove known problematic testdata a-files (gccgo/gcimporter test artifacts)
 find "$GOMODCACHE" -type f -name '*.a' \
   \( -path '*/go/gccgoexportdata/*' -o -path '*/go/internal/gccgoimporter/*' -o -path '*/internal/gcimporter/*' \) \
+  -print -delete || true
+
+# Delete shipped .a testdata that can confuse the gc importer (golang.org/x/tools etc)
+find "$GOMODCACHE" -type f -name '*.a' \
+  \( -path '*/golang.org/x/tools@*/*/internal/gcimporter/testdata/*' \
+     -o -path '*/golang.org/x/tools@*/*/go/internal/gccgoimporter/*' \
+     -o -path '*/golang.org/x/tools@*/*/go/gccgoexportdata/*' \
+     -o -path '*/golang.org/x/tools@*/*/testdata/*' \) \
   -print -delete || true
 
 ## Install and run golangci-lint using the container's Go toolchain.
