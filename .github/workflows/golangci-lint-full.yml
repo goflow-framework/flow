@@ -16,7 +16,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v4
         with:
-          go-version: '1.24'
+          go-version: '1.24.11'
       - name: Cache Go modules
         uses: actions/cache@v4
         with:
@@ -26,25 +26,22 @@ jobs:
           key: ${{ runner.OS }}-go-${{ hashFiles('**/go.sum') }}
           restore-keys: |
             ${{ runner.OS }}-go-
-      - name: Install golangci-lint (build with runner toolchain)
+      - name: Prepare isolated module & Go caches and clean
         run: |
-          # Build golangci-lint with the runner's Go toolchain so export data
-          # versions match (avoids `could not load export data` errors).
-          export GOPATH=$(go env GOPATH)
-          GOBIN="$GOPATH/bin"
-          echo "GOBIN=$GOBIN"
-          # build pinned version
-          GOBIN="$GOBIN" go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.59.0
-          echo "golangci-lint installed at: $(go env GOPATH)/bin/golangci-lint"
-          ls -la "$GOBIN" || true
-      - name: Run golangci-lint (built from runner toolchain)
-        env:
-          PATH: ${{ runner.tool_cache }}:${{ github.workspace }}:$(go env GOPATH)/bin:${{ env.PATH }}
-        run: |
-          # Ensure the built binary is on PATH and run checks
-          export PATH="$(go env GOPATH)/bin:$PATH"
-          golangci-lint --version
-          golangci-lint run --out-format=github-actions --timeout=10m
+          # Create isolated module and go caches under the runner temp dir to avoid
+          # mixing compiled export-data from other toolchains/runs.
+          mkdir -p "$RUNNER_TEMP/gomodcache" "$RUNNER_TEMP/gocache"
+          echo "GOMODCACHE=$RUNNER_TEMP/gomodcache" >> "$GITHUB_ENV"
+          echo "GOCACHE=$RUNNER_TEMP/gocache" >> "$GITHUB_ENV"
+          # ensure we don't have stale compiled data
+          go clean -cache -modcache -testcache -i || true
+
+      - name: Run golangci-lint (build on runner to match Go toolchain)
+        uses: golangci/golangci-lint-action@v4
+        with:
+          version: v1.59.0
+          install-mode: source
+          args: --timeout=10m --out-format=colored-line-number
       - name: Debug (image & container toolchain)
         run: |
           # Record the image the job asked for (rendered by Actions)
