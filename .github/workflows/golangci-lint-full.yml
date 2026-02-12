@@ -44,7 +44,10 @@ jobs:
           # For the fast PR gate we ignore repo config and run a small set of
           # non-type-aware linters explicitly. Using --no-config avoids any
           # baked-in or helper-provided configs that might enable typecheck.
-          args: --no-config --enable=govet,errcheck,gofmt,goimports,gosimple,unused,ineffassign,bodyclose --timeout=10m --out-format=colored-line-number
+          # Disable all linters by default and explicitly enable a small set
+          # of non-type-aware linters to guarantee typecheck/staticcheck do
+          # not run.
+          args: --no-config --disable-all --enable=govet,errcheck,gofmt,goimports,gosimple,unused,ineffassign,bodyclose --timeout=10m --out-format=colored-line-number
       - name: Debug (image & container toolchain)
         run: |
           # Record the image the job asked for (rendered by Actions)

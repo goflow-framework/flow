@@ -7,7 +7,7 @@
 lint:
 	docker run --rm -v "$(PWD)":/src -w /src \
 		ghcr.io/undiegomejia/golangci-analyzer:1.24.11-2.8.0 \
-		/bin/bash -lc 'export PATH=/usr/local/go/bin:/go/bin; /go/bin/golangci-lint run --no-config --enable=govet,errcheck,gofmt,goimports,gosimple,unused,ineffassign,bodyclose --timeout=10m --out-format=colored-line-number'
+		/bin/bash -lc 'export PATH=/usr/local/go/bin:/go/bin; /go/bin/golangci-lint run --no-config --disable-all --enable=govet,errcheck,gofmt,goimports,gosimple,unused,ineffassign,bodyclose --timeout=10m --out-format=colored-line-number'
 
 # Deterministic type-aware lint: runs staticcheck/typecheck inside the
 # pinned analyzer container and writes diagnostics into ./ci-export-typecheck
