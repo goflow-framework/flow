@@ -1,23 +1,7 @@
-run:
-  timeout: 10m
-
-linters:
-  enable:
-    - staticcheck
-    - govet
-    - errcheck
-    - gofmt
-    - goimports
-
-issues:
-  # Exclude common directories from analysis (avoids noisy third-party code)
-  exclude-dirs:
-    - vendor
-    - examples
-
 # Keep default settings for other options; use the GitHub Actions step to
 # control output format to avoid deprecated 'github-actions' output.
 run:
+  timeout: 10m
   # skip directories from analysis to avoid typecheck/export-data errors on
   # example and tool binaries that are not part of the core library.
   # Note: run.skip-dirs is deprecated in some versions; we include it so
@@ -37,10 +21,16 @@ linters:
   # Full linter list (includes type-aware linters). A separate CI job builds
   # the linter in a clean module cache to avoid export-data mismatches.
   enable:
+    - govet
+    - errcheck
+    - gofmt
+    - goimports
     - gosimple
     - unused
     - ineffassign
     - bodyclose
+    - staticcheck
+    - typecheck
 
 issues:
   exclude-use-default: false
