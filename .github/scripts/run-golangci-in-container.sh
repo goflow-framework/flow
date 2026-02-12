@@ -494,12 +494,20 @@ if [ -n "${GOLANGCI_BIN:-}" ] && [ -x "$GOLANGCI_BIN" ]; then
     # -ff: follow forks, -e trace=open,openat: only log open syscalls
     STRACE_CMD="strace -ff -e trace=open,openat -o '${OUTDIR}/strace_golangci${SUFFIX}' --"
   fi
+  # Allow callers to explicitly enable type-aware linters (staticcheck/typecheck)
+  # by setting ENABLE_TYPECHECK=1. Default behaviour is to disable these
+  # linters to avoid export-data mismatches in mixed toolchain environments.
+  LINTER_FLAGS="--disable=typecheck,staticcheck"
+  if [ "${ENABLE_TYPECHECK:-0}" = "1" ]; then
+    LINTER_FLAGS="--enable=typecheck"
+  fi
+
   if [ -n "$STRACE_CMD" ]; then
     # Use env to set the environment for the traced process
     # Run under strace only when debugging is explicitly requested.
-  eval "$STRACE_CMD env GOROOT=\"$GOROOT_DIR\" GOMODCACHE=\"$GOMODCACHE\" GOCACHE=\"$GOCACHE\" \"$GOLANGCI_BIN\" run --config .golangci.yml --enable typecheck ./..." > "$OUTDIR/golangci_typecheck${SUFFIX}.out" 2> "$OUTDIR/golangci_verbose_run${SUFFIX}.txt" || rc=$?
+    eval "$STRACE_CMD env GOROOT=\"$GOROOT_DIR\" GOMODCACHE=\"$GOMODCACHE\" GOCACHE=\"$GOCACHE\" \"$GOLANGCI_BIN\" run --config .golangci.yml $LINTER_FLAGS ./..." > "$OUTDIR/golangci_typecheck${SUFFIX}.out" 2> "$OUTDIR/golangci_verbose_run${SUFFIX}.txt" || rc=$?
   else
-  ( GOROOT="$GOROOT_DIR" GOMODCACHE="$GOMODCACHE" GOCACHE="$GOCACHE" "$GOLANGCI_BIN" run --config .golangci.yml --enable typecheck ./... ) > "$OUTDIR/golangci_typecheck${SUFFIX}.out" 2> "$OUTDIR/golangci_verbose_run${SUFFIX}.txt" || rc=$?
+    ( GOROOT="$GOROOT_DIR" GOMODCACHE="$GOMODCACHE" GOCACHE="$GOCACHE" "$GOLANGCI_BIN" run --config .golangci.yml $LINTER_FLAGS ./... ) > "$OUTDIR/golangci_typecheck${SUFFIX}.out" 2> "$OUTDIR/golangci_verbose_run${SUFFIX}.txt" || rc=$?
   fi
 else
   echo "golangci-lint not found or not executable: ${GOLANGCI_BIN:-<none>}" >> "$OUTDIR/golangci_install_log${SUFFIX}.txt" 2>&1 || true
