@@ -28,8 +28,15 @@ linters:
     - unused
     - ineffassign
     - bodyclose
-    - staticcheck
-    - typecheck
+    # Note: "staticcheck" and "typecheck" are type-aware linters that perform
+    # type-checking against compiled export data. On GitHub runners we observed
+    # intermittent export-data version mismatches ("could not import sync/atomic")
+    # when using the prebuilt analyzer binary. To keep PR feedback fast and
+    # reliable we disable these here and run them in a dedicated job (container
+    # or built-from-source) that pins the Go toolchain and isolated cache.
+
+    # - staticcheck
+    # - typecheck
 
 issues:
   exclude-use-default: false
