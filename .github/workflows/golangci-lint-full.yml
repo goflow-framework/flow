@@ -29,7 +29,9 @@ jobs:
       - name: Run golangci-lint (pinned)
         uses: golangci/golangci-lint-action@v4
         with:
-          version: v2.8.0
+          # pin a golangci-lint release that is compatible with the action
+          # and supports the --out-format flag the action passes
+          version: v1.59.0
           args: --timeout=10m
       - name: Debug (image & container toolchain)
         run: |
