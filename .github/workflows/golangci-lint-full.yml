@@ -26,13 +26,25 @@ jobs:
           key: ${{ runner.OS }}-go-${{ hashFiles('**/go.sum') }}
           restore-keys: |
             ${{ runner.OS }}-go-
-      - name: Run golangci-lint (pinned)
-        uses: golangci/golangci-lint-action@v4
-        with:
-          # pin a golangci-lint release that is compatible with the action
-          # and supports the --out-format flag the action passes
-          version: v1.59.0
-          args: --timeout=10m
+      - name: Install golangci-lint (build with runner toolchain)
+        run: |
+          # Build golangci-lint with the runner's Go toolchain so export data
+          # versions match (avoids `could not load export data` errors).
+          export GOPATH=$(go env GOPATH)
+          GOBIN="$GOPATH/bin"
+          echo "GOBIN=$GOBIN"
+          # build pinned version
+          GOBIN="$GOBIN" go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.59.0
+          echo "golangci-lint installed at: $(go env GOPATH)/bin/golangci-lint"
+          ls -la "$GOBIN" || true
+      - name: Run golangci-lint (built from runner toolchain)
+        env:
+          PATH: ${{ runner.tool_cache }}:${{ github.workspace }}:$(go env GOPATH)/bin:${{ env.PATH }}
+        run: |
+          # Ensure the built binary is on PATH and run checks
+          export PATH="$(go env GOPATH)/bin:$PATH"
+          golangci-lint --version
+          golangci-lint run --out-format=github-actions --timeout=10m
       - name: Debug (image & container toolchain)
         run: |
           # Record the image the job asked for (rendered by Actions)
