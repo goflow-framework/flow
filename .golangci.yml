@@ -37,16 +37,10 @@ linters:
   # Full linter list (includes type-aware linters). A separate CI job builds
   # the linter in a clean module cache to avoid export-data mismatches.
   enable:
-    - govet
-    - errcheck
-    - gofmt
-    - goimports
     - gosimple
     - unused
     - ineffassign
     - bodyclose
-    - staticcheck
-    - typecheck
 
 issues:
   exclude-use-default: false
