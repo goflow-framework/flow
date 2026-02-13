@@ -3,6 +3,14 @@ name: security-scan
 on:
   push:
     branches: ["main", "master"]
+
+  # Run on pull requests targeting main/master (will run for this PR if it targets main/master)
+  pull_request:
+    branches: ["main", "master"]
+
+  # Allow manual runs from Actions UI or gh CLI
+  workflow_dispatch: {}
+
   schedule:
     - cron: '0 4 * * 0' # weekly
 
