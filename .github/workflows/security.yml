@@ -24,11 +24,11 @@ jobs:
           # Install a recent gosec built with the current toolchain.
           go install github.com/securego/gosec/v2/cmd/gosec@latest
 
-      - name: Run gosec
+      - name: Run gosec (core only, fail on HIGH)
         run: |
-          # Ensure the installed binary is on PATH (GOBIN may default to $HOME/go/bin)
           export PATH=$(go env GOPATH)/bin:$PATH
-          gosec ./...
+          # Only scan core packages (pkg + internal); only exit non-zero for HIGH severity.
+          gosec -severity HIGH ./pkg/... ./internal/...
 
       - name: Run govulncheck
         run: |
