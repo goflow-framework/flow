@@ -93,12 +93,7 @@ func main() {
 	}
 
 	// tidy deps before running so the temp module resolves local repo packages
-	tidy := exec.Command("go", "mod", "tidy")
-	tidy.Dir = projDir
-	if out, err := tidy.CombinedOutput(); err != nil {
-		if envOut, e2 := exec.Command("go", "env").CombinedOutput(); e2 == nil {
-			t.Fatalf("go mod tidy failed: %v\n%s\n--- go env ---\n%s", err, string(out), string(envOut))
-		}
+	if out, err := RunCmdCombined(projDir, "go", "mod", "tidy"); err != nil {
 		t.Fatalf("go mod tidy failed: %v\n%s", err, string(out))
 	}
 

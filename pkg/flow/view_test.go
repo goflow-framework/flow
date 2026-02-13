@@ -25,7 +25,11 @@ func TestViewManager_CacheVsDevMode(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(tmp)
+	defer func() {
+		if err := os.RemoveAll(tmp); err != nil {
+			t.Logf("warning: RemoveAll(%q) failed: %v", tmp, err)
+		}
+	}()
 
 	// create a simple view that defines content
 	viewPath := filepath.Join(tmp, "users", "show.html")
@@ -83,7 +87,11 @@ func TestViewManager_FuncMapAvailable(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(tmp)
+	defer func() {
+		if err := os.RemoveAll(tmp); err != nil {
+			t.Logf("warning: RemoveAll(%q) failed: %v", tmp, err)
+		}
+	}()
 
 	viewPath := filepath.Join(tmp, "greet", "hello.html")
 	// template calls a function `greet`
@@ -111,7 +119,11 @@ func TestViewManager_DefaultLayoutPrecedence(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(tmp)
+	defer func() {
+		if err := os.RemoveAll(tmp); err != nil {
+			t.Logf("warning: RemoveAll(%q) failed: %v", tmp, err)
+		}
+	}()
 
 	// create two layouts that both define `shared` so we can test precedence
 	writeFile(t, filepath.Join(tmp, "layouts", "custom_layout.html"), "{{define \"shared\"}}FROM_CUSTOM{{end}}")
@@ -156,7 +168,11 @@ func TestViewManager_SetFuncMapClearsCache(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(tmp)
+	defer func() {
+		if err := os.RemoveAll(tmp); err != nil {
+			t.Logf("warning: RemoveAll(%q) failed: %v", tmp, err)
+		}
+	}()
 
 	viewPath := filepath.Join(tmp, "greet2", "hello.html")
 	writeFile(t, viewPath, "{{define \"content\"}}{{greet .}}{{end}}")
@@ -197,7 +213,11 @@ func TestApp_WithViewsFuncMap(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(tmp)
+	defer func() {
+		if err := os.RemoveAll(tmp); err != nil {
+			t.Logf("warning: RemoveAll(%q) failed: %v", tmp, err)
+		}
+	}()
 
 	viewPath := filepath.Join(tmp, "hello", "world.html")
 	writeFile(t, viewPath, "{{define \"content\"}}{{cap .}}{{end}}")

@@ -20,6 +20,7 @@ package flow
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"html/template"
 	"io"
@@ -181,8 +182,14 @@ func (c *Context) BindJSON(dst interface{}) error {
 	}
 	defer func() {
 		// best-effort close of body for servers that don't rely on it
-		io.Copy(io.Discard, c.R.Body)
-		c.R.Body.Close()
+		if _, err := io.Copy(io.Discard, c.R.Body); err != nil && !errors.Is(err, io.EOF) {
+			// prefer the App-provided logger if available; otherwise ignore
+			if c != nil && c.App != nil && c.App.logger != nil {
+				c.App.logger.Printf("failed draining body: %v", err)
+			}
+		}
+		// ignore close error during best-effort cleanup
+		_ = c.R.Body.Close()
 	}()
 	dec := json.NewDecoder(c.R.Body)
 	if err := dec.Decode(dst); err != nil {

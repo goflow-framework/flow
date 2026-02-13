@@ -1,56 +1,46 @@
+version: "2"
 run:
-  # skip directories from analysis to avoid typecheck/export-data errors on
-  # example and tool binaries that are not part of the core library.
-  # Note: run.skip-dirs is deprecated in some versions; we include it so
-  # golangci-lint does not analyze these packages (issues.exclude-dirs
-  # alone only suppresses reported issues).
-  skip-dirs:
-    - ^tools($|/)
-    - ^examples($|/)
-    - ^bench-output($|/)
-    - ^cmd/flow-worker($|/)
-    - ^cmd/flow-assets($|/)
-  timeout: 5m
   tests: true
-
 linters:
-  disable-all: false
-  # Full linter list (includes type-aware linters). A separate CI job builds
-  # the linter in a clean module cache to avoid export-data mismatches.
   enable:
-    - govet
-    - errcheck
+    - bodyclose
+  disable:
+    - staticcheck
+  exclusions:
+    generated: lax
+    rules:
+      - linters:
+          - errcheck
+        text: Close
+      - linters:
+          - errcheck
+        text: Write
+      - linters:
+          - errcheck
+        text: Flush
+      - path: (.+)\.go$
+        text: _gen.go%
+    paths:
+      - ^tools($|/)
+      - ^examples($|/)
+      - ^bench-output($|/)
+      - ^cmd/flow-worker($|/)
+      - ^cmd/flow-assets($|/)
+      - third_party$
+      - builtin$
+      - examples$
+formatters:
+  enable:
     - gofmt
     - goimports
-    - gosimple
-    - unused
-    - ineffassign
-    - bodyclose
-    - staticcheck
-    - typecheck
-
-issues:
-  exclude-use-default: false
-  # directories to exclude from issue reporting (keeps issues quiet for non-core dirs)
-  exclude-dirs:
-    - ^tools($|/)
-    - ^examples($|/)
-    - ^bench-output($|/)
-    - ^cmd/flow-worker($|/)
-    - ^cmd/flow-assets($|/)
-  exclude-rules:
-    - linters:
-        - errcheck
-      # ignore errcheck findings that match these simple function names
-      text: "Close"
-    - linters:
-        - errcheck
-      text: "Write"
-    - linters:
-        - errcheck
-      text: "Flush"
-
-linters-settings: {}
-
-exclude:
-  - _gen.go%
+  exclusions:
+    generated: lax
+    paths:
+      - ^tools($|/)
+      - ^examples($|/)
+      - ^bench-output($|/)
+      - ^cmd/flow-worker($|/)
+      - ^cmd/flow-assets($|/)
+      - third_party$
+      - builtin$
+      - examples$

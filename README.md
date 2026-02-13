@@ -184,7 +184,7 @@ Below is a quick map of important packages and conventions to understand Flow's 
 	- `Context` (in `pkg/flow/context.go`): request-scoped helper passed to controller actions (render, JSON, params, sessions, flash).
 	- `Controller` (in `pkg/flow/controller.go`): base type and adapter helpers.
 	- `ViewManager` (in `pkg/flow/view.go`): template loader, caching, layout and partial resolution.
-	- `SessionManager` (in `pkg/flow/session.go`): cookie-based sessions and flash helpers.
+	- `SessionManager` (in `pkg/flow/session.go`): cookie-based sessions and flash helpers. 
 
 	Security docs
 	---------------

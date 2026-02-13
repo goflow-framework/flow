@@ -104,10 +104,14 @@ func TestExplicitWaitSurfacesError(t *testing.T) {
 			return fmt.Errorf("explicit-error")
 		})
 		if err := ctx.RequestGroup().Wait(); err != nil {
-			ctx.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			if err := ctx.JSON(http.StatusInternalServerError, map[string]string{"error": "something"}); err != nil {
+				t.Fatalf("ctx.JSON failed: %v", err)
+			}
 			return
 		}
-		ctx.JSON(http.StatusOK, map[string]string{"status": "ok"})
+		if err := ctx.JSON(http.StatusOK, map[string]string{"status": "ok"}); err != nil {
+			t.Fatalf("ctx.JSON failed: %v", err)
+		}
 	})
 
 	srv := httptest.NewServer(r.Handler())

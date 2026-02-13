@@ -38,6 +38,7 @@ nohup.out
 pprof_client.log
 pprof_server.log
 artifacts/*
+/ci-export-*/*
 
 # Databases
 *.db
@@ -72,9 +73,6 @@ Thumbs.db
 **/*.tar.gz
 **/*.zip
 
-# End of .gitignore
-
-
 # Ignore repo-level built executables
 /flow
 /flow-cli
@@ -85,3 +83,5 @@ Thumbs.db
 # Ignore tool-built binaries
 /tools/**/bin/
 /tools/**/bin/*
+
+# End of .gitignore

@@ -14,6 +14,7 @@ jobs:
   lint-and-test:
     name: Lint, Vet, Test, Coverage
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -145,7 +146,7 @@ jobs:
       - name: Set up Go (generator tests require Go 1.24)
         uses: actions/setup-go@v4
         with:
-          go-version: '1.24'
+          go-version: '1.24.11'
 
       - name: Cache Go modules
         uses: actions/cache@v4
