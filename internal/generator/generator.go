@@ -20,7 +20,7 @@ func generateFile(tmplStr string, data interface{}, dstPath string, overwrite bo
 		}
 	}
 	dir := filepath.Dir(dstPath)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := os.MkdirAll(dir, 0o750); err != nil {
 		return err
 	}
 	t, err := template.New("tpl").Funcs(template.FuncMap{
@@ -157,7 +157,7 @@ func GenerateScaffoldWithOptions(projectRoot, name string, opts GenOptions, fiel
 	// views
 	if !opts.NoViews {
 		viewsDir := filepath.Join(projectRoot, "app", "views", name)
-		if err := os.MkdirAll(viewsDir, 0o755); err != nil {
+		if err := os.MkdirAll(viewsDir, 0o750); err != nil {
 			return created, err
 		}
 		idxPath := filepath.Join(viewsDir, "index.html")
@@ -175,7 +175,7 @@ func GenerateScaffoldWithOptions(projectRoot, name string, opts GenOptions, fiel
 	// scaffold i18n translations (minimal en.yaml)
 	if !opts.NoI18n {
 		i18nDir := filepath.Join(projectRoot, "app", "i18n")
-		if err := os.MkdirAll(i18nDir, 0o755); err != nil {
+		if err := os.MkdirAll(i18nDir, 0o750); err != nil {
 			return created, err
 		}
 		i18nPath := filepath.Join(i18nDir, "en.yaml")
@@ -186,7 +186,7 @@ func GenerateScaffoldWithOptions(projectRoot, name string, opts GenOptions, fiel
 	// migrations
 	if !opts.SkipMigrations {
 		migDir := filepath.Join(projectRoot, "db", "migrate")
-		if err := os.MkdirAll(migDir, 0o755); err != nil {
+		if err := os.MkdirAll(migDir, 0o750); err != nil {
 			return created, err
 		}
 		ts := TimestampNow()
@@ -277,7 +277,7 @@ func GenerateAdminWithOptions(projectRoot, name string, opts GenOptions, fields 
 
 	// views directory
 	viewsDir := filepath.Join(projectRoot, "app", "views", "admin", name)
-	if err := os.MkdirAll(viewsDir, 0o755); err != nil {
+	if err := os.MkdirAll(viewsDir, 0o750); err != nil {
 		return created, err
 	}
 	idxPath := filepath.Join(viewsDir, "index.html")
@@ -293,7 +293,7 @@ func GenerateAdminWithOptions(projectRoot, name string, opts GenOptions, fields 
 	// scaffold i18n translations (minimal en.yaml)
 	if !opts.NoI18n {
 		i18nDir := filepath.Join(projectRoot, "app", "i18n")
-		if err := os.MkdirAll(i18nDir, 0o755); err != nil {
+		if err := os.MkdirAll(i18nDir, 0o750); err != nil {
 			return created, err
 		}
 		i18nPath := filepath.Join(i18nDir, "en.yaml")
@@ -303,7 +303,7 @@ func GenerateAdminWithOptions(projectRoot, name string, opts GenOptions, fields 
 
 	// layout
 	layoutsDir := filepath.Join(projectRoot, "app", "views", "admin", "layouts")
-	if err := os.MkdirAll(layoutsDir, 0o755); err != nil {
+	if err := os.MkdirAll(layoutsDir, 0o750); err != nil {
 		return created, err
 	}
 	layoutPath := filepath.Join(layoutsDir, "admin.html")
@@ -315,7 +315,7 @@ func GenerateAdminWithOptions(projectRoot, name string, opts GenOptions, fields 
 
 	// assets (css)
 	assetsDir := filepath.Join(projectRoot, "app", "assets", "admin")
-	if err := os.MkdirAll(assetsDir, 0o755); err != nil {
+	if err := os.MkdirAll(assetsDir, 0o750); err != nil {
 		return created, err
 	}
 	cssPath := filepath.Join(assetsDir, "admin.css")
@@ -324,7 +324,7 @@ func GenerateAdminWithOptions(projectRoot, name string, opts GenOptions, fields 
 
 	// README
 	adminDir := filepath.Join(projectRoot, "app", "admin")
-	if err := os.MkdirAll(adminDir, 0o755); err != nil {
+	if err := os.MkdirAll(adminDir, 0o750); err != nil {
 		return created, err
 	}
 	readmePath := filepath.Join(adminDir, "README.md")
@@ -361,7 +361,7 @@ func GenerateAuthWithOptions(projectRoot string, opts GenOptions, fields ...stri
 
 	// views
 	viewsDir := filepath.Join(projectRoot, "app", "views", "auth")
-	if err := os.MkdirAll(viewsDir, 0o755); err != nil {
+	if err := os.MkdirAll(viewsDir, 0o750); err != nil {
 		return created, err
 	}
 	loginPath := filepath.Join(viewsDir, "login.html")
@@ -370,7 +370,7 @@ func GenerateAuthWithOptions(projectRoot string, opts GenOptions, fields ...stri
 
 	// middleware
 	mwDir := filepath.Join(projectRoot, "app", "middleware")
-	if err := os.MkdirAll(mwDir, 0o755); err != nil {
+	if err := os.MkdirAll(mwDir, 0o750); err != nil {
 		return created, err
 	}
 	mwPath := filepath.Join(mwDir, "auth.go")
@@ -379,7 +379,7 @@ func GenerateAuthWithOptions(projectRoot string, opts GenOptions, fields ...stri
 
 	// README
 	adminDir := filepath.Join(projectRoot, "app", "auth")
-	if err := os.MkdirAll(adminDir, 0o755); err != nil {
+	if err := os.MkdirAll(adminDir, 0o750); err != nil {
 		return created, err
 	}
 	readmePath := filepath.Join(adminDir, "README.md")

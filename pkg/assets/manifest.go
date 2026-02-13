@@ -2,7 +2,10 @@ package assets
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 )
 
 // Manifest maps original asset paths (eg "js/app.js") to fingerprinted
@@ -11,6 +14,13 @@ type Manifest map[string]string
 
 // LoadManifest reads a manifest.json file and returns the mapping.
 func LoadManifest(path string) (Manifest, error) {
+	// Basic sanity check: avoid obvious absolute paths or parent traversal
+	// from untrusted sources. The manifest is expected to be a local build
+	// artifact (eg. dist/manifest.json) so this guard is sufficient here.
+	if filepath.IsAbs(path) || strings.HasPrefix(path, "../") {
+		return nil, fmt.Errorf("invalid manifest path")
+	}
+	// #nosec G304 -- manifest.json is a trusted build artifact within the project
 	b, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err

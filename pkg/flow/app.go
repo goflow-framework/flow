@@ -133,6 +133,19 @@ func (a *App) Bun() *bun.DB {
 	return a.bunAdapter.DB
 }
 
+// Logger returns the App's configured logger. It never returns nil; if no
+// logger was configured the default standard logger is returned and stored
+// on the App for subsequent calls.
+func (a *App) Logger() Logger {
+	if a == nil {
+		// best-effort fallback
+		return log.New(os.Stdout, "[flow] ", log.LstdFlags)
+	}
+	if a.logger == nil {
+		a.logger = log.New(os.Stdout, "[flow] ", log.LstdFlags)
+	}
+	return a.logger
+}
 var (
 	// ErrAppAlreadyRunning is returned when Start/Run is called on an already-running App.
 	ErrAppAlreadyRunning = errors.New("app: already running")

@@ -32,7 +32,7 @@ func main() {
 		_ = ctx.JSON(200, map[string]string{"ok": "1"})
 	})
 
-	srv := &http.Server{Addr: *addr, Handler: r.Handler()}
+	srv := &http.Server{Addr: *addr, Handler: r.Handler(), ReadTimeout: 5 * time.Second, WriteTimeout: 10 * time.Second, IdleTimeout: 30 * time.Second}
 
 	go func() {
 		log.Printf("starting server on %s", *addr)

@@ -75,7 +75,7 @@ func (cs *CookieStore) DeleteResponse(w http.ResponseWriter, r *http.Request, id
 // placed into a cookie. It reuses logic similar to RedisSessionManager.
 type RedisStoreAdapter struct {
 	Store      *RedisStore
-	Secret     []byte
+	secret     []byte
 	CookieName string
 	MaxAge     int
 }
@@ -85,11 +85,11 @@ func NewRedisStoreAdapter(secret []byte, cookieName string, store *RedisStore) *
 	if cookieName == "" {
 		cookieName = "flow_session"
 	}
-	return &RedisStoreAdapter{Store: store, Secret: secret, CookieName: cookieName, MaxAge: 86400}
+	return &RedisStoreAdapter{Store: store, secret: secret, CookieName: cookieName, MaxAge: 86400}
 }
 
 func (rsm *RedisStoreAdapter) signID(id string) string {
-	mac := hmac.New(sha256.New, rsm.Secret)
+	mac := hmac.New(sha256.New, rsm.secret)
 	mac.Write([]byte(id))
 	return hex.EncodeToString(mac.Sum(nil))
 }

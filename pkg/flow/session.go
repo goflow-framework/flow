@@ -16,7 +16,7 @@ import (
 // SessionManager handles encoding/decoding sessions into a signed cookie.
 // It's intentionally small and dependency-free for the prototype.
 type SessionManager struct {
-	Secret     []byte
+	secret     []byte
 	CookieName string
 	// MaxAge in seconds
 	MaxAge int
@@ -32,7 +32,7 @@ func NewSessionManager(secret []byte, cookieName string) *SessionManager {
 	if cookieName == "" {
 		cookieName = "flow_session"
 	}
-	return &SessionManager{Secret: secret, CookieName: cookieName, MaxAge: 86400, CookieSecure: false, CookieSameSite: http.SameSiteDefaultMode}
+	return &SessionManager{secret: secret, CookieName: cookieName, MaxAge: 86400, CookieSecure: false, CookieSameSite: http.SameSiteDefaultMode}
 }
 
 // generateRandomSecret returns n bytes of randomness.
@@ -66,7 +66,7 @@ func (sm *SessionManager) loadFromRequest(r *http.Request) (map[string]interface
 	if err != nil {
 		return map[string]interface{}{}, nil
 	}
-	mac := hmac.New(sha256.New, sm.Secret)
+	mac := hmac.New(sha256.New, sm.secret)
 	mac.Write(dataB)
 	expected := mac.Sum(nil)
 	if !hmac.Equal(sig, expected) {
@@ -85,7 +85,7 @@ func (sm *SessionManager) encodeForCookie(values map[string]interface{}) (string
 	if err != nil {
 		return "", err
 	}
-	mac := hmac.New(sha256.New, sm.Secret)
+	mac := hmac.New(sha256.New, sm.secret)
 	mac.Write(b)
 	sig := mac.Sum(nil)
 	return base64.RawURLEncoding.EncodeToString(b) + "|" + hex.EncodeToString(sig), nil

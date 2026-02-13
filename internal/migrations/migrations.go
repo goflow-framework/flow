@@ -107,6 +107,7 @@ func (m *MigrationRunner) collect(dir, suffix string) ([]string, error) {
 }
 
 func (m *MigrationRunner) execFile(db *sql.DB, path string) error {
+	// #nosec G304 -- migration SQL files are trusted developer artifacts within the project
 	b, err := os.ReadFile(path)
 	if err != nil {
 		return err

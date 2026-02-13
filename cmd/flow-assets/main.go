@@ -1,7 +1,7 @@
 package main
 
 import (
-	"crypto/sha1"
+	"crypto/sha256"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -63,7 +63,7 @@ func main() {
 	}
 }
 
-// generateManifest walks outdir, computes a short SHA1 for each file and
+// generateManifest walks outdir, computes a short SHA256 for each file and
 // renames the file to include the hash before the extension, then writes
 // manifest.json mapping original -> fingerprinted path. Existing
 // manifest.json is overwritten.
@@ -85,20 +85,21 @@ func generateManifest(outdir string) error {
 		if rel == "manifest.json" {
 			return nil
 		}
-		// read file
+		// read file (build artifact within outdir) -- trusted
+		// #nosec G304
 		data, err := os.ReadFile(path)
 		if err != nil {
 			return err
 		}
-		// compute short sha1
-		h := sha1.Sum(data)
+		// compute short sha256
+		h := sha256.Sum256(data)
 		short := fmt.Sprintf("%x", h)[:8]
 		ext := filepath.Ext(rel)
 		base := strings.TrimSuffix(rel, ext)
 		newRel := base + "." + short + ext
 		newPath := filepath.Join(outdir, newRel)
-		// ensure dir exists
-		if err := os.MkdirAll(filepath.Dir(newPath), 0o755); err != nil {
+		// ensure dir exists with stricter permissions
+		if err := os.MkdirAll(filepath.Dir(newPath), 0o750); err != nil {
 			return err
 		}
 		// rename (overwrite if exists)

@@ -12,6 +12,7 @@ import (
 // writes a simple Go file at outPath with a map of routes. This is intentionally
 // small and robust to ensure the CLI can import the package during development.
 func GenerateFromFile(manifestPath, outPath string) error {
+	// #nosec G304 -- manifest file is a trusted developer-provided file in the project
 	data, err := os.ReadFile(manifestPath)
 	if err != nil {
 		return fmt.Errorf("read manifest: %w", err)
@@ -21,7 +22,7 @@ func GenerateFromFile(manifestPath, outPath string) error {
 		return fmt.Errorf("parse manifest: %w", err)
 	}
 
-	if err := os.MkdirAll(filepath.Dir(outPath), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(outPath), 0o750); err != nil {
 		return fmt.Errorf("mkdir: %w", err)
 	}
 

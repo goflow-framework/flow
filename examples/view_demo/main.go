@@ -27,5 +27,8 @@ func main() {
 	})
 
 	log.Println("listening on :3002")
-	log.Fatal(http.ListenAndServe(":3002", nil))
+	srv := &http.Server{Addr: ":3002", Handler: nil, ReadTimeout: 5 * time.Second, WriteTimeout: 10 * time.Second, IdleTimeout: 30 * time.Second}
+	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		log.Fatalf("server error: %v", err)
+	}
 }
