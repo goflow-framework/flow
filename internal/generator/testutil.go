@@ -71,13 +71,27 @@ func readGoVersion(repo string) (string, error) {
 func RunCmdCombined(dir string, name string, args ...string) ([]byte, error) {
 	cmd := exec.Command(name, args...)
 	cmd.Dir = dir
+	// If invoking the go tool, use a local GOMODCACHE inside the temp project to
+	// avoid polluting the user's module cache and to make behavior reproducible
+	// across CI environments.
+	if name == "go" {
+		gomodcache := filepath.Join(dir, ".gomodcache")
+		// ensure the dir exists
+		_ = os.MkdirAll(gomodcache, 0o755)
+		env := os.Environ()
+		env = append(env, "GOMODCACHE="+gomodcache)
+		cmd.Env = env
+	}
+
 	out, err := cmd.CombinedOutput()
 	if err == nil {
 		return out, nil
 	}
 	// try to capture go env to aid debugging
 	if envOut, e := exec.Command("go", "env").CombinedOutput(); e == nil {
-		return out, fmt.Errorf("%v\noutput: %s\n--- go env ---\n%s", err, string(out), string(envOut))
+		// Also include GOPROXY and GOSUMDB explicitly (helpful for CI debugging).
+		gpOut, _ := exec.Command("go", "env", "GOPROXY", "GOSUMDB").CombinedOutput()
+		return out, fmt.Errorf("%v\noutput: %s\n--- go env ---\n%s\n--- go env GOPROXY GOSUMDB ---\n%s", err, string(out), string(envOut), string(gpOut))
 	}
 	return out, fmt.Errorf("%v\noutput: %s", err, string(out))
 }
