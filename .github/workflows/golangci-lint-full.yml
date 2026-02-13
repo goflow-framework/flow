@@ -44,8 +44,11 @@ jobs:
 
       - name: Run golangci-lint
         run: |
-          # use the binary we extracted above; v2 uses --format instead of --out-format
-          $HOME/golangci-lint-2.9.0-linux-amd64/golangci-lint run --format=colored-line-number,github-actions --timeout=10m
+          # show version and installation path for debugging
+          $HOME/golangci-lint-2.9.0-linux-amd64/golangci-lint --version || true
+          ls -la $HOME/golangci-lint-2.9.0-linux-amd64 || true
+          # Run without passing --format/--out-format to avoid flag mismatches
+          $HOME/golangci-lint-2.9.0-linux-amd64/golangci-lint run --timeout=10m
 
       - name: Upload golangci-lint cache (optional)
         if: always()
