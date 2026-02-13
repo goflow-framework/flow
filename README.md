@@ -224,6 +224,30 @@ The `MakeResourceAdapter(app, res)` adapts a `flow.Resource` (methods that accep
 
 See also: Executor & background workers (docs/executor.md) for guidance on running background tasks and wiring job workers to the App.
 
+Context pooling (optional)
+--------------------------
+
+Flow reuses request `*flow.Context` instances via an internal `sync.Pool` to reduce per-request
+allocations. Pooling is enabled by default to improve throughput and reduce GC pressure. Key points:
+
+- `flow.New(...)` initializes a per-App `ContextPool` which `NewContext` prefers when creating
+	request contexts. This provides isolation between App instances while preserving a fast, zero-alloc
+	reuse path.
+- A package-level fallback pool is used when an App-local pool is not available.
+
+If you need to disable pooling globally (for debugging or to measure baseline allocations) set:
+
+```go
+import "github.com/undiegomejia/flow/pkg/flow"
+
+func init() {
+		flow.UseContextPool = false
+}
+```
+
+You can also toggle `flow.UseContextPool` in tests or benchmarks to compare pooled vs non-pooled
+behaviour (see `pkg/flow/context_bench_test.go` for microbenchmarks included with this repo).
+
 ### Views and Templates
 
 Flow uses `html/template` and a `ViewManager` with a small convention:
