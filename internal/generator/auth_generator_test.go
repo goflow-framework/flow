@@ -35,9 +35,7 @@ func TestCLI_GenerateAuth_CreatesFiles(t *testing.T) {
 
 	// build CLI
 	bin := filepath.Join(tmp, "flow-cli")
-	build := exec.Command("go", "build", "-o", bin, "./cmd/flow")
-	build.Dir = repo
-	if bout, err := build.CombinedOutput(); err != nil {
+	if bout, err := RunGoCombined(repo, "build", "-o", bin, "./cmd/flow"); err != nil {
 		t.Fatalf("build cli failed: %v\noutput: %s", err, string(bout))
 	}
 
@@ -88,9 +86,7 @@ func TestCLI_GenerateAuth_Compiles(t *testing.T) {
 
 	// build CLI
 	bin := filepath.Join(tmpProj, "flow-cli")
-	build := exec.Command("go", "build", "-o", bin, "./cmd/flow")
-	build.Dir = repo
-	if bout, err := build.CombinedOutput(); err != nil {
+	if bout, err := RunGoCombined(repo, "build", "-o", bin, "./cmd/flow"); err != nil {
 		t.Fatalf("build cli failed: %v\noutput: %s", err, string(bout))
 	}
 
@@ -175,9 +171,7 @@ func main() {
 	}
 
 	// run
-	cmd := exec.Command("go", "run", "main.go")
-	cmd.Dir = tmpProj
-	out, err := cmd.CombinedOutput()
+	out, err := RunGoCombined(tmpProj, "run", "main.go")
 	t.Logf("run output: %s", string(out))
 	if err != nil {
 		t.Fatalf("run failed: %v\n%s", err, string(out))
@@ -203,9 +197,7 @@ func TestCLI_GenerateAuth_SessionHelperParsing(t *testing.T) {
 
 	// build CLI
 	bin := filepath.Join(tmpProj, "flow-cli")
-	build := exec.Command("go", "build", "-o", bin, "./cmd/flow")
-	build.Dir = repo
-	if bout, err := build.CombinedOutput(); err != nil {
+	if bout, err := RunGoCombined(repo, "build", "-o", bin, "./cmd/flow"); err != nil {
 		t.Fatalf("build cli failed: %v\noutput: %s", err, string(bout))
 	}
 
@@ -319,9 +311,7 @@ func main() {
 		t.Fatalf("go mod tidy failed: %v\n%s", err, string(out))
 	}
 
-	cmd := exec.Command("go", "run", "main.go")
-	cmd.Dir = tmpProj
-	out, err := cmd.CombinedOutput()
+	out, err := RunGoCombined(tmpProj, "run", "main.go")
 	t.Logf("run output: %s", string(out))
 	if err != nil {
 		t.Fatalf("run failed: %v\n%s", err, string(out))
@@ -350,9 +340,7 @@ func TestAuthGenerator(t *testing.T) {
 	// run generator binary
 	bin := filepath.Join(repo, "bin", "flow-gen")
 	if _, err := os.Stat(bin); os.IsNotExist(err) {
-		b := exec.Command("go", "build", "-o", bin, "./cmd/flow")
-		b.Dir = repo
-		if out, err := b.CombinedOutput(); err != nil {
+		if out, err := RunGoCombined(repo, "build", "-o", bin, "./cmd/flow"); err != nil {
 			if envOut, e2 := exec.Command("go", "env").CombinedOutput(); e2 == nil {
 				t.Fatalf("build generator failed: %v\n%s\n--- go env ---\n%s", err, string(out), string(envOut))
 			}
@@ -389,9 +377,7 @@ func TestGeneratedMiddleware_Unit_GetSessionUserID(t *testing.T) {
 
 	// build CLI
 	bin := filepath.Join(tmpProj, "flow-cli")
-	build := exec.Command("go", "build", "-o", bin, "./cmd/flow")
-	build.Dir = repo
-	if bout, err := build.CombinedOutput(); err != nil {
+	if bout, err := RunGoCombined(repo, "build", "-o", bin, "./cmd/flow"); err != nil {
 		t.Fatalf("build cli failed: %v\noutput: %s", err, string(bout))
 	}
 
@@ -502,9 +488,7 @@ func TestGetSessionUserID_Roundtrip(t *testing.T) {
 		t.Fatalf("go mod tidy failed: %v\n%s", err, string(out))
 	}
 
-	cmd := exec.Command("go", "test", "./...", "-v")
-	cmd.Dir = tmpProj
-	out, err := cmd.CombinedOutput()
+	out, err := RunGoCombined(tmpProj, "test", "./...", "-v")
 	t.Logf("temp project test output:\n%s", string(out))
 	if err != nil {
 		t.Fatalf("temp project tests failed: %v\n%s", err, string(out))
