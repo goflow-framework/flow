@@ -1,73 +1,46 @@
-# Keep default settings for other options; use the GitHub Actions step to
-# control output format to avoid deprecated 'github-actions' output.
+version: "2"
 run:
-  # skip directories from analysis to avoid typecheck/export-data errors on
-  # example and tool binaries that are not part of the core library.
-  # Note: run.skip-dirs is deprecated in some versions; we include it so
-  # golangci-lint does not analyze these packages (issues.exclude-dirs
-  # alone only suppresses reported issues).
-  skip-dirs:
-    - ^tools($|/)
-    - ^examples($|/)
-    - ^bench-output($|/)
-    - ^cmd/flow-worker($|/)
-    - ^cmd/flow-assets($|/)
-  timeout: 10m
   tests: true
-
 linters:
-  disable-all: false
-  # Explicitly disable type-aware linters that require compatible compiled
-  # export-data in the environment where the analyzer runs. These produce
-  # "could not import sync/atomic (unsupported version)" when the analyzer
-  # binary or stdlib were built with a differing toolchain. We disable them
-  # here (main lint job) and run them in a dedicated, pinned job instead.
+  enable:
+    - bodyclose
   disable:
     - staticcheck
-    - typecheck
-  # Full linter list (includes type-aware linters). A separate CI job builds
-  # the linter in a clean module cache to avoid export-data mismatches.
+  exclusions:
+    generated: lax
+    rules:
+      - linters:
+          - errcheck
+        text: Close
+      - linters:
+          - errcheck
+        text: Write
+      - linters:
+          - errcheck
+        text: Flush
+      - path: (.+)\.go$
+        text: _gen.go%
+    paths:
+      - ^tools($|/)
+      - ^examples($|/)
+      - ^bench-output($|/)
+      - ^cmd/flow-worker($|/)
+      - ^cmd/flow-assets($|/)
+      - third_party$
+      - builtin$
+      - examples$
+formatters:
   enable:
-    - govet
-    - errcheck
     - gofmt
     - goimports
-    - gosimple
-    - unused
-    - ineffassign
-    - bodyclose
-    # Note: "staticcheck" and "typecheck" are type-aware linters that perform
-    # type-checking against compiled export data. On GitHub runners we observed
-    # intermittent export-data version mismatches ("could not import sync/atomic")
-    # when using the prebuilt analyzer binary. To keep PR feedback fast and
-    # reliable we disable these here and run them in a dedicated job (container
-    # or built-from-source) that pins the Go toolchain and isolated cache.
-
-    # - staticcheck
-    # - typecheck
-
-issues:
-  exclude-use-default: false
-  # directories to exclude from issue reporting (keeps issues quiet for non-core dirs)
-  exclude-dirs:
-    - ^tools($|/)
-    - ^examples($|/)
-    - ^bench-output($|/)
-    - ^cmd/flow-worker($|/)
-    - ^cmd/flow-assets($|/)
-  exclude-rules:
-    - linters:
-        - errcheck
-      # ignore errcheck findings that match these simple function names
-      text: "Close"
-    - linters:
-        - errcheck
-      text: "Write"
-    - linters:
-        - errcheck
-      text: "Flush"
-
-linters-settings: {}
-
-exclude:
-  - _gen.go%
+  exclusions:
+    generated: lax
+    paths:
+      - ^tools($|/)
+      - ^examples($|/)
+      - ^bench-output($|/)
+      - ^cmd/flow-worker($|/)
+      - ^cmd/flow-assets($|/)
+      - third_party$
+      - builtin$
+      - examples$

@@ -1,8 +1,6 @@
 module github.com/undiegomejia/flow
 
-go 1.24.0
-
-toolchain go1.24.11
+go 1.24.11
 
 require (
 	github.com/alicebob/miniredis/v2 v2.22.0
@@ -52,7 +50,6 @@ require (
 	go.opentelemetry.io/otel/trace v1.39.0 // indirect
 	go.opentelemetry.io/proto/otlp v1.9.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.2 // indirect
-	golang.org/x/crypto v0.47.0 // indirect
 	golang.org/x/mod v0.31.0 // indirect
 	golang.org/x/net v0.48.0 // indirect
 	golang.org/x/sync v0.19.0 // indirect

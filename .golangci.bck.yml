@@ -1,0 +1,70 @@
+# Keep default settings for other options; use the GitHub Actions step to
+# control output format to avoid deprecated 'github-actions' output.
+run:
+  # NOTE: `run.skip-dirs` is disallowed by newer jsonschema versions used by
+  # golangci-lint migrate. Directory exclusion for issue reporting is handled
+  # below under `issues.exclude-dirs` so we intentionally do not use
+  # `run.skip-dirs` here.
+  timeout: 10m
+  tests: true
+
+linters:
+  disable-all: false
+  # Explicitly disable type-aware linters that require compatible compiled
+  # export-data in the environment where the analyzer runs. These produce
+  # "could not import sync/atomic (unsupported version)" when the analyzer
+  # binary or stdlib were built with a differing toolchain. We disable them
+  # here (main lint job) and run them in a dedicated, pinned job instead.
+  disable:
+    - staticcheck
+    - typecheck
+  # Full linter list (includes type-aware linters). A separate CI job builds
+  # the linter in a clean module cache to avoid export-data mismatches.
+  enable:
+    - govet
+    - errcheck
+    - gofmt
+    - goimports
+    - gosimple
+    - unused
+    - ineffassign
+    - bodyclose
+    # Note: "staticcheck" and "typecheck" are type-aware linters that perform
+    # type-checking against compiled export data. On GitHub runners we observed
+    # intermittent export-data version mismatches ("could not import sync/atomic")
+    # when using the prebuilt analyzer binary. To keep PR feedback fast and
+    # reliable we disable these here and run them in a dedicated job (container
+    # or built-from-source) that pins the Go toolchain and isolated cache.
+
+    # - staticcheck
+    # - typecheck
+
+issues:
+  exclude-use-default: false
+  # directories to exclude from issue reporting (keeps issues quiet for non-core dirs)
+  exclude-dirs:
+    - ^tools($|/)
+    - ^examples($|/)
+    - ^bench-output($|/)
+    - ^cmd/flow-worker($|/)
+    - ^cmd/flow-assets($|/)
+  # Exclude specific filename patterns from issue reporting (moved from top-level `exclude`)
+  exclude:
+    - _gen.go%
+  exclude-rules:
+    - linters:
+        - errcheck
+      # ignore errcheck findings that match these simple function names
+      text: "Close"
+    - linters:
+        - errcheck
+      text: "Write"
+    - linters:
+        - errcheck
+      text: "Flush"
+
+linters-settings: {}
+
+# File-level pattern exclusions using top-level `exclude` were removed from
+# the schema in newer golangci-lint versions; we've migrated those patterns
+# under `issues.exclude` above.
