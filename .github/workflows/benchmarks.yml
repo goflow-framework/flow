@@ -13,10 +13,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Go
-        uses: actions/setup-go@v4
+      - name: Setup Go
+        uses: ./.github/actions/ci-setup
         with:
-          go-version: '1.24'
+          go-version: 1.24
 
       - name: Cache Go modules and build cache
         uses: actions/cache@v4
