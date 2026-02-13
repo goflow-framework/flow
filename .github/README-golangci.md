@@ -15,7 +15,7 @@ Run quick, safe linters locally (matches PR behavior):
 # Use the analyzer container but disable type-aware linters to match PR gate
 docker run --rm -v "$(pwd)":/src -w /src \
   ghcr.io/undiegomejia/golangci-analyzer:1.24.11-2.8.0 \
-  golangci-lint run --timeout=10m --disable=typecheck,staticcheck --out-format=colored-line-number
+  golangci-lint run --timeout=10m --disable=typecheck,staticcheck
 ```
 
 Run the deterministic type-aware checks locally (reproduces the CI typecheck job):
