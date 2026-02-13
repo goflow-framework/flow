@@ -62,6 +62,10 @@ type Context struct {
 // you in the hot path).
 func NewContext(app *App, w http.ResponseWriter, r *http.Request) *Context {
 	if UseContextPool {
+		// Prefer a per-App pool when available so pools can be isolated per application.
+		if app != nil && app.ctxPool != nil {
+			return app.ctxPool.Get(app, w, r)
+		}
 		if v := contextPool.Get(); v != nil {
 			c := v.(*Context)
 			c.App = app
@@ -103,6 +107,11 @@ func PutContext(c *Context) {
 	c.R = nil
 	c.status = 0
 	if UseContextPool {
+		// Prefer returning to the App-local pool when present.
+		if c.App != nil && c.App.ctxPool != nil {
+			c.App.ctxPool.Put(c)
+			return
+		}
 		contextPool.Put(c)
 	}
 }
