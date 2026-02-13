@@ -4,7 +4,7 @@ go 1.24.11
 
 require (
 	github.com/alicebob/miniredis/v2 v2.22.0
-	github.com/fsnotify/fsnotify v1.4.9
+	github.com/fsnotify/fsnotify v1.9.0
 	github.com/google/uuid v1.6.0
 	github.com/prometheus/client_golang v1.23.2
 	github.com/redis/go-redis/v9 v9.17.2
