@@ -39,6 +39,7 @@ func (m *Manager) LoadDir(dir string) error {
 			continue
 		}
 		locale := strings.TrimSuffix(name, ext)
+		// #nosec G304 -- translation YAML files are trusted project assets
 		b, err := os.ReadFile(filepath.Join(dir, name))
 		if err != nil {
 			return err

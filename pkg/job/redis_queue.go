@@ -2,10 +2,11 @@ package job
 
 import (
 	"context"
+	crand "crypto/rand"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"math/rand"
+	"math/big"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -284,15 +285,33 @@ func (w *Worker) handleJob(ctx context.Context, j *Job) error {
 		return nil
 	}
 	// compute backoff: base * 2^(attempts-1) with jitter
-	delay := w.opts.BackoffBase * time.Duration(1<<uint(max(0, j.Attempts-1)))
-	// add jitter
+	// safe exponential backoff with cap
+	attempts := max(0, j.Attempts-1)
+	if attempts > 63 { // avoid huge shifts
+		attempts = 63
+	}
+	delay := w.opts.BackoffBase * (1 << uint(attempts))
+
+	// jitter using crypto/rand
 	if w.opts.JitterMillis > 0 {
-		jitter := time.Duration(rand.Intn(w.opts.JitterMillis*2)-w.opts.JitterMillis) * time.Millisecond
+		n, _ := cryptoRandInt(w.opts.JitterMillis * 2) // helper returning [0,n)
+		jitter := time.Duration(int(n)-w.opts.JitterMillis) * time.Millisecond
 		delay += jitter
 	}
 	next := time.Now().Add(delay)
 	_ = w.queue.EnqueueAt(context.Background(), j, next)
 	return nil
+}
+
+func cryptoRandInt(max int) (int, error) {
+	if max <= 0 {
+		return 0, nil
+	}
+	nBig, err := crand.Int(crand.Reader, big.NewInt(int64(max)))
+	if err != nil {
+		return 0, err
+	}
+	return int(nBig.Int64()), nil
 }
 
 func marshalQuiet(j *Job) []byte {

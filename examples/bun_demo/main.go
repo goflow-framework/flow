@@ -24,7 +24,7 @@ type Post struct {
 
 func main() {
 	// ensure example data directory exists
-	if err := os.MkdirAll(filepath.Dir("examples/bun_demo/db.sqlite"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir("examples/bun_demo/db.sqlite"), 0o750); err != nil {
 		log.Fatalf("mkdir: %v", err)
 	}
 

@@ -14,7 +14,7 @@ func TestApplyAndRollbackSQLite(t *testing.T) {
 	td := t.TempDir()
 	// create migrations dir
 	migDir := filepath.Join(td, "db", "migrate")
-	if err := os.MkdirAll(migDir, 0o755); err != nil {
+	if err := os.MkdirAll(migDir, 0o750); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
 	// write up and down SQL

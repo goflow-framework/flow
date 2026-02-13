@@ -71,7 +71,7 @@ func (rs *RedisStore) Delete(ctx context.Context, id string) error {
 // RedisSessionManager implements a session manager which stores the
 // session values in Redis and keeps only a signed session id in the cookie.
 type RedisSessionManager struct {
-	Secret     []byte
+	secret     []byte
 	CookieName string
 	MaxAge     int
 	Store      *RedisStore
@@ -82,12 +82,12 @@ func NewRedisSessionManager(secret []byte, cookieName string, store *RedisStore)
 	if cookieName == "" {
 		cookieName = "flow_session"
 	}
-	return &RedisSessionManager{Secret: secret, CookieName: cookieName, MaxAge: 86400, Store: store}
+	return &RedisSessionManager{secret: secret, CookieName: cookieName, MaxAge: 86400, Store: store}
 }
 
 // signID returns hex(signature) of id using hmac-sha256 with the manager secret.
 func (rsm *RedisSessionManager) signID(id string) string {
-	mac := hmac.New(sha256.New, rsm.Secret)
+	mac := hmac.New(sha256.New, rsm.secret)
 	mac.Write([]byte(id))
 	return hex.EncodeToString(mac.Sum(nil))
 }

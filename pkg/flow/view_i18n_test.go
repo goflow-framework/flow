@@ -14,7 +14,7 @@ import (
 func TestTemplateFuncT_RendersTranslation(t *testing.T) {
 	tmp := t.TempDir()
 	viewsDir := filepath.Join(tmp, "views")
-	if err := os.MkdirAll(viewsDir, 0o755); err != nil {
+	if err := os.MkdirAll(viewsDir, 0o750); err != nil {
 		t.Fatalf("mkdir views: %v", err)
 	}
 	// write a simple template that uses the T function
@@ -25,7 +25,7 @@ func TestTemplateFuncT_RendersTranslation(t *testing.T) {
 
 	// write i18n en.yaml
 	i18nDir := filepath.Join(tmp, "app", "i18n")
-	if err := os.MkdirAll(i18nDir, 0o755); err != nil {
+	if err := os.MkdirAll(i18nDir, 0o750); err != nil {
 		t.Fatalf("mkdir i18n: %v", err)
 	}
 	enPath := filepath.Join(i18nDir, "en.yaml")

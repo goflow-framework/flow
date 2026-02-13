@@ -4,9 +4,14 @@ import (
 	"io"
 	"log"
 	"net/http"
+	// pprof is intentionally available for local/debug runs of the tool.
+	// The blank import registers the /debug/pprof handlers on the default mux.
+	// This tool is explicitly a developer/debug utility so we allow the import.
+	// #nosec G108
 	_ "net/http/pprof"
 	"os"
 	"strconv"
+	"time"
 
 	"github.com/undiegomejia/flow/pkg/flow"
 	"github.com/undiegomejia/flow/pkg/plugins"
@@ -55,9 +60,19 @@ func main() {
 		log.Fatalf("apply plugins: %v", err)
 	}
 
-	// start pprof on :6060 (default mux)
+	// start pprof on :6060 (default mux). This is a debug-only tool and
+	// intentionally exposes pprof on the loopback interface when developers
+	// run it locally. We create a short-timeout server to avoid leaving an
+	// unconstrained listener running indefinitely in tests.
 	go func() {
-		if err := http.ListenAndServe(":6060", nil); err != nil {
+		srv := &http.Server{
+			Addr:         ":6060",
+			Handler:      nil,
+			ReadTimeout:  5 * time.Second,
+			WriteTimeout: 10 * time.Second,
+			IdleTimeout:  30 * time.Second,
+		}
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Printf("pprof server error: %v", err)
 			os.Exit(1)
 		}

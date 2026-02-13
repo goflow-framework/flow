@@ -50,7 +50,14 @@ func main() {
 		go func() {
 			mux := http.NewServeMux()
 			mux.Handle("/metrics", promhttp.Handler())
-			if err := http.ListenAndServe(*metricsAddr, mux); err != nil {
+			srv := &http.Server{
+				Addr:         *metricsAddr,
+				Handler:      mux,
+				ReadTimeout:  5 * time.Second,
+				WriteTimeout: 10 * time.Second,
+				IdleTimeout:  30 * time.Second,
+			}
+			if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 				logger.Printf("metrics server error: %v", err)
 			}
 		}()

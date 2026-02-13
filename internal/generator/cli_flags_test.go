@@ -82,7 +82,7 @@ func TestCLI_GenerateModel_ForceOverwrite(t *testing.T) {
 
 	// create an existing model file to simulate conflict
 	modelDir := filepath.Join(tmp, "app", "models")
-	if err := os.MkdirAll(modelDir, 0o755); err != nil {
+	if err := os.MkdirAll(modelDir, 0o750); err != nil {
 		t.Fatalf("mkdir failed: %v", err)
 	}
 	modelPath := filepath.Join(modelDir, "post.go")
