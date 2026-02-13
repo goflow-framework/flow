@@ -19,6 +19,7 @@
 # Local temp/cache
 /tmp/
 /.cache/
+/.gomodcache/*
 
 # Vendor (if you vendor dependencies locally)
 /vendor/
