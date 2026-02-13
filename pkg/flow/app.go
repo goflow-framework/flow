@@ -101,6 +101,11 @@ type App struct {
 	// executorShutdown is called during App.Shutdown if non-nil.
 	executorShutdown func(context.Context) error
 
+	// ctxPool holds an optional per-App context pool. If non-nil NewContext
+	// will prefer this pool when creating request Contexts. Having a pool
+	// per-App allows isolation and tuning per application instance.
+	ctxPool *ContextPool
+
 	// workerHandles tracks started job workers so we can stop them during
 	// shutdown. Protected by workersMu.
 	workers   []workerHandle
@@ -407,6 +412,7 @@ func New(name string, opts ...Option) *App {
 		Sessions:        DefaultSessionManager(),
 		middleware:      make([]Middleware, 0),
 		services:        NewServiceRegistry(), // Initialize services registry
+		ctxPool:         NewContextPool(),
 	}
 
 	for _, opt := range opts {
