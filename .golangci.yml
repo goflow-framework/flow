@@ -6,7 +6,6 @@ linters:
     - bodyclose
   disable:
     - staticcheck
-    - typecheck
   exclusions:
     generated: lax
     rules:
