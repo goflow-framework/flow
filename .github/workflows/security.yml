@@ -14,15 +14,24 @@ jobs:
 
       - uses: actions/setup-go@v4
         with:
-          go-version: '1.20'
+          # Use the same Go toolchain as the project to ensure module
+          # install commands succeed when modules declare newer 'go'
+          # directives (eg. 'go 1.24').
+          go-version: '1.24.11'
 
       - name: Install gosec
-        run: go install github.com/securego/gosec/v2/cmd/gosec@latest
+        run: |
+          # Install a recent gosec built with the current toolchain.
+          go install github.com/securego/gosec/v2/cmd/gosec@latest
 
       - name: Run gosec
-        run: gosec ./...
+        run: |
+          # Ensure the installed binary is on PATH (GOBIN may default to $HOME/go/bin)
+          export PATH=$(go env GOPATH)/bin:$PATH
+          gosec ./...
 
       - name: Run govulncheck
         run: |
+          export PATH=$(go env GOPATH)/bin:$PATH
           go install golang.org/x/vuln/cmd/govulncheck@latest
           govulncheck ./...
