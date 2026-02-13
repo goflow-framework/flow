@@ -1,0 +1,25 @@
+name: "ci-setup-go"
+description: "Small reusable action to set up Go (wraps actions/setup-go) and ensure GOPATH/bin is on PATH"
+inputs:
+  go-version:
+    description: "Go version to install (ex: '1.24.13' or '1.24.x')"
+    required: false
+    default: "1.24.13"
+runs:
+  using: "composite"
+  steps:
+    - name: Setup Go toolchain
+      uses: actions/setup-go@v4
+      with:
+        go-version: ${{ inputs.go-version }}
+        cache: 'true'
+
+    - name: Add GOPATH/bin to PATH
+      shell: bash
+      run: |
+        # Ensure GOPATH is present and add GOPATH/bin to PATH for subsequent steps
+        GOPATH="$(go env GOPATH)"
+        if [ -n "$GOPATH" ]; then
+          echo "GOPATH is $GOPATH"
+          echo "${GOPATH}/bin" >> $GITHUB_PATH
+        fi
