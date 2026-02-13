@@ -78,6 +78,11 @@ func RunCmdCombined(dir string, name string, args ...string) ([]byte, error) {
 		gomodcache := filepath.Join(dir, ".gomodcache")
 		// ensure the dir exists
 		_ = os.MkdirAll(gomodcache, 0o755)
+
+		// make the gomodcache writable so that test harnesses can remove it
+		// during cleanup even if the go tool leaves files with restrictive
+		// permissions. This is a best-effort chmod; ignore errors.
+		_ = os.Chmod(gomodcache, 0o777)
 		env := os.Environ()
 		env = append(env, "GOMODCACHE="+gomodcache)
 		cmd.Env = env
@@ -85,12 +90,44 @@ func RunCmdCombined(dir string, name string, args ...string) ([]byte, error) {
 
 	out, err := cmd.CombinedOutput()
 	if err == nil {
+		// try to relax permissions inside the gomodcache to avoid permission
+		// denied errors when the test framework attempts to recursively remove
+		// the temp directory. Best-effort: ignore any errors here.
+		if name == "go" {
+			gomodcache := filepath.Join(dir, ".gomodcache")
+			_ = filepath.WalkDir(gomodcache, func(p string, d os.DirEntry, e error) error {
+				if e != nil {
+					return nil
+				}
+				if d.IsDir() {
+					_ = os.Chmod(p, 0o777)
+					return nil
+				}
+				_ = os.Chmod(p, 0o666)
+				return nil
+			})
+		}
 		return out, nil
 	}
 	// try to capture go env to aid debugging
 	if envOut, e := exec.Command("go", "env").CombinedOutput(); e == nil {
 		// Also include GOPROXY and GOSUMDB explicitly (helpful for CI debugging).
 		gpOut, _ := exec.Command("go", "env", "GOPROXY", "GOSUMDB").CombinedOutput()
+		// best-effort relax perms on failure path too
+		if name == "go" {
+			gomodcache := filepath.Join(dir, ".gomodcache")
+			_ = filepath.WalkDir(gomodcache, func(p string, d os.DirEntry, e error) error {
+				if e != nil {
+					return nil
+				}
+				if d.IsDir() {
+					_ = os.Chmod(p, 0o777)
+					return nil
+				}
+				_ = os.Chmod(p, 0o666)
+				return nil
+			})
+		}
 		return out, fmt.Errorf("%v\noutput: %s\n--- go env ---\n%s\n--- go env GOPROXY GOSUMDB ---\n%s", err, string(out), string(envOut), string(gpOut))
 	}
 	return out, fmt.Errorf("%v\noutput: %s", err, string(out))
