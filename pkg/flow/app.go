@@ -146,6 +146,7 @@ func (a *App) Logger() Logger {
 	}
 	return a.logger
 }
+
 var (
 	// ErrAppAlreadyRunning is returned when Start/Run is called on an already-running App.
 	ErrAppAlreadyRunning = errors.New("app: already running")

@@ -2,10 +2,10 @@ package job
 
 import (
 	"context"
+	crand "crypto/rand"
 	"encoding/json"
 	"errors"
 	"fmt"
-	crand "crypto/rand"
 	"math/big"
 	"sync"
 	"sync/atomic"
@@ -294,7 +294,7 @@ func (w *Worker) handleJob(ctx context.Context, j *Job) error {
 
 	// jitter using crypto/rand
 	if w.opts.JitterMillis > 0 {
-		n, _ := cryptoRandInt(w.opts.JitterMillis*2) // helper returning [0,n)
+		n, _ := cryptoRandInt(w.opts.JitterMillis * 2) // helper returning [0,n)
 		jitter := time.Duration(int(n)-w.opts.JitterMillis) * time.Millisecond
 		delay += jitter
 	}
