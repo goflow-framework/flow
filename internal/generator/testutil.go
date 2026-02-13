@@ -129,3 +129,8 @@ func WriteTempGoMod(projDir, moduleName string, replaceSelf bool) error {
 	}
 	return os.WriteFile(filepath.Join(projDir, "go.mod"), []byte(goMod), 0o644)
 }
+
+// RunGoCombined is a convenience wrapper around RunCmdCombined for the go tool.
+func RunGoCombined(dir string, args ...string) ([]byte, error) {
+	return RunCmdCombined(dir, "go", args...)
+}

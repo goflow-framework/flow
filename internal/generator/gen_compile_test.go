@@ -24,13 +24,7 @@ func TestGeneratedModelCompilesAndRuns(t *testing.T) {
 
 	// build CLI (binary written into the temp project)
 	bin := filepath.Join(projDir, "flow-cli")
-	build := exec.Command("go", "build", "-o", bin, "./cmd/flow")
-	build.Dir = repo
-	if bout, err := build.CombinedOutput(); err != nil {
-		// capture go env to help debug toolchain issues
-		if envOut, e2 := exec.Command("go", "env").CombinedOutput(); e2 == nil {
-			t.Fatalf("build cli failed: %v\noutput: %s\n--- go env ---\n%s", err, string(bout), string(envOut))
-		}
+	if bout, err := RunGoCombined(repo, "build", "-o", bin, "./cmd/flow"); err != nil {
 		t.Fatalf("build cli failed: %v\noutput: %s", err, string(bout))
 	}
 
@@ -97,15 +91,10 @@ func main() {
 		t.Fatalf("go mod tidy failed: %v\n%s", err, string(out))
 	}
 
-	// build and run
-	cmd := exec.Command("go", "run", "main.go")
-	cmd.Dir = projDir
-	out, err := cmd.CombinedOutput()
+	// build and run using RunGoCombined so tests use a local GOMODCACHE
+	out, err := RunGoCombined(projDir, "run", "main.go")
 	t.Logf("run output: %s", string(out))
 	if err != nil {
-		if envOut, e2 := exec.Command("go", "env").CombinedOutput(); e2 == nil {
-			t.Fatalf("run failed: %v\n%s\n--- go env ---\n%s", err, string(out), string(envOut))
-		}
 		t.Fatalf("run failed: %v\n%s", err, string(out))
 	}
 	if !strings.Contains(string(out), "FOUND: compile-test-hello") {
