@@ -33,11 +33,19 @@ jobs:
           go env
           go mod download
 
-      - name: Run golangci-lint (build on runner to match Go toolchain)
-        uses: golangci/golangci-lint-action@v4
-        with:
-          version: v2.9.0
-          args: --timeout=10m
+      - name: Install golangci-lint v2.9.0
+        run: |
+          curl -sSfL https://github.com/golangci/golangci-lint/releases/download/v2.9.0/golangci-lint-2.9.0-linux-amd64.tar.gz -o /tmp/golangci.tar.gz
+          tar -xzf /tmp/golangci.tar.gz -C $HOME
+          echo "$(pwd)"
+          ls -la $HOME/golangci-lint-2.9.0-linux-amd64
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run golangci-lint
+        run: |
+          # use the binary we extracted above; v2 uses --format instead of --out-format
+          $HOME/golangci-lint-2.9.0-linux-amd64/golangci-lint run --format=colored-line-number,github-actions --timeout=10m
 
       - name: Upload golangci-lint cache (optional)
         if: always()
