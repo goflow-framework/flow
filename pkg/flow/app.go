@@ -35,6 +35,7 @@ import (
 	orm "github.com/undiegomejia/flow/internal/orm"
 	"github.com/undiegomejia/flow/pkg/assets"
 	execpkg "github.com/undiegomejia/flow/pkg/exec"
+	flowexec "github.com/undiegomejia/flow/pkg/flow/exec"
 	"github.com/undiegomejia/flow/pkg/job"
 	"github.com/undiegomejia/flow/pkg/observability"
 	"github.com/uptrace/bun"
@@ -388,7 +389,7 @@ func WithBoundedExecutor(n, queueSize int) Option {
 		if a == nil {
 			return
 		}
-		be := NewBoundedExecutor(n, queueSize)
+		be := flowexec.NewBoundedExecutor(n, queueSize)
 		a.executor = be
 		a.executorShutdown = be.Shutdown
 	}
