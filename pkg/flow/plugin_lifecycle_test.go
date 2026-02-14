@@ -11,23 +11,25 @@ import (
 )
 
 // recPlugin records Init/Mount calls via a callback.
-type recPlugin struct{
+type recPlugin struct {
 	name string
 	rec  func(string)
 }
-func (p *recPlugin) Name() string { return p.name }
-func (p *recPlugin) Version() string { return "0.0.1" }
-func (p *recPlugin) Init(a *App) error   { p.rec("init:" + p.name); return nil }
-func (p *recPlugin) Mount(a *App) error  { p.rec("mount:" + p.name); return nil }
-func (p *recPlugin) Middlewares() []Middleware { return nil }
+
+func (p *recPlugin) Name() string                    { return p.name }
+func (p *recPlugin) Version() string                 { return "0.0.1" }
+func (p *recPlugin) Init(a *App) error               { p.rec("init:" + p.name); return nil }
+func (p *recPlugin) Mount(a *App) error              { p.rec("mount:" + p.name); return nil }
+func (p *recPlugin) Middlewares() []Middleware       { return nil }
 func (p *recPlugin) Start(ctx context.Context) error { <-ctx.Done(); return ctx.Err() }
 func (p *recPlugin) Stop(ctx context.Context) error  { return nil }
 
 // mwPlugin returns a middleware that sets a header named X-PLUGIN to its name.
 type mwPlugin struct{ name string }
-func (p *mwPlugin) Name() string { return p.name }
-func (p *mwPlugin) Version() string { return "0.0.1" }
-func (p *mwPlugin) Init(a *App) error { return nil }
+
+func (p *mwPlugin) Name() string       { return p.name }
+func (p *mwPlugin) Version() string    { return "0.0.1" }
+func (p *mwPlugin) Init(a *App) error  { return nil }
 func (p *mwPlugin) Mount(a *App) error { return nil }
 func (p *mwPlugin) Middlewares() []Middleware {
 	return []Middleware{func(next http.Handler) http.Handler {
@@ -42,10 +44,11 @@ func (p *mwPlugin) Stop(ctx context.Context) error  { return nil }
 
 // startPlugin signals Start and Stop via atomics.
 type startPlugin struct{}
-func (p *startPlugin) Name() string { return "starter" }
-func (p *startPlugin) Version() string { return "0.0.1" }
-func (p *startPlugin) Init(a *App) error { return nil }
-func (p *startPlugin) Mount(a *App) error { return nil }
+
+func (p *startPlugin) Name() string              { return "starter" }
+func (p *startPlugin) Version() string           { return "0.0.1" }
+func (p *startPlugin) Init(a *App) error         { return nil }
+func (p *startPlugin) Mount(a *App) error        { return nil }
 func (p *startPlugin) Middlewares() []Middleware { return nil }
 func (p *startPlugin) Start(ctx context.Context) error {
 	atomic.StoreInt32(&startedFlag, 1)
