@@ -118,6 +118,12 @@ type App struct {
 	plugins     map[string]Plugin
 	pluginOrder []string
 	pluginsMu   sync.RWMutex
+
+	// plugin lifecycle control: a cancelable context used to run plugin Start
+	// implementations and a WaitGroup to wait for them during shutdown.
+	pluginCtx    context.Context
+	pluginCancel context.CancelFunc
+	pluginWg     sync.WaitGroup
 }
 
 type workerHandle struct {
@@ -598,6 +604,38 @@ func (a *App) shutdownPlugins(ctx context.Context) error {
 	}
 }
 
+// startPlugins invokes Start(ctx) for each registered plugin in registration
+// order in its own goroutine. Errors returned by Start are logged. The provided
+// ctx is canceled by App.Shutdown (via pluginCancel) to signal plugin goroutines
+// to exit.
+func (a *App) startPlugins(ctx context.Context) {
+	if a == nil {
+		return
+	}
+	// copy names to avoid holding lock
+	a.pluginsMu.RLock()
+	names := make([]string, len(a.pluginOrder))
+	copy(names, a.pluginOrder)
+	a.pluginsMu.RUnlock()
+
+	for _, name := range names {
+		a.pluginsMu.RLock()
+		p := a.plugins[name]
+		a.pluginsMu.RUnlock()
+		if p == nil {
+			continue
+		}
+		// start each plugin in its own goroutine and track via WaitGroup
+		a.pluginWg.Add(1)
+		go func(p Plugin, n string) {
+			defer a.pluginWg.Done()
+			if err := p.Start(ctx); err != nil {
+				a.Logger().Printf("plugin %s start error: %v", n, err)
+			}
+		}(p, name)
+	}
+}
+
 // Start starts the HTTP server in a background goroutine and returns immediately.
 // It returns ErrAppAlreadyRunning if called while the server is already running.
 func (a *App) Start() error {
@@ -614,6 +652,9 @@ func (a *App) Start() error {
 	}
 	a.server = srv
 
+	// create a plugin context for Start lifecycle. It will be canceled in Shutdown.
+	a.pluginCtx, a.pluginCancel = context.WithCancel(context.Background())
+	// start plugin Start() implementations after server goroutine is launched.
 	go func() {
 		a.logger.Printf("starting %s on %s", a.Name, a.Addr)
 		// http.ErrServerClosed is returned on normal shutdown and should not be logged as an error
@@ -623,6 +664,9 @@ func (a *App) Start() error {
 		// transition to stopped
 		atomic.StoreInt32(&a.state, 2)
 	}()
+
+	// Start plugin goroutines (they should return when pluginCtx is canceled)
+	a.startPlugins(a.pluginCtx)
 
 	return nil
 }
@@ -672,6 +716,23 @@ func (a *App) Shutdown(ctx context.Context) error {
 		}
 	}
 
+	// Cancel plugin Start contexts so plugin goroutines can exit.
+	if a.pluginCancel != nil {
+		a.pluginCancel()
+		// wait for plugin goroutines to finish, but respect Shutdown ctx
+		done := make(chan struct{})
+		go func() {
+			a.pluginWg.Wait()
+			close(done)
+		}()
+		select {
+		case <-done:
+			// plugins stopped
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+
 	a.logger.Printf("shutting down %s", a.Name)
 	if err := a.server.Shutdown(ctx); err != nil {
 		// if forced close is required, attempt Close
@@ -715,7 +776,7 @@ func (a *App) Shutdown(ctx context.Context) error {
 		_ = a.tracerShutdown(ctx)
 	}
 
-	// shutdown plugins
+	// shutdown plugins (calls Stop(ctx) in reverse order)
 	_ = a.shutdownPlugins(ctx)
 
 	return nil
