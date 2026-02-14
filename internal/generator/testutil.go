@@ -187,3 +187,27 @@ func WriteTempGoMod(projDir, moduleName string, replaceSelf bool) error {
 func RunGoCombined(dir string, args ...string) ([]byte, error) {
 	return RunCmdCombined(dir, "go", args...)
 }
+
+// RunGoOrFail is a test helper that runs the go tool (via RunGoCombined) and
+// fails the test with helpful `go env` output when the command returns an
+// error. Use this in tests to get immediate diagnostic information without
+// duplicating the go env capture logic at each call-site.
+func RunGoOrFail(t interface{ Fatalf(string, ...interface{}) }, dir string, args ...string) []byte {
+	// allow caller to be *testing.T or any struct with Fatalf
+	// mark as helper when possible
+	if tt, ok := t.(*testing.T); ok {
+		tt.Helper()
+	}
+	out, err := RunGoCombined(dir, args...)
+	if err == nil {
+		return out
+	}
+	// try to capture go env to aid debugging
+	if envOut, e := exec.Command("go", "env").CombinedOutput(); e == nil {
+		// Also include GOPROXY and GOSUMDB explicitly
+		gpOut, _ := exec.Command("go", "env", "GOPROXY", "GOSUMDB").CombinedOutput()
+		t.Fatalf("go %v failed: %v\noutput: %s\n--- go env ---\n%s\n--- go env GOPROXY GOSUMDB ---\n%s", args, err, string(out), string(envOut), string(gpOut))
+	}
+	t.Fatalf("go %v failed: %v\noutput: %s", args, err, string(out))
+	return nil
+}
