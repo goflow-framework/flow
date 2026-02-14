@@ -14,9 +14,7 @@ func TestCLI_GenerateScaffold_SkipMigrations(t *testing.T) {
 
 	// build CLI
 	bin := filepath.Join(tmp, "flow-cli")
-	if bout, err := RunGoCombined(repo, "build", "-o", bin, "./cmd/flow"); err != nil {
-		t.Fatalf("build cli failed: %v\noutput: %s", err, string(bout))
-	}
+	_ = RunGoOrFail(t, repo, "build", "-o", bin, "./cmd/flow")
 
 	// run scaffold generator with --skip-migrations
 	cmd := exec.Command(bin, "generate", "scaffold", "post", "title:string", "--target", tmp, "--skip-migrations")
@@ -40,9 +38,7 @@ func TestCLI_GenerateScaffold_NoViews(t *testing.T) {
 
 	// build CLI
 	bin := filepath.Join(tmp, "flow-cli")
-	if bout, err := RunGoCombined(repo, "build", "-o", bin, "./cmd/flow"); err != nil {
-		t.Fatalf("build cli failed: %v\noutput: %s", err, string(bout))
-	}
+	_ = RunGoOrFail(t, repo, "build", "-o", bin, "./cmd/flow")
 
 	// run scaffold generator with --no-views
 	cmd := exec.Command(bin, "generate", "scaffold", "post", "title:string", "--target", tmp, "--no-views")
@@ -70,9 +66,7 @@ func TestCLI_GenerateModel_ForceOverwrite(t *testing.T) {
 
 	// build CLI
 	bin := filepath.Join(tmp, "flow-cli")
-	if bout, err := RunGoCombined(repo, "build", "-o", bin, "./cmd/flow"); err != nil {
-		t.Fatalf("build cli failed: %v\noutput: %s", err, string(bout))
-	}
+	_ = RunGoOrFail(t, repo, "build", "-o", bin, "./cmd/flow")
 
 	// create an existing model file to simulate conflict
 	modelDir := filepath.Join(tmp, "app", "models")

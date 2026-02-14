@@ -64,9 +64,7 @@ func TestCLI_GenerateAdmin_CreatesFiles(t *testing.T) {
 
 	// build CLI
 	bin := filepath.Join(tmp, "flow-cli")
-	if bout, err := RunGoCombined(repo, "build", "-o", bin, "./cmd/flow"); err != nil {
-		t.Fatalf("build cli failed: %v\noutput: %s", err, string(bout))
-	}
+	_ = RunGoOrFail(t, repo, "build", "-o", bin, "./cmd/flow")
 
 	// run generated binary: generate admin into tmp target
 	cmd := exec.Command(bin, "generate", "admin", "post", "title:string", "--target", tmp)

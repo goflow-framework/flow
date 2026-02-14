@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"testing"
 )
 
 // findRepoRoot walks up from the current working directory until it finds a go.mod
@@ -61,8 +62,11 @@ func readGoVersion(repo string) (string, error) {
 			return strings.TrimSpace(strings.TrimPrefix(line, "go ")), nil
 		}
 	}
-	// default to 1.20 if not present
-	return "1.20", nil
+	// Prefer a modern Go version for generated test modules to avoid the
+	// toolchain automatically switching or choosing an older default that
+	// can make builds brittle across CI environments. Use 1.24 as a sensible
+	// baseline; callers can still override by reading the repo go.mod.
+	return "1.24", nil
 }
 
 // RunCmdCombined runs a command in dir and returns its combined output. If the
@@ -84,7 +88,20 @@ func RunCmdCombined(dir string, name string, args ...string) ([]byte, error) {
 		// permissions. This is a best-effort chmod; ignore errors.
 		_ = os.Chmod(gomodcache, 0o777)
 		env := os.Environ()
+		// Ensure reproducible module cache location for tests.
 		env = append(env, "GOMODCACHE="+gomodcache)
+
+		// If GOPROXY or GOSUMDB are not set in the test environment, set
+		// conservative defaults so tests are less likely to fail due to
+		// environment-specific proxy/sumdb configuration. We only set them
+		// when absent to avoid overriding intentional CI settings.
+		if os.Getenv("GOPROXY") == "" {
+			env = append(env, "GOPROXY=https://proxy.golang.org,direct")
+		}
+		if os.Getenv("GOSUMDB") == "" {
+			env = append(env, "GOSUMDB=sum.golang.org")
+		}
+
 		cmd.Env = env
 	}
 
@@ -170,4 +187,24 @@ func WriteTempGoMod(projDir, moduleName string, replaceSelf bool) error {
 // RunGoCombined is a convenience wrapper around RunCmdCombined for the go tool.
 func RunGoCombined(dir string, args ...string) ([]byte, error) {
 	return RunCmdCombined(dir, "go", args...)
+}
+
+// RunGoOrFail is a test helper that runs the go tool (via RunGoCombined) and
+// fails the test with helpful `go env` output when the command returns an
+// error. Use this in tests to get immediate diagnostic information without
+// duplicating the go env capture logic at each call-site.
+func RunGoOrFail(t *testing.T, dir string, args ...string) []byte {
+	t.Helper()
+	out, err := RunGoCombined(dir, args...)
+	if err == nil {
+		return out
+	}
+	// try to capture go env to aid debugging
+	if envOut, e := exec.Command("go", "env").CombinedOutput(); e == nil {
+		// Also include GOPROXY and GOSUMDB explicitly
+		gpOut, _ := exec.Command("go", "env", "GOPROXY", "GOSUMDB").CombinedOutput()
+		t.Fatalf("go %v failed: %v\noutput: %s\n--- go env ---\n%s\n--- go env GOPROXY GOSUMDB ---\n%s", args, err, string(out), string(envOut), string(gpOut))
+	}
+	t.Fatalf("go %v failed: %v\noutput: %s", args, err, string(out))
+	return nil
 }

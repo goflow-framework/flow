@@ -13,9 +13,7 @@ func TestCLI_GeneratePlugin_Sample(t *testing.T) {
 
 	// build the CLI binary into the temp dir
 	bin := filepath.Join(tmp, "flow-cli")
-	if bout, err := RunGoCombined(repo, "build", "-o", bin, "./cmd/flow"); err != nil {
-		t.Fatalf("build cli failed: %v\noutput: %s", err, string(bout))
-	}
+	_ = RunGoOrFail(t, repo, "build", "-o", bin, "./cmd/flow")
 
 	// run plugin generator 'samplegen'
 	cmd := exec.Command(bin, "generate", "plugin", "samplegen", "--target", tmp)

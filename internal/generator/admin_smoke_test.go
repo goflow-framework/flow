@@ -32,9 +32,7 @@ func TestCLI_GenerateAdmin_Smoke(t *testing.T) {
 
 	// build CLI binary
 	bin := filepath.Join(tmpProj, "flow-cli")
-	if bout, err := RunGoCombined(repo, "build", "-o", bin, "./cmd/flow"); err != nil {
-		t.Fatalf("build cli failed: %v\noutput: %s", err, string(bout))
-	}
+	_ = RunGoOrFail(t, repo, "build", "-o", bin, "./cmd/flow")
 
 	// generate admin scaffolding for 'posts'
 	gen := exec.Command(bin, "generate", "admin", "posts", "--target", tmpProj)
