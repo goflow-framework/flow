@@ -61,8 +61,11 @@ func readGoVersion(repo string) (string, error) {
 			return strings.TrimSpace(strings.TrimPrefix(line, "go ")), nil
 		}
 	}
-	// default to 1.20 if not present
-	return "1.20", nil
+	// Prefer a modern Go version for generated test modules to avoid the
+	// toolchain automatically switching or choosing an older default that
+	// can make builds brittle across CI environments. Use 1.24 as a sensible
+	// baseline; callers can still override by reading the repo go.mod.
+	return "1.24", nil
 }
 
 // RunCmdCombined runs a command in dir and returns its combined output. If the
@@ -84,7 +87,20 @@ func RunCmdCombined(dir string, name string, args ...string) ([]byte, error) {
 		// permissions. This is a best-effort chmod; ignore errors.
 		_ = os.Chmod(gomodcache, 0o777)
 		env := os.Environ()
+		// Ensure reproducible module cache location for tests.
 		env = append(env, "GOMODCACHE="+gomodcache)
+
+		// If GOPROXY or GOSUMDB are not set in the test environment, set
+		// conservative defaults so tests are less likely to fail due to
+		// environment-specific proxy/sumdb configuration. We only set them
+		// when absent to avoid overriding intentional CI settings.
+		if os.Getenv("GOPROXY") == "" {
+			env = append(env, "GOPROXY=https://proxy.golang.org,direct")
+		}
+		if os.Getenv("GOSUMDB") == "" {
+			env = append(env, "GOSUMDB=sum.golang.org")
+		}
+
 		cmd.Env = env
 	}
 
