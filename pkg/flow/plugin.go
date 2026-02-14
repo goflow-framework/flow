@@ -12,6 +12,15 @@ import (
 // Plugin is the canonical plugin interface for Flow. It provides lifecycle
 // hooks for initialization, mount-time registration, optional middleware,
 // and optional background start/stop semantics.
+//
+// Versioning contract
+// Plugins must expose a semantic version via Version() (for example
+// "v0.1.2" or "0.1.2"). The framework validates the plugin version at
+// registration time: the plugin's MAJOR version must match the framework's
+// PluginAPIMajor for compatibility. The validation is intentionally
+// conservative — it rejects malformed versions and major-version
+// incompatibilities while allowing any minor/patch level on a matching
+// major version.
 type Plugin interface {
 	Name() string
 	Version() string
@@ -128,7 +137,8 @@ func (r *ServiceRegistry) Replace(name string, svc interface{}) error {
 
 // PluginAPIMajor is the major version of the plugin API expected by this
 // version of the framework. Plugins with a differing major semantic version
-// should be considered incompatible.
+// are considered incompatible. Bump this constant when making breaking
+// changes to the plugin API.
 const PluginAPIMajor = 0
 
 // ValidatePluginVersion checks whether a plugin version string (eg "v0.1.2"
@@ -142,15 +152,61 @@ func ValidatePluginVersion(v string) error {
 	// strip optional leading 'v'
 	v = strings.TrimPrefix(v, "v")
 	parts := strings.Split(v, ".")
-	if len(parts) == 0 {
+	if len(parts) < 1 {
 		return fmt.Errorf("%w: %q", ErrPluginVersionInvalid, v)
 	}
 	maj, err := strconv.Atoi(parts[0])
 	if err != nil {
 		return fmt.Errorf("%w: %v", ErrPluginVersionInvalid, err)
 	}
+
+	// optional minor/patch validation: ensure numeric when present
+	if len(parts) > 1 {
+		if _, err := strconv.Atoi(parts[1]); err != nil {
+			return fmt.Errorf("%w: invalid minor: %v", ErrPluginVersionInvalid, err)
+		}
+	}
+	if len(parts) > 2 {
+		if _, err := strconv.Atoi(parts[2]); err != nil {
+			return fmt.Errorf("%w: invalid patch: %v", ErrPluginVersionInvalid, err)
+		}
+	}
+
 	if maj != PluginAPIMajor {
 		return fmt.Errorf("%w: got %d expected %d", ErrPluginIncompatibleMajor, maj, PluginAPIMajor)
+	}
+	return nil
+}
+
+// ValidatePluginVersionRange validates a plugin version string and ensures
+// the MAJOR component falls within [minMajor, maxMajor]. This helper is
+// intended for advanced compatibility policies (for example during a
+// transition where multiple major versions are temporarily accepted).
+func ValidatePluginVersionRange(v string, minMajor, maxMajor int) error {
+	if v == "" {
+		return ErrPluginVersionEmpty
+	}
+	v = strings.TrimPrefix(v, "v")
+	parts := strings.Split(v, ".")
+	if len(parts) < 1 {
+		return fmt.Errorf("%w: %q", ErrPluginVersionInvalid, v)
+	}
+	maj, err := strconv.Atoi(parts[0])
+	if err != nil {
+		return fmt.Errorf("%w: %v", ErrPluginVersionInvalid, err)
+	}
+	if len(parts) > 1 {
+		if _, err := strconv.Atoi(parts[1]); err != nil {
+			return fmt.Errorf("%w: invalid minor: %v", ErrPluginVersionInvalid, err)
+		}
+	}
+	if len(parts) > 2 {
+		if _, err := strconv.Atoi(parts[2]); err != nil {
+			return fmt.Errorf("%w: invalid patch: %v", ErrPluginVersionInvalid, err)
+		}
+	}
+	if maj < minMajor || maj > maxMajor {
+		return fmt.Errorf("%w: got %d allowed [%d,%d]", ErrPluginIncompatibleMajor, maj, minMajor, maxMajor)
 	}
 	return nil
 }
