@@ -23,6 +23,9 @@ import (
 	"github.com/undiegomejia/flow/pkg/plugins"
 
 	gen "github.com/undiegomejia/flow/internal/generator"
+	// include the sample plugin so the CLI binary built during tests
+	// includes an example generator registered via init().
+	_ "github.com/undiegomejia/flow/pkg/plugins/sample"
 )
 
 var (
@@ -210,6 +213,35 @@ var genAuthCmd = &cobra.Command{
 	},
 }
 
+var genPluginCmd = &cobra.Command{
+	Use:   "plugin [name] [args...]",
+	Short: "Run a registered generator plugin",
+	Args:  cobra.MinimumNArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		name := args[0]
+		root := generateTarget
+		if root == "" {
+			var err error
+			root, err = os.Getwd()
+			if err != nil {
+				return err
+			}
+		}
+		g := gen.GetRegisteredGenerator(name)
+		if g == nil {
+			return fmt.Errorf("generator plugin not found: %s", name)
+		}
+		created, err := g.Generate(root, args[1:])
+		if err != nil {
+			return err
+		}
+		for _, c := range created {
+			fmt.Println("created", c)
+		}
+		return nil
+	},
+}
+
 var serveCmd = &cobra.Command{
 	Use:   "serve",
 	Short: "Start the development server",
@@ -309,6 +341,7 @@ func init() {
 	generateCmd.AddCommand(genScaffoldCmd)
 	generateCmd.AddCommand(genAdminCmd)
 	generateCmd.AddCommand(genAuthCmd)
+	generateCmd.AddCommand(genPluginCmd)
 	genControllerCmd.Flags().Bool("force", false, "overwrite existing files")
 	genModelCmd.Flags().Bool("force", false, "overwrite existing files")
 	// genRoutesCmd is defined in gen_routes.go
