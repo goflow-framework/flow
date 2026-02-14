@@ -35,6 +35,16 @@ func (s *sampleGenerator) Help() string {
 	return "samplegen: generates a SAMPLE_GENERATED.txt into the target project root"
 }
 
+// Register registers the sample generator with the provided App at runtime.
+// This complements the package-level init() registration used for compile-time
+// discovery.
+func Register(app *flow.App) error {
+	if app == nil {
+		return fmt.Errorf("app: nil")
+	}
+	return app.RegisterPlugin(&sampleGenerator{})
+}
+
 // Register the sample generator when this package is imported. Real plugins
 // should be provided by third-party packages and register in their own init().
 func init() {

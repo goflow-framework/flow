@@ -27,6 +27,7 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -111,6 +112,18 @@ type App struct {
 	// shutdown. Protected by workersMu.
 	workers   []workerHandle
 	workersMu sync.Mutex
+
+	// plugins holds per-App plugin instances, initialized by the framework
+	// or extensions. Access via App.Plugins()[name].
+	plugins     map[string]Plugin
+	pluginOrder []string
+	pluginsMu   sync.RWMutex
+
+	// plugin lifecycle control: a cancelable context used to run plugin Start
+	// implementations and a WaitGroup to wait for them during shutdown.
+	pluginCtx    context.Context
+	pluginCancel context.CancelFunc
+	pluginWg     sync.WaitGroup
 }
 
 type workerHandle struct {
@@ -402,6 +415,7 @@ func New(name string, opts ...Option) *App {
 		middleware:      make([]Middleware, 0),
 		services:        NewServiceRegistry(), // Initialize services registry
 		ctxPool:         NewContextPool(),
+		plugins:         make(map[string]Plugin),
 	}
 
 	for _, opt := range opts {
@@ -459,6 +473,72 @@ func (a *App) Handler() http.Handler {
 	return h
 }
 
+// RegisterPlugin registers a plugin with this App instance. It validates the
+// plugin version, reserves the plugin name to avoid races, runs Init and
+// Mount with the provided App, and registers any returned middleware on the
+// App. Registration is isolated to this App instance and does not affect the
+// package-level registry in pkg/plugins.
+func (a *App) RegisterPlugin(p Plugin) error {
+	if a == nil {
+		return fmt.Errorf("app: nil")
+	}
+	if p == nil {
+		return fmt.Errorf("plugin: nil")
+	}
+	if err := ValidatePluginVersion(p.Version()); err != nil {
+		return err
+	}
+	name := p.Name()
+	if name == "" {
+		return fmt.Errorf("plugin: empty name")
+	}
+
+	// Reserve the name to prevent concurrent registrations racing.
+	a.pluginsMu.Lock()
+	if _, ok := a.plugins[name]; ok {
+		a.pluginsMu.Unlock()
+		return fmt.Errorf("plugin already registered: %s", name)
+	}
+	// store nil to mark reserved
+	a.plugins[name] = nil
+	a.pluginOrder = append(a.pluginOrder, name)
+	a.pluginsMu.Unlock()
+
+	// If Init/Mount fail we must cleanup the reservation.
+	cleanup := func() {
+		a.pluginsMu.Lock()
+		delete(a.plugins, name)
+		// remove from order
+		for i, n := range a.pluginOrder {
+			if n == name {
+				a.pluginOrder = append(a.pluginOrder[:i], a.pluginOrder[i+1:]...)
+				break
+			}
+		}
+		a.pluginsMu.Unlock()
+	}
+
+	if err := p.Init(a); err != nil {
+		cleanup()
+		return err
+	}
+	if err := p.Mount(a); err != nil {
+		cleanup()
+		return err
+	}
+	if mws := p.Middlewares(); mws != nil {
+		for _, mw := range mws {
+			a.Use(mw)
+		}
+	}
+
+	// finally, store the actual plugin instance
+	a.pluginsMu.Lock()
+	a.plugins[name] = p
+	a.pluginsMu.Unlock()
+	return nil
+}
+
 // RegisterService registers a named service in the App's ServiceRegistry.
 // It returns an error if the service name is invalid or already registered.
 func (a *App) RegisterService(name string, svc interface{}) error {
@@ -474,6 +554,86 @@ func (a *App) GetService(name string) (interface{}, bool) {
 		return nil, false
 	}
 	return a.services.Get(name)
+}
+
+// ListPlugins returns the registered plugin names for this App in
+// registration order.
+func (a *App) ListPlugins() []string {
+	if a == nil {
+		return nil
+	}
+	a.pluginsMu.RLock()
+	defer a.pluginsMu.RUnlock()
+	out := make([]string, len(a.pluginOrder))
+	copy(out, a.pluginOrder)
+	return out
+}
+
+// shutdownPlugins invokes Stop(ctx) on registered plugins in reverse
+// registration order and aggregates errors similarly to pkg/plugins.ShutdownAll.
+func (a *App) shutdownPlugins(ctx context.Context) error {
+	if a == nil {
+		return nil
+	}
+	a.pluginsMu.RLock()
+	names := make([]string, len(a.pluginOrder))
+	copy(names, a.pluginOrder)
+	a.pluginsMu.RUnlock()
+
+	var errs []string
+	for i := len(names) - 1; i >= 0; i-- {
+		name := names[i]
+		a.pluginsMu.RLock()
+		p := a.plugins[name]
+		a.pluginsMu.RUnlock()
+		if p == nil {
+			continue
+		}
+		if err := p.Stop(ctx); err != nil {
+			errs = append(errs, fmt.Sprintf("%s: %v", name, err))
+		}
+	}
+
+	switch len(errs) {
+	case 0:
+		return nil
+	case 1:
+		return fmt.Errorf("plugin shutdown error: %s", errs[0])
+	default:
+		return fmt.Errorf("plugin shutdown errors: %s", strings.Join(errs, "; "))
+	}
+}
+
+// startPlugins invokes Start(ctx) for each registered plugin in registration
+// order in its own goroutine. Errors returned by Start are logged. The provided
+// ctx is canceled by App.Shutdown (via pluginCancel) to signal plugin goroutines
+// to exit.
+func (a *App) startPlugins(ctx context.Context) {
+	if a == nil {
+		return
+	}
+	// copy names to avoid holding lock
+	a.pluginsMu.RLock()
+	names := make([]string, len(a.pluginOrder))
+	copy(names, a.pluginOrder)
+	a.pluginsMu.RUnlock()
+
+	for _, name := range names {
+		a.pluginsMu.RLock()
+		p := a.plugins[name]
+		a.pluginsMu.RUnlock()
+		if p == nil {
+			continue
+		}
+		// start each plugin in its own goroutine and track via WaitGroup
+		a.pluginWg.Add(1)
+		go func(p Plugin, n string) {
+			defer a.pluginWg.Done()
+			if err := p.Start(ctx); err != nil {
+				a.Logger().Printf("plugin %s start error: %v", n, err)
+			}
+		}(p, name)
+	}
 }
 
 // Start starts the HTTP server in a background goroutine and returns immediately.
@@ -492,6 +652,9 @@ func (a *App) Start() error {
 	}
 	a.server = srv
 
+	// create a plugin context for Start lifecycle. It will be canceled in Shutdown.
+	a.pluginCtx, a.pluginCancel = context.WithCancel(context.Background())
+	// start plugin Start() implementations after server goroutine is launched.
 	go func() {
 		a.logger.Printf("starting %s on %s", a.Name, a.Addr)
 		// http.ErrServerClosed is returned on normal shutdown and should not be logged as an error
@@ -501,6 +664,9 @@ func (a *App) Start() error {
 		// transition to stopped
 		atomic.StoreInt32(&a.state, 2)
 	}()
+
+	// Start plugin goroutines (they should return when pluginCtx is canceled)
+	a.startPlugins(a.pluginCtx)
 
 	return nil
 }
@@ -550,6 +716,23 @@ func (a *App) Shutdown(ctx context.Context) error {
 		}
 	}
 
+	// Cancel plugin Start contexts so plugin goroutines can exit.
+	if a.pluginCancel != nil {
+		a.pluginCancel()
+		// wait for plugin goroutines to finish, but respect Shutdown ctx
+		done := make(chan struct{})
+		go func() {
+			a.pluginWg.Wait()
+			close(done)
+		}()
+		select {
+		case <-done:
+			// plugins stopped
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+
 	a.logger.Printf("shutting down %s", a.Name)
 	if err := a.server.Shutdown(ctx); err != nil {
 		// if forced close is required, attempt Close
@@ -592,6 +775,9 @@ func (a *App) Shutdown(ctx context.Context) error {
 	if a.tracerShutdown != nil {
 		_ = a.tracerShutdown(ctx)
 	}
+
+	// shutdown plugins (calls Stop(ctx) in reverse order)
+	_ = a.shutdownPlugins(ctx)
 
 	return nil
 }
