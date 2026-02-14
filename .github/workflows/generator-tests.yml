@@ -24,12 +24,11 @@ jobs:
           echo "GOPROXY=https://proxy.golang.org,direct" >> $GITHUB_ENV
           echo "GOSUMDB=sum.golang.org" >> $GITHUB_ENV
 
-      - name: Cache Go modules
+      - name: Cache Go build cache
         uses: actions/cache@v4
         with:
           path: |
             ~/.cache/go-build
-            ${{ env.GOMODCACHE }}
           key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
           restore-keys: |
             ${{ runner.os }}-go-
