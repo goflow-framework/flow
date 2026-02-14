@@ -151,12 +151,11 @@ jobs:
         with:
           go-version: ${{ matrix.go-version }}
 
-      - name: Cache Go modules
+      - name: Cache Go build cache
         uses: actions/cache@v4
         with:
           path: |
             ~/.cache/go-build
-            ${{ github.workspace }}/pkg/mod
           key: ${{ runner.OS }}-go-${{ matrix.go-version }}-${{ hashFiles('**/go.sum') }}
           restore-keys: |
             ${{ runner.OS }}-go-${{ matrix.go-version }}-
@@ -167,7 +166,7 @@ jobs:
       - name: Run generator CLI integration tests
         run: |
           mkdir -p .ci/integration
-          echo "Running generator tests on Go ${matrix.go-version}"
+          echo "Running generator tests on Go ${{ matrix.go-version }}"
           # Run only the generator package tests which build and execute the CLI
           go test ./internal/generator -v 2>&1 | tee .ci/integration/generator_tests_${{ matrix.go-version }}.txt
 
