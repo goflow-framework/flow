@@ -81,33 +81,24 @@ func ApplyAll(a *flow.App) error {
 	copy(names, order)
 	mu.RUnlock()
 
-	// First pass: Init all plugins in order.
+	// If an App is provided prefer to register plugins into the App's
+	// scoped registry so plugin state (and middleware) is isolated per App.
+	// App.RegisterPlugin will validate the version and run Init/Mount and
+	// register middleware on the App. This keeps behavior consistent with
+	// runtime registration patterns.
+	if a == nil {
+		return fmt.Errorf("plugins: nil app provided to ApplyAll")
+	}
+
 	for _, name := range names {
 		p := Get(name)
 		if p == nil {
 			continue
 		}
-		if err := p.Init(a); err != nil {
+		if err := a.RegisterPlugin(p); err != nil {
 			return err
 		}
 	}
-
-	// Second pass: Mount all plugins in order and register their middleware.
-	for _, name := range names {
-		p := Get(name)
-		if p == nil {
-			continue
-		}
-		if err := p.Mount(a); err != nil {
-			return err
-		}
-		if mws := p.Middlewares(); mws != nil {
-			for _, mw := range mws {
-				a.Use(mw)
-			}
-		}
-	}
-
 	return nil
 }
 
