@@ -5,6 +5,7 @@ import (
     "net/http"
     "strings"
     "sync"
+    "time"
 
     "golang.org/x/time/rate"
 )
@@ -18,6 +19,21 @@ import (
 var (
     rlMu sync.Mutex
     rl   = map[string]*rate.Limiter{}
+)
+
+// DefaultRateLimitRPS and DefaultRateLimitBurst are conservative defaults used
+// by WithDefaultMiddleware. They are intentionally modest to avoid surprising
+// throttling for new apps while still providing baseline protection.
+const (
+    DefaultRateLimitRPS   = 10
+    DefaultRateLimitBurst = 20
+)
+
+// DefaultRateLimitRPS and DefaultRateLimitBurst are used by
+// WithDefaultMiddleware as conservative sane defaults for new apps.
+const (
+    DefaultRateLimitRPS   = 10
+    DefaultRateLimitBurst = 20
 )
 
 func getLimiter(client string, rps int, burst int) *rate.Limiter {
