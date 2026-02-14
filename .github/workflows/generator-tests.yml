@@ -2,7 +2,7 @@ name: Generator tests
 
 on:
   push:
-    branches: [ main, feat/stabilize-generator-tests ]
+    branches: [ main ]
   pull_request:
     branches: [ main ]
 
