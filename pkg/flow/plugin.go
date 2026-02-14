@@ -177,3 +177,36 @@ func ValidatePluginVersion(v string) error {
 	}
 	return nil
 }
+
+// ValidatePluginVersionRange validates a plugin version string and ensures
+// the MAJOR component falls within [minMajor, maxMajor]. This helper is
+// intended for advanced compatibility policies (for example during a
+// transition where multiple major versions are temporarily accepted).
+func ValidatePluginVersionRange(v string, minMajor, maxMajor int) error {
+	if v == "" {
+		return ErrPluginVersionEmpty
+	}
+	v = strings.TrimPrefix(v, "v")
+	parts := strings.Split(v, ".")
+	if len(parts) < 1 {
+		return fmt.Errorf("%w: %q", ErrPluginVersionInvalid, v)
+	}
+	maj, err := strconv.Atoi(parts[0])
+	if err != nil {
+		return fmt.Errorf("%w: %v", ErrPluginVersionInvalid, err)
+	}
+	if len(parts) > 1 {
+		if _, err := strconv.Atoi(parts[1]); err != nil {
+			return fmt.Errorf("%w: invalid minor: %v", ErrPluginVersionInvalid, err)
+		}
+	}
+	if len(parts) > 2 {
+		if _, err := strconv.Atoi(parts[2]); err != nil {
+			return fmt.Errorf("%w: invalid patch: %v", ErrPluginVersionInvalid, err)
+		}
+	}
+	if maj < minMajor || maj > maxMajor {
+		return fmt.Errorf("%w: got %d allowed [%d,%d]", ErrPluginIncompatibleMajor, maj, minMajor, maxMajor)
+	}
+	return nil
+}

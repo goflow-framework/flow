@@ -6,9 +6,9 @@ import (
 )
 
 func TestValidatePluginVersion(t *testing.T) {
-	cases := []struct{
-		in string
-		wantErr bool
+	cases := []struct {
+		in        string
+		wantErr   bool
 		expectErr error
 	}{
 		{"", true, ErrPluginVersionEmpty},
