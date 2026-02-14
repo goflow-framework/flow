@@ -85,7 +85,6 @@ import (
     "log"
 
     "github.com/undiegomejia/flow/pkg/flow"
-    "github.com/undiegomejia/flow/pkg/plugins"
 )
 
 type myPlugin struct{}
@@ -99,12 +98,12 @@ func (p *myPlugin) Stop(ctx context.Context) error { return nil }
 
 func main() {
     app := flow.New("runtime-example")
-    if err := plugins.Register(&myPlugin{}); err != nil {
+    // Runtime registration: preferred. Registers and runs Init/Mount immediately
+    // for this App instance only.
+    if err := app.RegisterPlugin(&myPlugin{}); err != nil {
         log.Fatalf("register plugin: %v", err)
     }
-    if err := plugins.ApplyAll(app); err != nil {
-        log.Fatalf("apply plugins: %v", err)
-    }
+
     if v, ok := app.GetService("my.key"); ok {
         fmt.Println(v)
     }
