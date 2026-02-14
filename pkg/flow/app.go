@@ -676,5 +676,30 @@ func Recovery(logger Logger) Middleware {
 		})
 	}
 }
+// This function is opinionated: it wires a conservative secure-by-default
+// stack appropriate for typical web apps. To opt-out of specific pieces,
+// construct your App with the smaller building blocks instead (for example
+// use WithRequestID, WithLogging, WithMetrics and omit WithDefaultMiddleware),
+// or register only the middleware you need manually via App.Use.
+func WithDefaultMiddleware() Option {
+    return func(a *App) {
+        if a == nil {
+            return
+        }
+        // recovery outer-most
+        a.Use(Recovery(a.logger))
+        // request id for tracing
+        a.Use(RequestIDMiddleware(""))
+        // secure headers (HSTS, X-Frame-Options, etc.)
+        a.Use(SecureHeaders())
+        // protect forms and unsafe methods with a per-session CSRF token
+        a.Use(CSRFMiddleware())
+        // lightweight, in-process rate limiting per client IP
+        a.Use(RateLimitMiddleware(DefaultRateLimitRPS, DefaultRateLimitBurst))
+        // logging and basic metrics
+        a.Use(LoggingMiddleware(a.logger))
+        a.Use(MetricsMiddleware())
+    }
+}
 
 // TODO: add more built-in middleware: logging, request ID, metrics, timeouts
