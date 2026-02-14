@@ -16,9 +16,7 @@ func TestCLI_GenerateModel_WritesBunTaggedModel(t *testing.T) {
 
 	// build the CLI binary into the temp dir then run it to avoid go run
 	bin := filepath.Join(tmp, "flow-cli")
-	if bout, err := RunGoCombined(repo, "build", "-o", bin, "./cmd/flow"); err != nil {
-		t.Fatalf("build cli failed: %v\noutput: %s", err, string(bout))
-	}
+	_ = RunGoOrFail(t, repo, "build", "-o", bin, "./cmd/flow")
 
 	// run generated binary: generate model into tmp target
 	cmd := exec.Command(bin, "generate", "model", "Post", "title:string", "--target", tmp)
@@ -50,9 +48,7 @@ func TestCLI_GenerateScaffold_CreatesFilesAndMigration(t *testing.T) {
 
 	// build CLI
 	bin := filepath.Join(tmp, "flow-cli")
-	if bout, err := RunGoCombined(repo, "build", "-o", bin, "./cmd/flow"); err != nil {
-		t.Fatalf("build cli failed: %v\noutput: %s", err, string(bout))
-	}
+	_ = RunGoOrFail(t, repo, "build", "-o", bin, "./cmd/flow")
 
 	// run scaffold generator for resource 'post'
 	cmd := exec.Command(bin, "generate", "scaffold", "post", "title:string", "published_at:datetime", "--target", tmp)

@@ -24,9 +24,7 @@ func TestGeneratedModelCompilesAndRuns(t *testing.T) {
 
 	// build CLI (binary written into the temp project)
 	bin := filepath.Join(projDir, "flow-cli")
-	if bout, err := RunGoCombined(repo, "build", "-o", bin, "./cmd/flow"); err != nil {
-		t.Fatalf("build cli failed: %v\noutput: %s", err, string(bout))
-	}
+	_ = RunGoOrFail(t, repo, "build", "-o", bin, "./cmd/flow")
 
 	// generate model into projDir
 	gen := exec.Command(bin, "generate", "model", "Post", "title:string", "--target", projDir)
@@ -91,12 +89,9 @@ func main() {
 		t.Fatalf("go mod tidy failed: %v\n%s", err, string(out))
 	}
 
-	// build and run using RunGoCombined so tests use a local GOMODCACHE
-	out, err := RunGoCombined(projDir, "run", "main.go")
+	// build and run using RunGoOrFail so tests fail with go env diagnostics
+	out := RunGoOrFail(t, projDir, "run", "main.go")
 	t.Logf("run output: %s", string(out))
-	if err != nil {
-		t.Fatalf("run failed: %v\n%s", err, string(out))
-	}
 	if !strings.Contains(string(out), "FOUND: compile-test-hello") {
 		t.Fatalf("unexpected output: %s", string(out))
 	}
