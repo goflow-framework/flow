@@ -301,19 +301,8 @@ func WithMetrics() Option {
 	}
 }
 
-// WithDefaultMiddleware registers a sensible default middleware stack:
-// Recovery, RequestID, Logging and Metrics.
-func WithDefaultMiddleware() Option {
-	return func(a *App) {
-		if a == nil {
-			return
-		}
-		a.Use(Recovery(a.logger))
-		a.Use(RequestIDMiddleware(""))
-		a.Use(LoggingMiddleware(a.logger))
-		a.Use(MetricsMiddleware())
-	}
-}
+// WithDefaultMiddleware forward declaration removed; implementation is later in this file.
+
 
 // WithPrometheus registers the Prometheus instrumentation middleware (from
 // pkg/observability). This should be used when the process also exposes a
