@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"testing"
 )
 
 // findRepoRoot walks up from the current working directory until it finds a go.mod
@@ -192,12 +193,8 @@ func RunGoCombined(dir string, args ...string) ([]byte, error) {
 // fails the test with helpful `go env` output when the command returns an
 // error. Use this in tests to get immediate diagnostic information without
 // duplicating the go env capture logic at each call-site.
-func RunGoOrFail(t interface{ Fatalf(string, ...interface{}) }, dir string, args ...string) []byte {
-	// allow caller to be *testing.T or any struct with Fatalf
-	// mark as helper when possible
-	if tt, ok := t.(*testing.T); ok {
-		tt.Helper()
-	}
+func RunGoOrFail(t *testing.T, dir string, args ...string) []byte {
+	t.Helper()
 	out, err := RunGoCombined(dir, args...)
 	if err == nil {
 		return out
