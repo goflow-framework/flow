@@ -101,19 +101,34 @@ func PutContext(c *Context) {
 		_ = c.rg.Wait()
 		c.rg = nil
 	}
-	// clear references
+	// clear references, but capture App first so we can return to the
+	// App-local pool when present. Clearing must happen after we inspect
+	// the app reference.
+	app := c.App
 	c.App = nil
 	c.W = nil
 	c.R = nil
 	c.status = 0
 	if UseContextPool {
 		// Prefer returning to the App-local pool when present.
-		if c.App != nil && c.App.ctxPool != nil {
-			c.App.ctxPool.Put(c)
+		if app != nil && app.ctxPool != nil {
+			app.ctxPool.Put(c)
 			return
 		}
 		contextPool.Put(c)
 	}
+}
+
+// Reset reinitializes a pooled Context so it can be reused for a new
+// request. It sets the App, ResponseWriter and Request and clears any
+// request-scoped state. This is used by ContextPool implementations and
+// NewContext when reusing instances.
+func (c *Context) Reset(app *App, w http.ResponseWriter, r *http.Request) {
+	c.App = app
+	c.W = w
+	c.R = r
+	c.status = 0
+	c.rg = nil
 }
 
 // Params returns the path parameters extracted by the router for this request.
