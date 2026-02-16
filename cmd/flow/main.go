@@ -242,6 +242,30 @@ var genPluginCmd = &cobra.Command{
 	},
 }
 
+var genListCmd = &cobra.Command{
+	Use:     "plugins",
+	Aliases: []string{"list"},
+	Short:   "List registered generator plugins",
+	Args:    cobra.NoArgs,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		names := gen.ListRegisteredGenerators()
+		if len(names) == 0 {
+			fmt.Println("no generator plugins registered")
+			return nil
+		}
+		for _, name := range names {
+			g := gen.GetRegisteredGenerator(name)
+			if g == nil {
+				// fallback to name only
+				fmt.Printf("%s\n", name)
+				continue
+			}
+			fmt.Printf("%s\t%s\t%s\n", g.Name(), g.Version(), g.Help())
+		}
+		return nil
+	},
+}
+
 var serveCmd = &cobra.Command{
 	Use:   "serve",
 	Short: "Start the development server",
@@ -342,6 +366,8 @@ func init() {
 	generateCmd.AddCommand(genAdminCmd)
 	generateCmd.AddCommand(genAuthCmd)
 	generateCmd.AddCommand(genPluginCmd)
+	// list plugins (alias: list)
+	generateCmd.AddCommand(genListCmd)
 	genControllerCmd.Flags().Bool("force", false, "overwrite existing files")
 	genModelCmd.Flags().Bool("force", false, "overwrite existing files")
 	// genRoutesCmd is defined in gen_routes.go
