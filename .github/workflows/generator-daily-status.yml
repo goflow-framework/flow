@@ -1,0 +1,69 @@
+name: Daily CI Artifacts Status
+
+on:
+  schedule:
+    - cron: '0 6 * * *' # daily at 06:00 UTC
+  workflow_dispatch: {}
+
+permissions:
+  issues: write
+  actions: read
+  contents: read
+
+jobs:
+  artifact-status:
+    name: Gather generator artifacts and update status issue
+    runs-on: ubuntu-latest
+    steps:
+      - name: Gather artifacts and update/create status issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            // Fetch repo artifacts (paginated). We'll request a reasonable
+            // page size and then filter locally for generator artifacts.
+            const res = await github.rest.actions.listArtifactsForRepo({
+              owner, repo, per_page: 100
+            });
+
+            const artifacts = res.data.artifacts || [];
+            const now = new Date();
+            const cutoff = new Date(now.getTime() - 24*60*60*1000);
+
+            const genArtifacts = artifacts
+              .filter(a => a.name && a.name.includes('generator-integration'))
+              .map(a => ({
+                name: a.name,
+                size: a.size_in_bytes,
+                created_at: a.created_at,
+                expired: a.expired,
+                url: a.archive_download_url
+              }))
+              .filter(a => new Date(a.created_at) >= cutoff)
+              .sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
+
+            let body = `# Daily CI artifact status for generator integrations\n\n`;
+            body += `Generated: ${new Date().toISOString()}\n\n`;
+
+            if (genArtifacts.length === 0) {
+              body += 'No generator-integration artifacts found in the last 24 hours.\n';
+            } else {
+              body += '| Name | Size (bytes) | Created At | Expired |\n';
+              body += '|---|---:|---|---:|\n';
+              for (const a of genArtifacts) {
+                body += `| ${a.name} | ${a.size} | ${a.created_at} | ${a.expired} |\n`;
+              }
+            }
+
+            // Find existing issue with this title (open); update it, otherwise create.
+            const title = 'Daily CI Artifacts Status';
+            const issues = await github.rest.issues.listForRepo({ owner, repo, state: 'open', per_page: 100 });
+            const existing = issues.data.find(i => i.title === title);
+            if (existing) {
+              await github.rest.issues.update({ owner, repo, issue_number: existing.number, body });
+              core.info(`Updated issue #${existing.number}`);
+            } else {
+              const created = await github.rest.issues.create({ owner, repo, title, body });
+              core.info(`Created issue #${created.data.number}`);
+            }

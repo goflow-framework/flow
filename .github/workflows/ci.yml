@@ -9,10 +9,15 @@ on:
     branches: [ main ]
   pull_request:
     branches: [ main ]
+  # Allow the nightly matrix job to run on a schedule and manually.
+  schedule:
+    - cron: '0 4 * * *' # daily at 04:00 UTC
+  workflow_dispatch: {}
 
 jobs:
   lint-and-test:
     name: Lint, Vet, Test, Coverage
+    if: ${{ github.event_name != 'schedule' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -86,6 +91,7 @@ jobs:
 
   build-binaries:
     name: Build cross-platform binaries
+    if: ${{ github.event_name != 'schedule' }}
     runs-on: ubuntu-latest
     needs: lint-and-test
     steps:
@@ -120,6 +126,7 @@ jobs:
 
   integration:
     name: Integration tests
+    if: ${{ github.event_name != 'schedule' }}
     runs-on: ubuntu-latest
     needs: lint-and-test
     steps:
@@ -137,11 +144,14 @@ jobs:
 
   generator-compile:
     name: Generator compile tests (isolated)
+    if: ${{ github.event_name != 'schedule' }}
     runs-on: ubuntu-latest
     needs: lint-and-test
     strategy:
       matrix:
-        go-version: [1.22, 1.23, 1.24]
+        # Updated matrix to focus on supported/pinned toolchains.
+        # Assumption: we want to exercise recent stable Go releases.
+        go-version: [1.24, 1.25, 1.26]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -194,10 +204,11 @@ jobs:
   # dedicated workflow for branch-level linting.
   test:
     name: Test (Go ${{ matrix.go-version }})
+    if: ${{ github.event_name != 'schedule' }}
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        go-version: [1.22, 1.23, 1.24]
+        go-version: [1.24, 1.25, 1.26]
 
     steps:
       - name: Checkout repo
@@ -242,4 +253,75 @@ jobs:
 
       - name: Run tests (no cache)
         run: go test ./... -count=1
+
+  generator-nightly:
+    name: Generator nightly matrix
+    runs-on: ubuntu-latest
+    # Run nightly across multiple Go versions and optional GOPROXY values
+    # to increase coverage and surface toolchain / proxy-related flakes.
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    strategy:
+      matrix:
+        # Nightly runs exercise several recent Go versions and a variety
+        # of GOPROXY settings. We include a sentinel value "PRIVATE_GOPROXY"
+        # which, when selected, will use the repository secret
+        # `PRIVATE_GOPROXY` so private mirrors can be exercised without
+        # exposing the value in the matrix itself.
+        go-version: [1.24, 1.25, 1.26]
+        goproxy: ["https://proxy.golang.org,direct", "https://goproxy.cn,direct", "direct", "PRIVATE_GOPROXY"]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: ${{ matrix.go-version }}
+
+      - name: Configure Go env (isolated cache + proxy)
+        env:
+          PRIVATE_GOPROXY: ${{ secrets.PRIVATE_GOPROXY }}
+        run: |
+          go env -w GOMODCACHE=${{ github.workspace }}/.gomodcache
+          # Handle a sentinel value for private GOPROXY entries. If the
+          # matrix value is the sentinel "PRIVATE_GOPROXY", read the real
+          # value from the repository secret `PRIVATE_GOPROXY`.
+          if [ "${{ matrix.goproxy }}" = "PRIVATE_GOPROXY" ]; then
+            if [ -z "$PRIVATE_GOPROXY" ]; then
+              echo "PRIVATE_GOPROXY not set in secrets, aborting"; exit 1
+            fi
+            go env -w GOPROXY="$PRIVATE_GOPROXY"
+          else
+            go env -w GOPROXY=${{ matrix.goproxy }}
+          fi
+          go env -w GOSUMDB=sum.golang.org
+
+      - name: Cache Go build cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/go-build
+            ${{ github.workspace }}/.gomodcache
+          key: ${{ runner.OS }}-go-${{ matrix.go-version }}-${{ hashFiles('**/go.sum') }}-${{ matrix.goproxy }}
+          restore-keys: |
+            ${{ runner.OS }}-go-${{ matrix.go-version }}-
+
+      - name: Install modules
+        run: go mod download
+
+      - name: Run generator CLI integration tests (nightly matrix)
+        run: |
+          mkdir -p .ci/integration
+          echo "Running generator tests on Go ${{ matrix.go-version }} GOPROXY=${{ matrix.goproxy }}"
+          GP="${{ matrix.goproxy }}"
+          sanitized=$(echo "$GP" | sed 's/[^a-zA-Z0-9]/_/g')
+          file=".ci/integration/generator_tests_${{ matrix.go-version }}_${sanitized}.txt"
+          go test ./internal/generator -v 2>&1 | tee "$file"
+
+      - name: Upload generator integration artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: generator-integration-${{ matrix.go-version }}
+          path: .ci/integration/*.txt
+
 
