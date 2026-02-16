@@ -8,11 +8,13 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
+	"text/tabwriter"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -249,18 +251,41 @@ var genListCmd = &cobra.Command{
 	Args:    cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		names := gen.ListRegisteredGenerators()
+		out := cmd.OutOrStdout()
 		if len(names) == 0 {
-			fmt.Println("no generator plugins registered")
+			fmt.Fprintln(out, "no generator plugins registered")
 			return nil
 		}
+		jsonOut, _ := cmd.Flags().GetBool("json")
+		if jsonOut {
+			type info struct{
+				Name string `json:"name"`
+				Version string `json:"version"`
+				Help string `json:"help"`
+			}
+			var arr []info
+			for _, name := range names {
+				g := gen.GetRegisteredGenerator(name)
+				if g == nil {
+					arr = append(arr, info{Name: name})
+					continue
+				}
+				arr = append(arr, info{Name: g.Name(), Version: g.Version(), Help: g.Help()})
+			}
+			enc := json.NewEncoder(out)
+			enc.SetIndent("", "  ")
+			return enc.Encode(arr)
+		}
+		tw := tabwriter.NewWriter(out, 0, 8, 2, ' ', 0)
+		defer tw.Flush()
+		fmt.Fprintln(tw, "NAME\tVERSION\tHELP")
 		for _, name := range names {
 			g := gen.GetRegisteredGenerator(name)
 			if g == nil {
-				// fallback to name only
-				fmt.Printf("%s\n", name)
+				fmt.Fprintf(tw, "%s\t-\t-\n", name)
 				continue
 			}
-			fmt.Printf("%s\t%s\t%s\n", g.Name(), g.Version(), g.Help())
+			fmt.Fprintf(tw, "%s\t%s\t%s\n", g.Name(), g.Version(), g.Help())
 		}
 		return nil
 	},
@@ -368,6 +393,7 @@ func init() {
 	generateCmd.AddCommand(genPluginCmd)
 	// list plugins (alias: list)
 	generateCmd.AddCommand(genListCmd)
+	genListCmd.Flags().Bool("json", false, "output JSON")
 	genControllerCmd.Flags().Bool("force", false, "overwrite existing files")
 	genModelCmd.Flags().Bool("force", false, "overwrite existing files")
 	// genRoutesCmd is defined in gen_routes.go
