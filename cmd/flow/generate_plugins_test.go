@@ -10,6 +10,9 @@ import (
 
 	// ensure sample plugin is registered
 	_ "github.com/undiegomejia/flow/pkg/plugins/sample"
+
+	gen "github.com/undiegomejia/flow/internal/generator"
+	"github.com/undiegomejia/flow/pkg/plugins"
 )
 
 func TestGenList_Formatted(t *testing.T) {
@@ -35,14 +38,14 @@ func TestGenList_JSON(t *testing.T) {
 	root := &cobra.Command{Use: "app"}
 	root.AddCommand(generateCmd)
 	root.SetOut(buf)
-	root.SetArgs([]string{"generate", "plugins", "--json"})
+	root.SetArgs([]string{"generate", "plugins", "--format", "json"})
 	if err := root.Execute(); err != nil {
 		t.Fatalf("execute failed: %v; out=%s", err, buf.String())
 	}
-	var arr []struct{
-		Name string `json:"name"`
+	var arr []struct {
+		Name    string `json:"name"`
 		Version string `json:"version"`
-		Help string `json:"help"`
+		Help    string `json:"help"`
 	}
 	if err := json.Unmarshal(buf.Bytes(), &arr); err != nil {
 		t.Fatalf("unmarshal json failed: %v; out=%s", err, buf.String())
@@ -61,5 +64,40 @@ func TestGenList_JSON(t *testing.T) {
 	}
 	if !found {
 		t.Fatalf("samplegen not found in json output: %s", buf.String())
+	}
+}
+
+func TestGenList_NoPlugins(t *testing.T) {
+	// snapshot current generators and restore after test
+	saved := map[string]interface{}{}
+	for _, name := range gen.ListRegisteredGenerators() {
+		// use the public plugins API to fetch generator implementations
+		g := plugins.GetGenerator(name)
+		if g != nil {
+			saved[name] = g
+		}
+	}
+	// clear registry
+	plugins.Reset()
+	defer func() {
+		// restore saved generators
+		for _, v := range saved {
+			if g, ok := v.(plugins.GeneratorPlugin); ok {
+				_ = plugins.RegisterGenerator(g)
+			}
+		}
+	}()
+
+	buf := &bytes.Buffer{}
+	root := &cobra.Command{Use: "app"}
+	root.AddCommand(generateCmd)
+	root.SetOut(buf)
+	root.SetArgs([]string{"generate", "plugins"})
+	if err := root.Execute(); err != nil {
+		t.Fatalf("execute failed: %v; out=%s", err, buf.String())
+	}
+	out := buf.String()
+	if !strings.Contains(out, "no generator plugins registered") {
+		t.Fatalf("expected no plugins message, got: %s", out)
 	}
 }
