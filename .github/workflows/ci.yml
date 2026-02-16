@@ -243,3 +243,57 @@ jobs:
       - name: Run tests (no cache)
         run: go test ./... -count=1
 
+  generator-nightly:
+    name: Generator nightly matrix
+    runs-on: ubuntu-latest
+    # Run nightly across multiple Go versions and optional GOPROXY values
+    # to increase coverage and surface toolchain / proxy-related flakes.
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    strategy:
+      matrix:
+        go-version: [1.22, 1.23, 1.24, 1.25]
+        goproxy: ["https://proxy.golang.org,direct", "https://goproxy.cn,direct"]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: ${{ matrix.go-version }}
+
+      - name: Configure Go env (isolated cache + proxy)
+        run: |
+          go env -w GOMODCACHE=${{ github.workspace }}/.gomodcache
+          go env -w GOPROXY=${{ matrix.goproxy }}
+          go env -w GOSUMDB=sum.golang.org
+
+      - name: Cache Go build cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/go-build
+            ${{ github.workspace }}/.gomodcache
+          key: ${{ runner.OS }}-go-${{ matrix.go-version }}-${{ hashFiles('**/go.sum') }}-${{ matrix.goproxy }}
+          restore-keys: |
+            ${{ runner.OS }}-go-${{ matrix.go-version }}-
+
+      - name: Install modules
+        run: go mod download
+
+      - name: Run generator CLI integration tests (nightly matrix)
+        run: |
+          mkdir -p .ci/integration
+          echo "Running generator tests on Go ${{ matrix.go-version }} GOPROXY=${{ matrix.goproxy }}"
+          GP="${{ matrix.goproxy }}"
+          sanitized=$(echo "$GP" | sed 's/[^a-zA-Z0-9]/_/g')
+          file=".ci/integration/generator_tests_${{ matrix.go-version }}_${sanitized}.txt"
+          go test ./internal/generator -v 2>&1 | tee "$file"
+
+      - name: Upload generator integration artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: generator-integration-${{ matrix.go-version }}
+          path: .ci/integration/*.txt
+
+
