@@ -6,17 +6,20 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/spf13/cobra"
+
 	// ensure sample plugin is registered
 	_ "github.com/undiegomejia/flow/pkg/plugins/sample"
 )
 
 func TestGenList_Formatted(t *testing.T) {
 	buf := &bytes.Buffer{}
-	// ensure json flag is false
-	_ = genListCmd.Flags().Set("json", "false")
-	genListCmd.SetOut(buf)
-	if err := genListCmd.Execute(); err != nil {
-		t.Fatalf("execute failed: %v", err)
+	root := &cobra.Command{Use: "app"}
+	root.AddCommand(generateCmd)
+	root.SetOut(buf)
+	root.SetArgs([]string{"generate", "plugins"})
+	if err := root.Execute(); err != nil {
+		t.Fatalf("execute failed: %v; out=%s", err, buf.String())
 	}
 	out := buf.String()
 	if !strings.Contains(out, "samplegen") {
@@ -29,11 +32,12 @@ func TestGenList_Formatted(t *testing.T) {
 
 func TestGenList_JSON(t *testing.T) {
 	buf := &bytes.Buffer{}
-	// enable json flag
-	_ = genListCmd.Flags().Set("json", "true")
-	genListCmd.SetOut(buf)
-	if err := genListCmd.Execute(); err != nil {
-		t.Fatalf("execute failed: %v", err)
+	root := &cobra.Command{Use: "app"}
+	root.AddCommand(generateCmd)
+	root.SetOut(buf)
+	root.SetArgs([]string{"generate", "plugins", "--json"})
+	if err := root.Execute(); err != nil {
+		t.Fatalf("execute failed: %v; out=%s", err, buf.String())
 	}
 	var arr []struct{
 		Name string `json:"name"`
