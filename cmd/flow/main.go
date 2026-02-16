@@ -253,7 +253,9 @@ var genListCmd = &cobra.Command{
 		names := gen.ListRegisteredGenerators()
 		out := cmd.OutOrStdout()
 		if len(names) == 0 {
-			fmt.Fprintln(out, "no generator plugins registered")
+			if _, err := fmt.Fprintln(out, "no generator plugins registered"); err != nil {
+				return err
+			}
 			return nil
 		}
 		// output flags: format and quiet
@@ -263,7 +265,9 @@ var genListCmd = &cobra.Command{
 		// quiet mode: only print names one per line
 		if quiet {
 			for _, name := range names {
-				fmt.Fprintln(out, name)
+				if _, err := fmt.Fprintln(out, name); err != nil {
+					return err
+				}
 			}
 			return nil
 		}
@@ -302,14 +306,20 @@ var genListCmd = &cobra.Command{
 
 		tw := tabwriter.NewWriter(out, 0, 8, 2, ' ', 0)
 		defer tw.Flush()
-		fmt.Fprintln(tw, "NAME\tVERSION\tHELP")
+		if _, err := fmt.Fprintln(tw, "NAME\tVERSION\tHELP"); err != nil {
+			return err
+		}
 		for _, name := range names {
 			g := gen.GetRegisteredGenerator(name)
 			if g == nil {
-				fmt.Fprintf(tw, "%s\t-\t-\n", name)
+				if _, err := fmt.Fprintf(tw, "%s\t-\t-\n", name); err != nil {
+					return err
+				}
 				continue
 			}
-			fmt.Fprintf(tw, "%s\t%s\t%s\n", g.Name(), g.Version(), trim(g.Help(), maxHelp))
+			if _, err := fmt.Fprintf(tw, "%s\t%s\t%s\n", g.Name(), g.Version(), trim(g.Help(), maxHelp)); err != nil {
+				return err
+			}
 		}
 		return nil
 	},
