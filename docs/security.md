@@ -79,6 +79,22 @@ app.Use(flow.CSRFMiddleware())
 app.Use(flow.SessionCookieHardening())
 ```
 
+JSON API CSRF
+------------
+
+For JSON APIs or single-page apps that transmit the CSRF token via an HTTP
+header, Flow includes a small helper `CSRFMiddlewareJSON()` which validates
+the `X-CSRF-Token` header for unsafe methods on requests with a JSON
+content-type. Use this alongside the session middleware to protect JSON
+endpoints:
+
+```go
+sm := flow.DefaultSessionManager()
+app.Use(sm.Middleware())
+// register JSON CSRF protection for API routes
+app.Use(flow.CSRFMiddlewareJSON())
+```
+
 Notes
 -----
 
