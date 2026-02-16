@@ -156,12 +156,25 @@ jobs:
         with:
           path: |
             ~/.cache/go-build
+            ${{ github.workspace }}/.gomodcache
           key: ${{ runner.OS }}-go-${{ matrix.go-version }}-${{ hashFiles('**/go.sum') }}
           restore-keys: |
             ${{ runner.OS }}-go-${{ matrix.go-version }}-
 
+      - name: Configure Go environment for isolated module cache
+        run: |
+          # Use a workspace-local module cache so CI runs are hermetic and
+          # do not depend on runner global caches.
+          go env -w GOMODCACHE=${{ github.workspace }}/.gomodcache
+          # Set conservative proxy and sumdb defaults to avoid environment-specific
+          # failures when the CI environment doesn't provide them.
+          go env -w GOPROXY=https://proxy.golang.org,direct
+          go env -w GOSUMDB=sum.golang.org
+
       - name: Install modules
-        run: go mod download
+        run: |
+          # Ensure the download uses the configured GOMODCACHE/GOPROXY
+          go mod download
 
       - name: Run generator CLI integration tests
         run: |
