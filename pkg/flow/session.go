@@ -32,7 +32,10 @@ func NewSessionManager(secret []byte, cookieName string) *SessionManager {
 	if cookieName == "" {
 		cookieName = "flow_session"
 	}
-	return &SessionManager{secret: secret, CookieName: cookieName, MaxAge: 86400, CookieSecure: false, CookieSameSite: http.SameSiteDefaultMode}
+	// Secure-by-default: set conservative cookie attributes suitable for
+	// production HTTPS deployments. Callers may opt out by setting
+	// CookieSecure=false or changing CookieSameSite after construction.
+	return &SessionManager{secret: secret, CookieName: cookieName, MaxAge: 86400, CookieSecure: true, CookieSameSite: http.SameSiteLaxMode}
 }
 
 // generateRandomSecret returns n bytes of randomness.

@@ -79,6 +79,41 @@ app.Use(flow.CSRFMiddleware())
 app.Use(flow.SessionCookieHardening())
 ```
 
+JSON API CSRF
+------------
+
+For JSON APIs or single-page apps that transmit the CSRF token via an HTTP
+header, Flow includes a small helper `CSRFMiddlewareJSON()` which validates
+the `X-CSRF-Token` header for unsafe methods on requests with a JSON
+content-type. Use this alongside the session middleware to protect JSON
+endpoints:
+
+```go
+sm := flow.DefaultSessionManager()
+app.Use(sm.Middleware())
+// register JSON CSRF protection for API routes
+app.Use(flow.CSRFMiddlewareJSON())
+```
+
+Secure-by-default guidance
+--------------------------
+
+Flow aims to be secure-by-default. The `SessionManager` constructor now
+enables conservative cookie attributes suitable for TLS environments: session
+cookies are created with `HttpOnly`, `Secure=true`, and `SameSite=Lax` by
+default. If you need to opt out (for local development or unusual client
+requirements) you can modify the session manager after construction:
+
+```go
+sm := flow.NewSessionManager(secret, "")
+// opt-out of Secure when testing over plain HTTP (not recommended)
+sm.CookieSecure = false
+// or adjust SameSite behavior
+sm.CookieSameSite = http.SameSiteDefaultMode
+app.Use(sm.Middleware())
+```
+
+
 Notes
 -----
 
