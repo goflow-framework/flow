@@ -19,16 +19,7 @@ func TestCLI_GenerateAdmin_Smoke(t *testing.T) {
 		t.Fatalf("read module name: %v", err)
 	}
 
-	tmpProj := t.TempDir()
-	uid := filepath.Base(tmpProj)
-	// Use an independent module name (not a subpath of the repo module) to
-	// avoid Go module resolution treating the generated package as part of the
-	// main repo module. This prevents `go mod tidy` from attempting to fetch
-	// packages from the parent module.
-	moduleName := modName + "/examples/" + uid
-	if err := WriteTempGoMod(tmpProj, moduleName, true); err != nil {
-		t.Fatalf("write go.mod: %v", err)
-	}
+	tmpProj, moduleName := TempModule(t)
 
 	// build CLI binary
 	bin := filepath.Join(tmpProj, "flow-cli")

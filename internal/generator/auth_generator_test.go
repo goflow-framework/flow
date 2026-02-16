@@ -73,14 +73,7 @@ func TestCLI_GenerateAuth_Compiles(t *testing.T) {
 		t.Fatalf("read module name: %v", err)
 	}
 
-	tmpProj := t.TempDir()
-	uid := filepath.Base(tmpProj)
-	moduleName := modName + "/examples/" + uid
-	// write a go.mod and add replace directive so the temp module can
-	// resolve the local repository packages.
-	if err := WriteTempGoMod(tmpProj, moduleName, false); err != nil {
-		t.Fatalf("write go.mod: %v", err)
-	}
+	tmpProj, moduleName := TempModule(t)
 
 	// build CLI
 	bin := filepath.Join(tmpProj, "flow-cli")

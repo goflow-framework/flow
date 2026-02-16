@@ -10,6 +10,31 @@ import (
 	"testing"
 )
 
+// TempModule creates a temporary Go module for generator tests. It creates a
+// temp directory via t.TempDir(), writes a go.mod that pins the repo module
+// via an absolute replace, and returns the project directory and the
+// generated module name. It also logs key `go env` values to help debug
+// toolchain issues in CI.
+func TempModule(t *testing.T) (projDir, moduleName string) {
+	t.Helper()
+	proj := t.TempDir()
+	uid := filepath.Base(proj)
+	repo := findRepoRoot()
+	modName, err := readModuleName(repo)
+	if err != nil {
+		t.Fatalf("read module name: %v", err)
+	}
+	moduleName = modName + "/examples/" + uid
+	if err := WriteTempGoMod(proj, moduleName, false); err != nil {
+		t.Fatalf("WriteTempGoMod failed: %v", err)
+	}
+	// Log relevant go env values to aid CI debugging when tests fail.
+	if out, err := exec.Command("go", "env", "GOMODCACHE", "GOPROXY", "GOSUMDB").CombinedOutput(); err == nil {
+		t.Logf("go env: %s", string(out))
+	}
+	return proj, moduleName
+}
+
 // findRepoRoot walks up from the current working directory until it finds a go.mod
 // and returns the directory path. If none is found it returns the original cwd.
 func findRepoRoot() string {

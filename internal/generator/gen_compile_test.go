@@ -15,12 +15,7 @@ func TestGeneratedModelCompilesAndRuns(t *testing.T) {
 		t.Fatalf("read module name: %v", err)
 	}
 	// create an isolated temporary module so tests don't modify repo/examples
-	projDir := t.TempDir()
-	uid := filepath.Base(projDir)
-	moduleName := modName + "/examples/" + uid
-	if err := WriteTempGoMod(projDir, moduleName, false); err != nil {
-		t.Fatalf("write go.mod: %v", err)
-	}
+	projDir, moduleName := TempModule(t)
 
 	// build CLI (binary written into the temp project)
 	bin := filepath.Join(projDir, "flow-cli")

@@ -14,13 +14,7 @@ func TestWriteTempGoMod_WritesGoVersionAndAbsoluteReplace(t *testing.T) {
 		t.Fatalf("read module name: %v", err)
 	}
 
-	proj := t.TempDir()
-	uid := filepath.Base(proj)
-	moduleName := modName + "/examples/" + uid
-
-	if err := WriteTempGoMod(proj, moduleName, false); err != nil {
-		t.Fatalf("WriteTempGoMod failed: %v", err)
-	}
+	proj, _ := TempModule(t)
 
 	b, err := os.ReadFile(filepath.Join(proj, "go.mod"))
 	if err != nil {
