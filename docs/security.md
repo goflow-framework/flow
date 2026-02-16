@@ -95,25 +95,6 @@ app.Use(sm.Middleware())
 app.Use(flow.CSRFMiddlewareJSON())
 ```
 
-Secure-by-default guidance
---------------------------
-
-Flow aims to be secure-by-default. The `SessionManager` constructor now
-enables conservative cookie attributes suitable for TLS environments: session
-cookies are created with `HttpOnly`, `Secure=true`, and `SameSite=Lax` by
-default. If you need to opt out (for local development or unusual client
-requirements) you can modify the session manager after construction:
-
-```go
-sm := flow.NewSessionManager(secret, "")
-// opt-out of Secure when testing over plain HTTP (not recommended)
-sm.CookieSecure = false
-// or adjust SameSite behavior
-sm.CookieSameSite = http.SameSiteDefaultMode
-app.Use(sm.Middleware())
-```
-
-
 Notes
 -----
 
