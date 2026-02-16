@@ -15,8 +15,7 @@ This README gives a concise introduction, quickstart, and reference for the main
 - Cookie-based sessions & flash helpers (lightweight, no external deps).
 - Migration runner (timestamped up/down SQL) and CLI generator scaffolding (controllers, models, migrations).
 - A PoC Bun ORM adapter and `AutoMigrate` helper; generator now emits Bun-tagged model structs and SQL migrations when fields are provided.
- - A PoC Bun ORM adapter and `AutoMigrate` helper; generator now emits Bun-tagged model structs and SQL migrations when fields are provided.
- - Basic ORM helpers and CRUD/transaction helpers exposed on `pkg/flow`: `Insert`, `Update`, `Delete`, `FindByPK`, `BeginTx` and `RunInTx` to simplify transactional patterns and generated-model usage.
+- Basic ORM helpers and CRUD/transaction helpers exposed on `pkg/flow`: `Insert`, `Update`, `Delete`, `FindByPK`, `BeginTx` and `RunInTx` to simplify transactional patterns and generated-model usage.
 
 ## Quickstart (run the example)
 
