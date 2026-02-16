@@ -8,11 +8,13 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
+	"text/tabwriter"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -242,6 +244,87 @@ var genPluginCmd = &cobra.Command{
 	},
 }
 
+var genListCmd = &cobra.Command{
+	Use:     "plugins",
+	Aliases: []string{"list"},
+	Short:   "List registered generator plugins",
+	Args:    cobra.NoArgs,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		names := gen.ListRegisteredGenerators()
+		out := cmd.OutOrStdout()
+		if len(names) == 0 {
+			if _, err := fmt.Fprintln(out, "no generator plugins registered"); err != nil {
+				return err
+			}
+			return nil
+		}
+		// output flags: format and quiet
+		format, _ := cmd.Flags().GetString("format")
+		quiet, _ := cmd.Flags().GetBool("quiet")
+
+		// quiet mode: only print names one per line
+		if quiet {
+			for _, name := range names {
+				if _, err := fmt.Fprintln(out, name); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+
+		if format == "json" {
+			type info struct {
+				Name    string `json:"name"`
+				Version string `json:"version"`
+				Help    string `json:"help"`
+			}
+			var arr []info
+			for _, name := range names {
+				g := gen.GetRegisteredGenerator(name)
+				if g == nil {
+					arr = append(arr, info{Name: name})
+					continue
+				}
+				arr = append(arr, info{Name: g.Name(), Version: g.Version(), Help: g.Help()})
+			}
+			enc := json.NewEncoder(out)
+			enc.SetIndent("", "  ")
+			return enc.Encode(arr)
+		}
+
+		// default table output with trimmed help column
+		const maxHelp = 100
+		trim := func(s string, n int) string {
+			if len(s) <= n {
+				return s
+			}
+			if n <= 3 {
+				return s[:n]
+			}
+			return s[:n-3] + "..."
+		}
+
+		tw := tabwriter.NewWriter(out, 0, 8, 2, ' ', 0)
+		defer tw.Flush()
+		if _, err := fmt.Fprintln(tw, "NAME\tVERSION\tHELP"); err != nil {
+			return err
+		}
+		for _, name := range names {
+			g := gen.GetRegisteredGenerator(name)
+			if g == nil {
+				if _, err := fmt.Fprintf(tw, "%s\t-\t-\n", name); err != nil {
+					return err
+				}
+				continue
+			}
+			if _, err := fmt.Fprintf(tw, "%s\t%s\t%s\n", g.Name(), g.Version(), trim(g.Help(), maxHelp)); err != nil {
+				return err
+			}
+		}
+		return nil
+	},
+}
+
 var serveCmd = &cobra.Command{
 	Use:   "serve",
 	Short: "Start the development server",
@@ -342,6 +425,10 @@ func init() {
 	generateCmd.AddCommand(genAdminCmd)
 	generateCmd.AddCommand(genAuthCmd)
 	generateCmd.AddCommand(genPluginCmd)
+	// list plugins (alias: list)
+	generateCmd.AddCommand(genListCmd)
+	genListCmd.Flags().String("format", "table", "output format: table|json")
+	genListCmd.Flags().Bool("quiet", false, "quiet output: print only generator names")
 	genControllerCmd.Flags().Bool("force", false, "overwrite existing files")
 	genModelCmd.Flags().Bool("force", false, "overwrite existing files")
 	// genRoutesCmd is defined in gen_routes.go
