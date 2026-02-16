@@ -877,4 +877,26 @@ func WithDefaultMiddleware() Option {
 	}
 }
 
+// WithSecureCookieDefaults is an App construction-time Option that enables
+// conservative session cookie defaults and installs the SessionCookieHardening
+// middleware so Set-Cookie headers produced by handlers are hardened when
+// missing attributes. This is provided as an opt-in constructor option to
+// allow operators to enable secure defaults centrally without changing user
+// landed code.
+func WithSecureCookieDefaults() Option {
+	return func(a *App) {
+		if a == nil {
+			return
+		}
+		// ensure a session manager exists so we can apply defaults
+		if a.Sessions == nil {
+			a.Sessions = DefaultSessionManager()
+		}
+		a.Sessions.ApplySecureCookieDefaults()
+		// register cookie hardening middleware so existing Set-Cookie headers
+		// get conservative attributes (Secure; SameSite=Lax) when missing.
+		a.Use(SessionCookieHardening())
+	}
+}
+
 // TODO: add more built-in middleware: logging, request ID, metrics, timeouts
