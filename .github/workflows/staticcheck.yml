@@ -1,21 +1,14 @@
-name: staticcheck
+name: staticcheck (disabled)
 
-on:
-  pull_request:
-    branches: [ main ]
-  push:
-    branches: [ main ]
+# This workflow is retained for historical/reference reasons but is
+# intentionally disabled — staticcheck is run now via golangci-lint in
+# the main linter job. To re-enable standalone staticcheck, change the
+# `on` trigger to `workflow_dispatch` or a desired schedule.
+on: []
 
 jobs:
-  staticcheck:
+  noop:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - name: Setup Go
-        uses: ./.github/actions/ci-setup
-        with:
-          go-version: 1.24
-      - name: Install staticcheck
-        run: go install honnef.co/go/tools/cmd/staticcheck@latest
-      - name: Run staticcheck
-        run: staticcheck ./...
+      - name: Staticcheck is now run via golangci-lint
+        run: echo "staticcheck disabled in favor of golangci-lint" 
