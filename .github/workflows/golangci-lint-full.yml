@@ -39,7 +39,7 @@ jobs:
         with:
           # Pin the golangci-lint tool version to a stable release if desired.
           # Leave empty to let the action choose a good default, or set e.g. "v1.58.0".
-          version: "2.9.0"
+          version: "v2.9.0"
           # Optional args forwarded to golangci-lint; keep timeout conservative.
           args: --timeout=10m
 
