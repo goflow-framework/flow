@@ -1,0 +1,33 @@
+name: govulncheck
+
+on:
+  push:
+    branches: [ main ]
+  schedule:
+    - cron: '0 6 * * *' # daily at 06:00 UTC
+  workflow_dispatch: {}
+
+jobs:
+  run-govulncheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go (shared)
+        uses: ./.github/actions/ci-setup
+        with:
+          go-version: 1.24
+
+      - name: Install govulncheck (pinned)
+        run: go install golang.org/x/vuln/cmd/govulncheck@v0.1.0
+
+      - name: Run govulncheck
+        run: |
+          mkdir -p .ci/vuln
+          govulncheck ./... -json > .ci/vuln/govulncheck.json || true
+
+      - name: Upload govulncheck report
+        uses: actions/upload-artifact@v4
+        with:
+          name: govulncheck-report
+          path: .ci/vuln/govulncheck.json
