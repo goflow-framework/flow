@@ -13,8 +13,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Go
-        uses: actions/setup-go@v4
+      - name: Set up Go (shared)
+        uses: ./.github/actions/ci-setup
         with:
           go-version: 1.24
 

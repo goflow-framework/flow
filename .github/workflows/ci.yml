@@ -24,8 +24,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Go
-        uses: actions/setup-go@v4
+      - name: Set up Go (shared)
+        uses: ./.github/actions/ci-setup
         with:
           go-version: '1.24'
 
@@ -103,8 +103,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Go
-        uses: actions/setup-go@v4
+      - name: Set up Go (shared)
+        uses: ./.github/actions/ci-setup
         with:
           go-version: '1.24'
 
@@ -138,8 +138,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Go
-        uses: actions/setup-go@v4
+      - name: Set up Go (shared)
+        uses: ./.github/actions/ci-setup
         with:
           go-version: '1.24'
 
@@ -161,10 +161,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Go
-        uses: actions/setup-go@v4
+      - name: Set up Go (shared)
+        uses: ./.github/actions/ci-setup
         with:
           go-version: ${{ matrix.go-version }}
+          gomodcache: ${{ github.workspace }}/.gomodcache
+          goproxy: https://proxy.golang.org,direct
+          gosumdb: sum.golang.org
 
       - name: Cache Go build cache
         uses: actions/cache@v4
@@ -176,15 +179,7 @@ jobs:
           restore-keys: |
             ${{ runner.OS }}-go-${{ matrix.go-version }}-
 
-      - name: Configure Go environment for isolated module cache
-        run: |
-          # Use a workspace-local module cache so CI runs are hermetic and
-          # do not depend on runner global caches.
-          go env -w GOMODCACHE=${{ github.workspace }}/.gomodcache
-          # Set conservative proxy and sumdb defaults to avoid environment-specific
-          # failures when the CI environment doesn't provide them.
-          go env -w GOPROXY=https://proxy.golang.org,direct
-          go env -w GOSUMDB=sum.golang.org
+      # go env configuration is handled by the shared ci-setup action above
 
       - name: Install modules
         run: |
@@ -230,8 +225,8 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Set up Go
-        uses: actions/setup-go@v4
+      - name: Set up Go (shared)
+        uses: ./.github/actions/ci-setup
         with:
           go-version: ${{ matrix.go-version }}
 
@@ -289,16 +284,17 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Go
-        uses: actions/setup-go@v4
+      - name: Set up Go (shared)
+        uses: ./.github/actions/ci-setup
         with:
           go-version: ${{ matrix.go-version }}
+          gomodcache: ${{ github.workspace }}/.gomodcache
+          gosumdb: sum.golang.org
 
-      - name: Configure Go env (isolated cache + proxy)
+      - name: Configure GOPROXY (nightly matrix)
         env:
           PRIVATE_GOPROXY: ${{ secrets.PRIVATE_GOPROXY }}
         run: |
-          go env -w GOMODCACHE=${{ github.workspace }}/.gomodcache
           # Handle a sentinel value for private GOPROXY entries. If the
           # matrix value is the sentinel "PRIVATE_GOPROXY", read the real
           # value from the repository secret `PRIVATE_GOPROXY`.
@@ -310,7 +306,6 @@ jobs:
           else
             go env -w GOPROXY=${{ matrix.goproxy }}
           fi
-          go env -w GOSUMDB=sum.golang.org
 
       - name: Cache Go build cache
         uses: actions/cache@v4

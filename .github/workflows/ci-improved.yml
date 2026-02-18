@@ -19,8 +19,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Go
-        uses: actions/setup-go@v4
+      - name: Set up Go (shared)
+        uses: ./.github/actions/ci-setup
         with:
           go-version: ${{ matrix.go-version }}
 
@@ -48,16 +48,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Go
-        uses: actions/setup-go@v4
+      - name: Set up Go (shared)
+        uses: ./.github/actions/ci-setup
         with:
           go-version: ${{ matrix.go-version }}
-
-      - name: Configure local GOMODCACHE
-        run: |
-          go env -w GOMODCACHE=${{ github.workspace }}/.gomodcache
-          go env -w GOPROXY=https://proxy.golang.org,direct
-          go env -w GOSUMDB=sum.golang.org
+          gomodcache: ${{ github.workspace }}/.gomodcache
+          goproxy: https://proxy.golang.org,direct
+          gosumdb: sum.golang.org
 
       - name: Cache Go build/cache
         uses: actions/cache@v4
