@@ -114,6 +114,43 @@ app := flow.New("my-app",
 )
 ```
 
+To opt-out of particular middleware (for example to disable CSRF or rate limiting),
+construct your App using the smaller building blocks (e.g. `WithRequestID`,
+`WithLogging`, `WithMetrics`) or manually register the middleware you want via
+`app.Use(...)`. See `docs/security.md` for details on secure defaults and how to
+incrementally opt in/out.
+
+Cookbook
+--------
+
+Practical recipes, security checklist, plugin guidance and generator usage live in the `docs/` folder. Below are short summaries and pointers to the longer documents.
+
+- Security checklist
+
+    Use these items as a baseline for shipping secure apps with Flow:
+
+    - Enable `WithDefaultMiddleware()` in production or explicitly call `WithSecureDefaults()` to opt-into stricter cookie and header defaults. See `docs/security.md` for the full rationale and examples.
+    - Ensure TLS termination is configured and that HSTS is only enabled when your service is reachable via HTTPS (the `SecureHeaders` middleware handles this by default).
+    - Run CI gates: `gofmt`, `go vet`, `staticcheck` and (optional) `gosec` to catch formatting, correctness, and common security issues early.
+    - Keep secrets out of logs: use structured logging adapters that support redaction (see `pkg/flow/logger.go`) and prefer the `RedactMap` helper for structured data.
+
+- Plugin guide and lifecycle
+
+    Flow supports application-scoped plugins that follow a small lifecycle: `Init`, `Start`, `Stop`. See `docs/plugins.md` for details. Recommended pattern:
+
+    - Prefer runtime registration: call plugin constructors and `App.RegisterService` from `main()` or the CLI `serve` command. This avoids package init-time side effects and makes dependencies explicit.
+    - Implement plugin `Start(ctx context.Context) error` and `Stop(ctx context.Context) error` methods to participate in graceful shutdowns. The framework will call `Start` after the HTTP server begins accepting requests and `Stop` during shutdown.
+    - Keep plugins small and focused; prefer composition over one large plugin. Plugins should register any background workers via App helpers so the App can manage their lifecycle.
+
+- Generators and scaffolding
+
+    Flow provides generators to scaffold controllers, models and migrations. See `docs/generator.md` and `docs/admin_generator.md` for full examples and the generator CLI flags. Tips:
+
+    - Run generators from the project root. Generated code follows the `examples/*` layout and is intended to be edited afterwards.
+    - Generated models include Bun tags when requested; the `docs/bun.md` document explains how to wire the Bun adapter and run `AutoMigrate`.
+
+If you want to add a new recipe to the Cookbook, please add a short markdown doc under `docs/` and update this README to point to it.
+
 ## Install & Tests
 
 Make sure you have Go 1.20+ (project uses module mode). These commands assume a Linux environment — on Windows, run them inside WSL.
