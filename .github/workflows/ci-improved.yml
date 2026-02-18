@@ -104,9 +104,14 @@ jobs:
           name: coverage-report
           path: .ci/coverage.out
 
-      - name: Optional send coverage to Codecov
-        if: secrets.CODECOV_TOKEN
-        uses: codecov/codecov-action@v4
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          files: .ci/coverage.out
+      - name: Upload coverage to Codecov (guarded)
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+        run: |
+          if [ -n "$CODECOV_TOKEN" ]; then
+            echo "Uploading coverage to Codecov"
+            # Use the official bash uploader when token is present.
+            curl -s https://codecov.io/bash | bash -s -- -t "$CODECOV_TOKEN" -f .ci/coverage.out || true
+          else
+            echo "CODECOV_TOKEN not set; skipping codecov upload"
+          fi
