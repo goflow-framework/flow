@@ -30,8 +30,8 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-go-${{ matrix.go-version }}-
 
-      - name: Set up Go (shared)
-        uses: ./.github/actions/ci-setup
+      - name: Set up Go
+        uses: actions/setup-go@v4
         with:
           go-version: ${{ matrix.go-version }}
 
