@@ -148,7 +148,7 @@ func (j *JSONLogger) Log(level string, msg string, fields map[string]interface{}
 		"level": level,
 		"msg":   msg,
 	}
-	if fields != nil && len(fields) > 0 {
+	if len(fields) > 0 {
 		entry["fields"] = RedactMap(fields)
 	}
 	// Best-effort encode and write; failures are ignored to avoid panics in
