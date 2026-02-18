@@ -40,7 +40,9 @@ jobs:
 
       - name: gofmt check
         run: |
-          if [ -n "$(gofmt -l .)" ]; then echo "gofmt differences:"; gofmt -l .; exit 1; fi
+          # Only check tracked Go files to avoid scanning local module cache
+          out=$(git ls-files '*.go' | xargs -r gofmt -l)
+          if [ -n "$out" ]; then echo "gofmt differences:"; echo "$out"; exit 1; fi
 
       - name: go vet
         run: go vet ./...
@@ -48,9 +50,8 @@ jobs:
       - name: staticcheck
         if: matrix.go-version == '1.24'
         run: |
-          # Use latest staticcheck on Go 1.24; for older Go toolchains install a pinned
-          # staticcheck release that is compatible with older Go versions.
-          go install honnef.co/go/tools/cmd/staticcheck@latest
+          # Use a pinned staticcheck release for reproducibility on CI.
+          go install honnef.co/go/tools/cmd/staticcheck@v0.6.0
           staticcheck ./...
 
       - name: Run tests

@@ -1,0 +1,116 @@
+name: CI Improved
+
+on:
+  pull_request:
+    branches: [ main ]
+  push:
+    branches: [ main ]
+  workflow_dispatch: {}
+
+jobs:
+  fast-check:
+    name: Fast pre-merge checks (PR)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    strategy:
+      matrix:
+        go-version: [1.24]
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go (shared)
+        uses: ./.github/actions/ci-setup
+        with:
+          go-version: ${{ matrix.go-version }}
+
+      - name: Check gofmt
+        run: |
+          # Only check tracked Go files to avoid scanning local module cache
+          out=$(git ls-files '*.go' | xargs -r gofmt -l)
+          if [ -n "$out" ]; then
+            echo "Files need formatting:"; echo "$out"; exit 1
+          fi
+
+      - name: Run go vet
+        run: go vet ./...
+
+      - name: Run unit tests (fast)
+        run: go test ./... -v -count=1
+
+  full-ci:
+    name: Full CI (merge & nightly)
+    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request'
+    strategy:
+      matrix:
+        go-version: [1.24, 1.25]
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go (shared)
+        uses: ./.github/actions/ci-setup
+        with:
+          go-version: ${{ matrix.go-version }}
+          gomodcache: ${{ github.workspace }}/.gomodcache
+          goproxy: https://proxy.golang.org,direct
+          gosumdb: sum.golang.org
+
+      - name: Cache Go build/cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/go-build
+            ${{ github.workspace }}/.gomodcache
+          key: ${{ runner.OS }}-go-${{ matrix.go-version }}-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.OS }}-go-
+
+      - name: Install dependencies
+        run: go mod download
+
+      - name: Check gofmt
+        run: |
+          # Only check tracked Go files to avoid scanning local module cache
+          out=$(git ls-files '*.go' | xargs -r gofmt -l)
+          if [ -n "$out" ]; then
+            echo "Files need formatting:"; echo "$out"; exit 1
+          fi
+
+      - name: Run go vet
+        run: go vet ./...
+
+      - name: Run golangci-lint (official action)
+        uses: golangci/golangci-lint-action@v4
+        with:
+          args: --timeout=10m
+
+      - name: Install staticcheck (pinned)
+        run: go install honnef.co/go/tools/cmd/staticcheck@v2024.1.1
+
+      - name: Run staticcheck
+        run: staticcheck ./...
+
+      - name: Run tests (race + coverage)
+        run: |
+          mkdir -p .ci
+          go test ./... -race -coverprofile=.ci/coverage.out -covermode=atomic || true
+
+      - name: Upload coverage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: .ci/coverage.out
+
+      - name: Upload coverage to Codecov (guarded)
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+        run: |
+          if [ -n "$CODECOV_TOKEN" ]; then
+            echo "Uploading coverage to Codecov"
+            # Use the official bash uploader when token is present.
+            curl -s https://codecov.io/bash | bash -s -- -t "$CODECOV_TOKEN" -f .ci/coverage.out || true
+          else
+            echo "CODECOV_TOKEN not set; skipping codecov upload"
+          fi

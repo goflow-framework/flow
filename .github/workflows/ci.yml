@@ -245,7 +245,8 @@ jobs:
       - name: Check formatting
         run: |
           set -e
-          out=$(gofmt -l .)
+          # Only check tracked Go files to avoid scanning local module cache
+          out=$(git ls-files '*.go' | xargs -r gofmt -l)
           if [ -n "$out" ]; then
             echo "Files need formatting:"; echo "$out"; exit 1
           fi

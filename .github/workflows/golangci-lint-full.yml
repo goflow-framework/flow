@@ -16,19 +16,21 @@ jobs:
         uses: ./.github/actions/ci-setup
         with:
           go-version: 1.24.11
-      - name: Cache Go modules
+      - name: Cache Go modules and golangci state
         uses: actions/cache@v4
         with:
           path: |
             ~/.cache/go-build
             ~/.cache/golangci-lint
-            ${{ env.GOMODCACHE }}
+            ${{ github.workspace }}/.gomodcache
           key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
           restore-keys: |
             ${{ runner.os }}-go-
 
       - name: Ensure modules downloaded
         run: |
+          # Configure a workspace-local GOMODCACHE so runs are hermetic and
+          # caching is effective.
           go env -w GOMODCACHE=${{ github.workspace }}/.gomodcache
           go env
           go mod download
