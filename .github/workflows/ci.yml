@@ -195,8 +195,19 @@ jobs:
         run: |
           mkdir -p .ci/integration
           echo "Running generator tests on Go ${{ matrix.go-version }}"
-          # Run only the generator package tests which build and execute the CLI
-          go test ./internal/generator -v 2>&1 | tee .ci/integration/generator_tests_${{ matrix.go-version }}.txt
+          # Create a temporary module so generator tests that create temp modules
+          # can write a go.mod which uses an absolute replace to the checked-out
+          # repository. This avoids relying on the runner global module cache.
+          TMPDIR=$(mktemp -d)
+          pushd "$TMPDIR"
+          go mod init tmpgen || true
+          # Add a dummy requirement and replace it with the checked-out workspace
+          go mod edit -require=github.com/undiegomejia/flow@v0.0.0 || true
+          go mod edit -replace=github.com/undiegomejia/flow=${GITHUB_WORKSPACE} || true
+          # Run the generator tests by targeting the package path explicitly so
+          # the temporary module is used for the test invocation.
+          go test ${GITHUB_WORKSPACE}/internal/generator -v 2>&1 | tee ${GITHUB_WORKSPACE}/.ci/integration/generator_tests_${{ matrix.go-version }}.txt || true
+          popd
 
       - name: Upload generator integration artifact
         uses: actions/upload-artifact@v4
@@ -321,7 +332,13 @@ jobs:
           GP="${{ matrix.goproxy }}"
           sanitized=$(echo "$GP" | sed 's/[^a-zA-Z0-9]/_/g')
           file=".ci/integration/generator_tests_${{ matrix.go-version }}_${sanitized}.txt"
-          go test ./internal/generator -v 2>&1 | tee "$file"
+          TMPDIR=$(mktemp -d)
+          pushd "$TMPDIR"
+          go mod init tmpgen || true
+          go mod edit -require=github.com/undiegomejia/flow@v0.0.0 || true
+          go mod edit -replace=github.com/undiegomejia/flow=${GITHUB_WORKSPACE} || true
+          go test ${GITHUB_WORKSPACE}/internal/generator -v 2>&1 | tee "${GITHUB_WORKSPACE}/$file" || true
+          popd
 
       - name: Upload generator integration artifact
         uses: actions/upload-artifact@v4

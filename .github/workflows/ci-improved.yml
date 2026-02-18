@@ -1,0 +1,112 @@
+name: CI Improved
+
+on:
+  pull_request:
+    branches: [ main ]
+  push:
+    branches: [ main ]
+  workflow_dispatch: {}
+
+jobs:
+  fast-check:
+    name: Fast pre-merge checks (PR)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    strategy:
+      matrix:
+        go-version: [1.24]
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: ${{ matrix.go-version }}
+
+      - name: Check gofmt
+        run: |
+          out=$(gofmt -l .)
+          if [ -n "$out" ]; then
+            echo "Files need formatting:"; echo "$out"; exit 1
+          fi
+
+      - name: Run go vet
+        run: go vet ./...
+
+      - name: Run unit tests (fast)
+        run: go test ./... -v -count=1
+
+  full-ci:
+    name: Full CI (merge & nightly)
+    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request'
+    strategy:
+      matrix:
+        go-version: [1.24, 1.25]
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: ${{ matrix.go-version }}
+
+      - name: Configure local GOMODCACHE
+        run: |
+          go env -w GOMODCACHE=${{ github.workspace }}/.gomodcache
+          go env -w GOPROXY=https://proxy.golang.org,direct
+          go env -w GOSUMDB=sum.golang.org
+
+      - name: Cache Go build/cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/go-build
+            ${{ github.workspace }}/.gomodcache
+          key: ${{ runner.OS }}-go-${{ matrix.go-version }}-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.OS }}-go-
+
+      - name: Install dependencies
+        run: go mod download
+
+      - name: Check gofmt
+        run: |
+          out=$(gofmt -l .)
+          if [ -n "$out" ]; then
+            echo "Files need formatting:"; echo "$out"; exit 1
+          fi
+
+      - name: Run go vet
+        run: go vet ./...
+
+      - name: Run golangci-lint (official action)
+        uses: golangci/golangci-lint-action@v4
+        with:
+          args: --timeout=10m
+
+      - name: Install staticcheck (pinned)
+        run: go install honnef.co/go/tools/cmd/staticcheck@v2024.1.1
+
+      - name: Run staticcheck
+        run: staticcheck ./...
+
+      - name: Run tests (race + coverage)
+        run: |
+          mkdir -p .ci
+          go test ./... -race -coverprofile=.ci/coverage.out -covermode=atomic || true
+
+      - name: Upload coverage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: .ci/coverage.out
+
+      - name: Optional send coverage to Codecov
+        if: secrets.CODECOV_TOKEN
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: .ci/coverage.out

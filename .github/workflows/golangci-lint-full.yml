@@ -15,14 +15,15 @@ jobs:
       - name: Setup Go
         uses: ./.github/actions/ci-setup
         with:
-          go-version: 1.24.11
-      - name: Cache Go modules
+          go-version: 1.24
+
+      - name: Cache Go modules and build cache
         uses: actions/cache@v4
         with:
           path: |
             ~/.cache/go-build
             ~/.cache/golangci-lint
-            ${{ env.GOMODCACHE }}
+            ${{ github.workspace }}/.gomodcache
           key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
           restore-keys: |
             ${{ runner.os }}-go-
@@ -33,23 +34,15 @@ jobs:
           go env
           go mod download
 
-      - name: Install golangci-lint v2.9.0
-        run: |
-          curl -sSfL https://github.com/golangci/golangci-lint/releases/download/v2.9.0/golangci-lint-2.9.0-linux-amd64.tar.gz -o /tmp/golangci.tar.gz
-          tar -xzf /tmp/golangci.tar.gz -C $HOME
-          echo "$(pwd)"
-          ls -la $HOME/golangci-lint-2.9.0-linux-amd64
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Run golangci-lint (official action)
+        uses: golangci/golangci-lint-action@v4
+        with:
+          # Pin the golangci-lint tool version to a stable release if desired.
+          # Leave empty to let the action choose a good default, or set e.g. "v1.58.0".
+          version: ""
+          # Optional args forwarded to golangci-lint; keep timeout conservative.
+          args: --timeout=10m
 
-      - name: Run golangci-lint
-        run: |
-          # show version and installation path for debugging
-          $HOME/golangci-lint-2.9.0-linux-amd64/golangci-lint --version || true
-          ls -la $HOME/golangci-lint-2.9.0-linux-amd64 || true
-          # Run without passing --format/--out-format to avoid flag mismatches
-          $HOME/golangci-lint-2.9.0-linux-amd64/golangci-lint run --timeout=10m
-
-      - name: Upload golangci-lint cache (optional)
+      - name: Post-lint (noop)
         if: always()
-        run: echo "lint complete"
+        run: echo "golangci-lint completed"
