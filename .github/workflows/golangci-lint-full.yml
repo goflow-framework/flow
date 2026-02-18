@@ -22,7 +22,6 @@ jobs:
         with:
           path: |
             ~/.cache/go-build
-            ~/.cache/golangci-lint
             ${{ github.workspace }}/.gomodcache
           key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
           restore-keys: |
@@ -37,10 +36,11 @@ jobs:
       - name: Run golangci-lint (official action)
         uses: golangci/golangci-lint-action@v4
         with:
-          # Pin the golangci-lint tool version to a stable release if desired.
-          # Leave empty to let the action choose a good default, or set e.g. "v1.58.0".
-          version: "v2.9.0"
-          # Optional args forwarded to golangci-lint; keep timeout conservative.
+          # Let the action install a compatible default golangci-lint binary
+          # (omit pin) or set this to a specific v1.x release if you want to
+          # pin. Avoid pinning to the legacy 'v2.9.0' binary which lacks newer
+          # flags used by the action.
+          version: ""
           args: --timeout=10m
 
       - name: Post-lint (noop)
