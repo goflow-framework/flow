@@ -48,9 +48,11 @@ jobs:
           VERSION=2.9.0
           BINDIR=$HOME/golangci-lint-${VERSION}-linux-amd64
           $BINDIR/golangci-lint --version
-          # Use the github-actions formatter (v2 supports it) and a reasonable timeout.
-          # Do not swallow exit codes so CI fails when linters detect issues.
-          $BINDIR/golangci-lint run --out-format=github-actions --timeout=10m
+          # Run with a conservative timeout. Avoid passing --out-format which
+          # may not be supported by the particular golangci-lint build used on
+          # the runner; formatting/annotation behavior can be controlled via
+          # .golangci.yml if needed.
+          $BINDIR/golangci-lint run --timeout=10m
 
       - name: Post-lint (noop)
         if: always()
