@@ -871,9 +871,20 @@ func WithDefaultMiddleware() Option {
 		a.Use(CSRFMiddleware())
 		// lightweight, in-process rate limiting per client IP
 		a.Use(RateLimitMiddleware(DefaultRateLimitRPS, DefaultRateLimitBurst))
-		// logging and basic metrics
-		a.Use(LoggingMiddleware(a.logger))
+		// logging and basic metrics (response time, status codes)
+		a.Use(LoggingMiddlewareWithRedaction(a.logger))
 		a.Use(MetricsMiddleware())
+	}
+}
+
+// WithLoggingLegacy (internal) registers the built-in logging middleware using the App's logger.
+// Kept for compatibility during migration; prefer the later WithLogging which uses structured logging.
+func WithLoggingLegacy() Option {
+	return func(a *App) {
+		if a == nil {
+			return
+		}
+		a.Use(LoggingMiddleware(a.logger))
 	}
 }
 
