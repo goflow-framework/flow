@@ -56,10 +56,10 @@ func IsSecretKey(key string) bool {
 
 // RedactedValue returns a redacted representation for the given key and value.
 // Rules:
-// - If the key name looks secret (see IsSecretKey) the value is replaced
-//   with the literal string "[REDACTED]".
-// - If the value is a string longer than 64 characters it's treated as a token
-//   and redacted as well. Other values are returned unchanged.
+//   - If the key name looks secret (see IsSecretKey) the value is replaced
+//     with the literal string "[REDACTED]".
+//   - If the value is a string longer than 64 characters it's treated as a token
+//     and redacted as well. Other values are returned unchanged.
 func RedactedValue(key string, v interface{}) interface{} {
 	if IsSecretKey(key) {
 		return "[REDACTED]"
