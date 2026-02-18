@@ -103,23 +103,15 @@ jobs:
           name: coverage-report
           path: .ci/coverage.out
 
-      - name: Export CODECOV_TOKEN to env (if present)
+      - name: Upload coverage to Codecov (guarded)
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
         run: |
-          # Export the secret to the job environment only when present so
-          # subsequent `if: env.CODECOV_TOKEN` checks can be used without
-          # referencing `secrets` directly in step-level `if` expressions.
-          if [ -n "${{ secrets.CODECOV_TOKEN }}" ]; then
-            echo "CODECOV_TOKEN=${{ secrets.CODECOV_TOKEN }}" >> $GITHUB_ENV
+          if [ -n "$CODECOV_TOKEN" ]; then
+            echo "Uploading coverage to Codecov"
+            # Use the official bash uploader when token is present. Keep
+            # `|| true` so the CI doesn't fail if the uploader exits non-zero.
+            curl -s https://codecov.io/bash | bash -s -- -t "$CODECOV_TOKEN" -f .ci/coverage.out || true
+          else
+            echo "CODECOV_TOKEN not set; skipping codecov upload"
           fi
-
-      - name: Upload coverage to Codecov (if token)
-        if: ${{ env.CODECOV_TOKEN != '' }}
-        uses: codecov/codecov-action@v4
-        with:
-          files: .ci/coverage.out
-          token: ${{ env.CODECOV_TOKEN }}
-          fail_ci_if_error: false
-
-      - name: Skip Codecov upload
-        if: ${{ env.CODECOV_TOKEN == '' }}
-        run: echo "CODECOV_TOKEN not set; skipping codecov upload"
