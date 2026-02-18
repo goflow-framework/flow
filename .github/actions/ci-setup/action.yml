@@ -5,6 +5,18 @@ inputs:
     description: "Go version to install (ex: '1.24.13' or '1.24.x')"
     required: false
     default: "1.24.13"
+  gomodcache:
+    description: "Optional GOMODCACHE path to write with 'go env -w' (absolute path encouraged)"
+    required: false
+    default: ""
+  goproxy:
+    description: "Optional GOPROXY value to write with 'go env -w'"
+    required: false
+    default: ""
+  gosumdb:
+    description: "Optional GOSUMDB value to write with 'go env -w'"
+    required: false
+    default: ""
 runs:
   using: "composite"
   steps:
@@ -22,4 +34,24 @@ runs:
         if [ -n "$GOPATH" ]; then
           echo "GOPATH is $GOPATH"
           echo "${GOPATH}/bin" >> $GITHUB_PATH
+        fi
+
+    - name: Configure optional Go environment (GOMODCACHE/GOPROXY/GOSUMDB)
+      shell: bash
+      run: |
+        set -euo pipefail
+        # Apply optional go env overrides when provided as inputs. This keeps
+        # CI reproducible while allowing callers to provide a workspace-local
+        # module cache or custom GOPROXY/GOSUMDB for hermetic runs.
+        if [ -n "${{ inputs.gomodcache }}" ]; then
+          echo "Setting GOMODCACHE=${{ inputs.gomodcache }}"
+          go env -w GOMODCACHE="${{ inputs.gomodcache }}"
+        fi
+        if [ -n "${{ inputs.goproxy }}" ]; then
+          echo "Setting GOPROXY=${{ inputs.goproxy }}"
+          go env -w GOPROXY="${{ inputs.goproxy }}"
+        fi
+        if [ -n "${{ inputs.gosumdb }}" ]; then
+          echo "Setting GOSUMDB=${{ inputs.gosumdb }}"
+          go env -w GOSUMDB="${{ inputs.gosumdb }}"
         fi
