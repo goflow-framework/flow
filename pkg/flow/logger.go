@@ -1,10 +1,13 @@
 package flow
 
 import (
+	"encoding/json"
+	"fmt"
 	"io"
 	"log"
 	"os"
 	"strings"
+	"time"
 )
 
 // StdLogger is a small adapter that implements the framework Logger interface
@@ -102,4 +105,56 @@ func Redact(s string, secrets ...string) string {
 		out = strings.ReplaceAll(out, sec, "[REDACTED]")
 	}
 	return out
+}
+
+// StructuredLogger is an optional logger interface that supports structured
+// key/value fields. Middleware and framework code will attempt a type
+// assertion to this interface and emit structured logs when available. This
+// keeps the core Logger (Printf) backward-compatible while allowing richer
+// adapters.
+type StructuredLogger interface {
+	// Log emits a structured log entry at the given level with message and
+	// optional key/value fields. Implementations should handle nil fields.
+	Log(level string, msg string, fields map[string]interface{})
+}
+
+// JSONLogger is a tiny JSON-line logger implementing both Printf (so it can
+// be used where Logger is expected) and StructuredLogger. It outputs one
+// compact JSON object per line with timestamp, level, message and fields.
+type JSONLogger struct {
+	out io.Writer
+}
+
+// NewJSONLogger constructs a JSONLogger writing to out (defaults to stdout).
+func NewJSONLogger(out io.Writer) *JSONLogger {
+	if out == nil {
+		out = os.Stdout
+	}
+	return &JSONLogger{out: out}
+}
+
+// Printf implements the legacy Logger.Printf contract by emitting a JSON
+// entry at level=info with the formatted message.
+func (j *JSONLogger) Printf(format string, v ...interface{}) {
+	msg := fmt.Sprintf(format, v...)
+	j.Log("info", msg, nil)
+}
+
+// Log implements StructuredLogger. Fields are shallow-redacted before being
+// encoded to JSON.
+func (j *JSONLogger) Log(level string, msg string, fields map[string]interface{}) {
+	entry := map[string]interface{}{
+		"ts":    time.Now().UTC().Format(time.RFC3339Nano),
+		"level": level,
+		"msg":   msg,
+	}
+	if fields != nil && len(fields) > 0 {
+		entry["fields"] = RedactMap(fields)
+	}
+	// Best-effort encode and write; failures are ignored to avoid panics in
+	// logging paths.
+	if b, err := json.Marshal(entry); err == nil {
+		j.out.Write(b)
+		j.out.Write([]byte("\n"))
+	}
 }
