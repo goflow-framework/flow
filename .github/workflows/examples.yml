@@ -40,7 +40,9 @@ jobs:
 
       - name: gofmt check
         run: |
-          if [ -n "$(gofmt -l .)" ]; then echo "gofmt differences:"; gofmt -l .; exit 1; fi
+          # Only check tracked Go files to avoid scanning local module cache
+          out=$(git ls-files '*.go' | xargs -r gofmt -l)
+          if [ -n "$out" ]; then echo "gofmt differences:"; echo "$out"; exit 1; fi
 
       - name: go vet
         run: go vet ./...
