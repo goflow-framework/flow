@@ -24,8 +24,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Go (shared)
-        uses: ./.github/actions/ci-setup
+      - name: Set up Go
+        uses: actions/setup-go@v4
         with:
           go-version: '1.24'
 
@@ -103,8 +103,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Go (shared)
-        uses: ./.github/actions/ci-setup
+      - name: Set up Go
+        uses: actions/setup-go@v4
         with:
           go-version: '1.24'
 
@@ -138,8 +138,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Go (shared)
-        uses: ./.github/actions/ci-setup
+      - name: Set up Go
+        uses: actions/setup-go@v4
         with:
           go-version: '1.24'
 
@@ -161,13 +161,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Go (shared)
-        uses: ./.github/actions/ci-setup
+      - name: Set up Go
+        uses: actions/setup-go@v4
         with:
           go-version: ${{ matrix.go-version }}
-          gomodcache: ${{ github.workspace }}/.gomodcache
-          goproxy: https://proxy.golang.org,direct
-          gosumdb: sum.golang.org
 
       - name: Cache Go build cache
         uses: actions/cache@v4
@@ -179,7 +176,15 @@ jobs:
           restore-keys: |
             ${{ runner.OS }}-go-${{ matrix.go-version }}-
 
-      # go env configuration is handled by the shared ci-setup action above
+      - name: Configure Go environment for isolated module cache
+        run: |
+          # Use a workspace-local module cache so CI runs are hermetic and
+          # do not depend on runner global caches.
+          go env -w GOMODCACHE=${{ github.workspace }}/.gomodcache
+          # Set conservative proxy and sumdb defaults to avoid environment-specific
+          # failures when the CI environment doesn't provide them.
+          go env -w GOPROXY=https://proxy.golang.org,direct
+          go env -w GOSUMDB=sum.golang.org
 
       - name: Install modules
         run: |
@@ -190,19 +195,8 @@ jobs:
         run: |
           mkdir -p .ci/integration
           echo "Running generator tests on Go ${{ matrix.go-version }}"
-          # Create a temporary module so generator tests that create temp modules
-          # can write a go.mod which uses an absolute replace to the checked-out
-          # repository. This avoids relying on the runner global module cache.
-          TMPDIR=$(mktemp -d)
-          pushd "$TMPDIR"
-          go mod init tmpgen || true
-          # Add a dummy requirement and replace it with the checked-out workspace
-          go mod edit -require=github.com/undiegomejia/flow@v0.0.0 || true
-          go mod edit -replace=github.com/undiegomejia/flow=${GITHUB_WORKSPACE} || true
-          # Run the generator tests by targeting the package path explicitly so
-          # the temporary module is used for the test invocation.
-          go test ${GITHUB_WORKSPACE}/internal/generator -v 2>&1 | tee ${GITHUB_WORKSPACE}/.ci/integration/generator_tests_${{ matrix.go-version }}.txt || true
-          popd
+          # Run only the generator package tests which build and execute the CLI
+          go test ./internal/generator -v 2>&1 | tee .ci/integration/generator_tests_${{ matrix.go-version }}.txt
 
       - name: Upload generator integration artifact
         uses: actions/upload-artifact@v4
@@ -225,8 +219,8 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Set up Go (shared)
-        uses: ./.github/actions/ci-setup
+      - name: Set up Go
+        uses: actions/setup-go@v4
         with:
           go-version: ${{ matrix.go-version }}
 
@@ -284,17 +278,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Go (shared)
-        uses: ./.github/actions/ci-setup
+      - name: Set up Go
+        uses: actions/setup-go@v4
         with:
           go-version: ${{ matrix.go-version }}
-          gomodcache: ${{ github.workspace }}/.gomodcache
-          gosumdb: sum.golang.org
 
-      - name: Configure GOPROXY (nightly matrix)
+      - name: Configure Go env (isolated cache + proxy)
         env:
           PRIVATE_GOPROXY: ${{ secrets.PRIVATE_GOPROXY }}
         run: |
+          go env -w GOMODCACHE=${{ github.workspace }}/.gomodcache
           # Handle a sentinel value for private GOPROXY entries. If the
           # matrix value is the sentinel "PRIVATE_GOPROXY", read the real
           # value from the repository secret `PRIVATE_GOPROXY`.
@@ -306,6 +299,7 @@ jobs:
           else
             go env -w GOPROXY=${{ matrix.goproxy }}
           fi
+          go env -w GOSUMDB=sum.golang.org
 
       - name: Cache Go build cache
         uses: actions/cache@v4
@@ -327,13 +321,7 @@ jobs:
           GP="${{ matrix.goproxy }}"
           sanitized=$(echo "$GP" | sed 's/[^a-zA-Z0-9]/_/g')
           file=".ci/integration/generator_tests_${{ matrix.go-version }}_${sanitized}.txt"
-          TMPDIR=$(mktemp -d)
-          pushd "$TMPDIR"
-          go mod init tmpgen || true
-          go mod edit -require=github.com/undiegomejia/flow@v0.0.0 || true
-          go mod edit -replace=github.com/undiegomejia/flow=${GITHUB_WORKSPACE} || true
-          go test ${GITHUB_WORKSPACE}/internal/generator -v 2>&1 | tee "${GITHUB_WORKSPACE}/$file" || true
-          popd
+          go test ./internal/generator -v 2>&1 | tee "$file"
 
       - name: Upload generator integration artifact
         uses: actions/upload-artifact@v4
