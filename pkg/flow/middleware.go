@@ -29,9 +29,26 @@ func LoggingMiddleware(logger Logger) Middleware {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			start := time.Now()
-			logger.Printf("request start: %s %s", r.Method, r.URL.Path)
+			// Prefer structured logging when available. Build a small fields map
+			// and redact sensitive values before emitting.
+			fields := map[string]interface{}{
+				"method": r.Method,
+				"path":   r.URL.Path,
+				"remote": r.RemoteAddr,
+			}
+			if sl, ok := logger.(StructuredLogger); ok {
+				sl.Log("info", "request start", RedactMap(fields))
+			} else {
+				logger.Printf("request start: %s %s", r.Method, r.URL.Path)
+			}
 			next.ServeHTTP(w, r)
-			logger.Printf("request complete: %s %s in %s", r.Method, r.URL.Path, time.Since(start))
+			elapsed := time.Since(start)
+			fields["elapsed"] = elapsed.String()
+			if sl, ok := logger.(StructuredLogger); ok {
+				sl.Log("info", "request complete", RedactMap(fields))
+			} else {
+				logger.Printf("request complete: %s %s in %s", r.Method, r.URL.Path, elapsed)
+			}
 		})
 	}
 }
