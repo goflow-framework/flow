@@ -33,15 +33,24 @@ jobs:
           go env
           go mod download
 
-      - name: Run golangci-lint (official action)
-        uses: golangci/golangci-lint-action@v4
-        with:
-          # Let the action install a compatible default golangci-lint binary
-          # (omit pin) or set this to a specific v1.x release if you want to
-          # pin. Avoid pinning to the legacy 'v2.9.0' binary which lacks newer
-          # flags used by the action.
-          version: ""
-          args: --timeout=10m
+      - name: Install golangci-lint v2 (manual)
+        run: |
+          # Pin to a known v2 release that matches .golangci.yml (version: "2").
+          TAG=v2.9.0
+          VERSION=${TAG#v}
+          echo "Downloading golangci-lint ${TAG} (asset version ${VERSION})"
+          curl -sSfL "https://github.com/golangci/golangci-lint/releases/download/${TAG}/golangci-lint-${VERSION}-linux-amd64.tar.gz" -o /tmp/golangci.tar.gz
+          tar -xzf /tmp/golangci.tar.gz -C $HOME
+          ls -la $HOME/golangci-lint-${VERSION}-linux-amd64 || true
+
+      - name: Run golangci-lint (v2 pinned)
+        run: |
+          VERSION=2.9.0
+          BINDIR=$HOME/golangci-lint-${VERSION}-linux-amd64
+          $BINDIR/golangci-lint --version
+          # Use the github-actions formatter (v2 supports it) and a reasonable timeout.
+          # Do not swallow exit codes so CI fails when linters detect issues.
+          $BINDIR/golangci-lint run --out-format=github-actions --timeout=10m
 
       - name: Post-lint (noop)
         if: always()
