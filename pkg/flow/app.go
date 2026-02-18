@@ -877,13 +877,14 @@ func WithDefaultMiddleware() Option {
 	}
 }
 
-// WithLogging registers the built-in logging middleware using the App's logger.
-func WithLogging() Option {
+// WithLoggingLegacy (internal) registers the built-in logging middleware using the App's logger.
+// Kept for compatibility during migration; prefer the later WithLogging which uses structured logging.
+func WithLoggingLegacy() Option {
 	return func(a *App) {
 		if a == nil {
 			return
 		}
-		a.Use(LoggingMiddlewareWithRedaction(a.logger))
+		a.Use(LoggingMiddleware(a.logger))
 	}
 }
 
