@@ -189,18 +189,20 @@ func ParseFieldSpec(input string) (FieldSpec, error) {
 
 	// if nullable, make GoType pointer and JSON omitempty handled later
 	if fs.Nullable {
-		// pointer types
-		if fs.GoType == "string" {
+		// pointer types - use a tagged switch for clarity and to satisfy
+		// staticcheck's suggestion about switching on a single value.
+		switch fs.GoType {
+		case "string":
 			fs.GoType = "*string"
-		} else if fs.GoType == "time.Time" {
+		case "time.Time":
 			fs.GoType = "*time.Time"
-		} else if fs.GoType == "int" {
+		case "int":
 			fs.GoType = "*int"
-		} else if fs.GoType == "int64" {
+		case "int64":
 			fs.GoType = "*int64"
-		} else if fs.GoType == "bool" {
+		case "bool":
 			fs.GoType = "*bool"
-		} else if fs.GoType == "float64" {
+		case "float64":
 			fs.GoType = "*float64"
 		}
 	}
