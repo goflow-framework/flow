@@ -521,7 +521,11 @@ func WithErrorHandler(fn func(http.ResponseWriter, *http.Request, error)) Option
 // WithVerboseErrors toggles whether the default error handler exposes internal
 // error messages in HTTP responses (only enable in non-production/dev).
 func WithVerboseErrors(v bool) Option {
-	return func(a *App) { if a != nil { a.verboseErrors = v } }
+	return func(a *App) {
+		if a != nil {
+			a.verboseErrors = v
+		}
+	}
 }
 
 // RegisterPlugin registers a plugin with this App instance. It validates the
