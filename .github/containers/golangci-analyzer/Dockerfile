@@ -19,8 +19,11 @@ RUN set -eux; \
     # install golangci-lint (pinned) into /go/bin
     GOBIN=/go/bin go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.59.0; \
     # also install some helper tools commonly used by the repo's helper script
-    GOBIN=/go/bin go install golang.org/x/tools/cmd/goimports@latest || true; \
-    GOBIN=/go/bin go install github.com/kisielk/errcheck@latest || true; \
+    # Pin helper tools to concrete versions to avoid unpredictable changes
+    # when fetching @latest. These versions are conservative; update when
+    # we intentionally bump tooling.
+    GOBIN=/go/bin go install golang.org/x/tools/cmd/goimports@v0.13.0 || true; \
+    GOBIN=/go/bin go install github.com/kisielk/errcheck@v1.6.1 || true; \
     # Rebuild the standard library inside the image so GOROOT/pkg compiled
     # export-data matches the image's Go toolchain. First try `go install`.
     GOCACHE=/tmp/gocache GOMODCACHE=/tmp/gomodcache GOOS=linux GOARCH=amd64 /usr/local/go/bin/go install -v -a std; \

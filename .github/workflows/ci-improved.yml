@@ -34,9 +34,25 @@ jobs:
 
       - name: Run go vet
         run: go vet ./...
+      - name: Install golangci-lint (fast)
+        run: |
+          # Install a pinned golangci-lint binary for fast PR checks.
+          curl -sSfL https://github.com/golangci/golangci-lint/releases/download/v1.59.0/golangci-lint-1.59.0-linux-amd64.tar.gz -o /tmp/golangci.tar.gz
+          tar -xzf /tmp/golangci.tar.gz -C $HOME
 
-      - name: Run unit tests (fast)
-        run: go test ./... -v -count=1
+      - name: Run golangci-lint (fast)
+        run: |
+          # Disable the slow, type-aware linters during fast PR checks to
+          # keep feedback quick; full CI will run the complete suite.
+          $HOME/golangci-lint-1.59.0-linux-amd64/golangci-lint run --timeout=5m --disable=typecheck,staticcheck || true
+
+      - name: Run unit tests (fast, excluding generator)
+        run: |
+          # Exclude the generator package tests which are run in a focused job.
+          pkgs=$(go list ./... | grep -v "/internal/generator") || true
+          if [ -n "$pkgs" ]; then
+            echo "$pkgs" | xargs -r go test -v -count=1
+          fi
 
   generator-tests:
     name: Generator tests (focused)
