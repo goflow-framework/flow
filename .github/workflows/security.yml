@@ -35,18 +35,23 @@ jobs:
           # avoid touching the runner's global cache (which may be root-owned).
           WORK_GOMODCACHE="${{ github.workspace }}/.gomodcache-security"
           WORK_GOCACHE="${{ github.workspace }}/.gocache-security"
+          WORK_GOPATH="${{ github.workspace }}/.gopath-security"
 
           # Export for the current shell and persist with `go env -w` so all
           # subsequent `go` invocations in this job use the workspace-local
           # caches.
           export GOMODCACHE="$WORK_GOMODCACHE"
           export GOCACHE="$WORK_GOCACHE"
+          export GOPATH="$WORK_GOPATH"
+          go env -w GOPATH="$GOPATH"
           go env -w GOMODCACHE="$GOMODCACHE"
           go env -w GOCACHE="$GOCACHE"
           go env -w GOPROXY=https://proxy.golang.org,direct
           go env -w GOSUMDB=sum.golang.org
 
-          # Download modules into the workspace-local module cache.
+          # Ensure workspace GOPATH directories exist and download modules into
+          # the workspace-local module cache.
+          mkdir -p "$WORK_GOMODCACHE" "$WORK_GOCACHE" "$WORK_GOPATH"
           go mod download
 
           # Clean only the workspace-local caches (safe). Avoid `go clean -modcache`
