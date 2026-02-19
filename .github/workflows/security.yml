@@ -36,6 +36,11 @@ jobs:
           go env -w GOPROXY=https://proxy.golang.org,direct
           go env -w GOSUMDB=sum.golang.org
           go mod download
+          # Ensure any pre-existing compiled data is removed so analysis
+          # tools read fresh export data built with this job's toolchain.
+          go clean -cache -modcache || true
+          rm -rf ${GOMODCACHE}/* || true
+          rm -rf ${GOCACHE}/* || true
 
       - name: Install gosec
         run: |
