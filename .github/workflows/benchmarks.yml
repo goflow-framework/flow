@@ -30,7 +30,10 @@ jobs:
 
       - name: Install tools (staticcheck optional)
         run: |
-          go install honnef.co/go/tools/cmd/staticcheck@latest || true
+          # Pin staticcheck to a concrete version to avoid flakes caused by
+          # tool changes when using @latest. Keep the step optional for
+          # environments that don't need staticcheck.
+          go install honnef.co/go/tools/cmd/staticcheck@v0.6.0 || true
 
       - name: Run router benchmarks
         run: |
