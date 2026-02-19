@@ -91,10 +91,19 @@ jobs:
       - name: Install govulncheck
         run: |
           export PATH=$(go env GOPATH)/bin:$PATH
-          # Pin govulncheck to a stable tagged release to avoid CI surprises.
-          go install golang.org/x/vuln/cmd/govulncheck@v0.1.0
+          # Build and install govulncheck with the job's toolchain so the
+          # binary and its dependencies (e.g. x/tools) match the Go version
+          # used for module download and compilation. Using `@latest` here
+          # avoids an old pinned release that may be incompatible with Go 1.24.
+          # If you prefer a pinned release, pick a modern release known to work
+          # with Go 1.24 and replace `@latest` with that tag.
+          go install golang.org/x/vuln/cmd/govulncheck@latest
 
       - name: Run govulncheck
         run: |
           export PATH=$(go env GOPATH)/bin:$PATH
-          govulncheck ./...
+          # Run with debug logging to capture additional diagnostic state if
+          # govulncheck encounters typechecking/exportdata issues. If this
+          # still panics, the debug output will help pinpoint the offending
+          # package or file.
+          govulncheck -debug ./...
