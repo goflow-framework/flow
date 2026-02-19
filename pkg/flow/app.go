@@ -465,7 +465,7 @@ func (a *App) SetRouter(h http.Handler) {
 
 // Handler builds the final http.Handler by applying middleware to the router.
 func (a *App) Handler() http.Handler {
-	var h http.Handler = a.router
+	var h = a.router
 	// Apply middleware in reverse so the first registered is outer-most.
 	for i := len(a.middleware) - 1; i >= 0; i-- {
 		h = a.middleware[i](h)

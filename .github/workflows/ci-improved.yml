@@ -81,16 +81,19 @@ jobs:
       - name: Run go vet
         run: go vet ./...
 
-      - name: Run golangci-lint (official action)
-        uses: golangci/golangci-lint-action@v4
-        with:
-          args: --timeout=10m
+      - name: Install golangci-lint v2.9.0 (manual)
+        run: |
+          curl -sSfL https://github.com/golangci/golangci-lint/releases/download/v2.9.0/golangci-lint-2.9.0-linux-amd64.tar.gz -o /tmp/golangci.tar.gz
+          tar -xzf /tmp/golangci.tar.gz -C $HOME
+          ls -la $HOME/golangci-lint-2.9.0-linux-amd64
 
-      - name: Install staticcheck (pinned)
-        run: go install honnef.co/go/tools/cmd/staticcheck@v2024.1.1
+      - name: Run golangci-lint (manual run)
+        run: |
+          # Use the pinned binary and avoid passing --out-format which may
+          # not be supported by certain builds. We only pass a timeout.
+          $HOME/golangci-lint-2.9.0-linux-amd64/golangci-lint run --timeout=10m
 
-      - name: Run staticcheck
-        run: staticcheck ./...
+      # staticcheck is now executed via golangci-lint (enabled in .golangci.yml).
 
       - name: Run tests (race + coverage)
         run: |
@@ -109,7 +112,8 @@ jobs:
         run: |
           if [ -n "$CODECOV_TOKEN" ]; then
             echo "Uploading coverage to Codecov"
-            # Use the official bash uploader when token is present.
+            # Use the official bash uploader when token is present. Keep
+            # `|| true` so the CI doesn't fail if the uploader exits non-zero.
             curl -s https://codecov.io/bash | bash -s -- -t "$CODECOV_TOKEN" -f .ci/coverage.out || true
           else
             echo "CODECOV_TOKEN not set; skipping codecov upload"

@@ -17,10 +17,8 @@ func TestRequestIDMiddleware_App(t *testing.T) {
 			t.Fatalf("expected X-Request-ID in request header")
 		}
 		// also ensure response header is set
-		wid := w.Header().Get("X-Request-ID")
-		if wid != "" {
-			// middleware typically sets response header before handler runs; accept either
-		}
+		_ = w.Header().Get("X-Request-ID")
+		// middleware typically sets response header before handler runs; accept either
 		w.WriteHeader(200)
 	}))
 

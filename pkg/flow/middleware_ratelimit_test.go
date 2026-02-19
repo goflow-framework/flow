@@ -62,11 +62,12 @@ func TestRateLimit_RejectsWhenExceeded(t *testing.T) {
 		req := httptest.NewRequest("GET", "http://example.test/", nil)
 		rr := httptest.NewRecorder()
 		mw.ServeHTTP(rr, req)
-		if rr.Code == http.StatusOK {
+		switch rr.Code {
+		case http.StatusOK:
 			success++
-		} else if rr.Code == http.StatusTooManyRequests {
+		case http.StatusTooManyRequests:
 			rejected++
-		} else {
+		default:
 			t.Fatalf("unexpected status %d", rr.Code)
 		}
 	}

@@ -4,8 +4,9 @@ run:
 linters:
   enable:
     - bodyclose
-  disable:
     - staticcheck
+  disable:
+    # staticcheck is enabled above; keep other disables here as needed
   exclusions:
     generated: lax
     rules:
