@@ -102,8 +102,16 @@ jobs:
       - name: Run govulncheck
         run: |
           export PATH=$(go env GOPATH)/bin:$PATH
-          # Run with debug logging to capture additional diagnostic state if
-          # govulncheck encounters typechecking/exportdata issues. If this
-          # still panics, the debug output will help pinpoint the offending
-          # package or file.
-          govulncheck -debug ./...
+          # govulncheck does not support -debug; print diagnostics and run
+          # the tool normally. If it panics, Go's runtime will print a stack
+          # trace to the job logs which we can use to diagnose the failure.
+          echo "--- govulncheck help ---"
+          govulncheck -h || true
+          echo "--- govulncheck binary info ---"
+          ls -la $(go env GOPATH)/bin || true
+          echo "--- head of govulncheck binary (strings) ---"
+          strings $(go env GOPATH)/bin/govulncheck | sed -n '1,80p' || true
+
+          # Run govulncheck over the repository. It may exit non-zero on
+          # findings; allow the job to fail so CI surfaces the result.
+          govulncheck ./...
