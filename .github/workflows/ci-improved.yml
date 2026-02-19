@@ -103,7 +103,9 @@ jobs:
       - name: Upload coverage artifact
         uses: actions/upload-artifact@v4
         with:
-          name: coverage-report
+          # Make artifact name unique per matrix job to avoid 409 Conflict when
+          # multiple matrix jobs upload the same artifact name in a single run.
+          name: coverage-report-${{ matrix.go-version }}
           path: .ci/coverage.out
 
       - name: Upload coverage to Codecov (guarded)
