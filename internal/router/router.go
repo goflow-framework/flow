@@ -318,7 +318,7 @@ func splitPath(p string) []string {
 // handlers at registration time so we don't rewrap the chain for every
 // incoming request.
 func compileHandler(h http.HandlerFunc, mws []Middleware) http.Handler {
-	var final = h
+	var final http.Handler = h
 	for i := len(mws) - 1; i >= 0; i-- {
 		final = mws[i](final)
 	}
