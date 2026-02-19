@@ -61,6 +61,18 @@ func GetAs[T any](r *ServiceRegistry, name string) (T, bool) {
 	return t, true
 }
 
+// RegisterTyped registers a typed service on the provided registry.
+func RegisterTyped[T any](r *ServiceRegistry, name string, svc T) error {
+	return r.Register(name, svc)
+}
+
+// GetTyped is a convenience generic wrapper around Get that performs the
+// type assertion to T and returns the zero value and false when not found
+// or if the cast fails.
+func GetTyped[T any](r *ServiceRegistry, name string) (T, bool) {
+	return GetAs[T](r, name)
+}
+
 // ListServices returns the registered service names in no particular order.
 // It can be used for diagnostics and tests.
 func (r *ServiceRegistry) ListServices() []string {

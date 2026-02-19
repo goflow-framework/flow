@@ -127,7 +127,28 @@ func RunCmdCombined(dir string, name string, args ...string) ([]byte, error) {
 			env = append(env, "GOSUMDB=sum.golang.org")
 		}
 
+		// Opt-in: allow test runs to request a writable modcache via an
+		// environment variable. This avoids forcing -modcacherw on all
+		// developers (some go toolchains may not accept it). CI can set
+		// FLOW_TEST_ALLOW_MODCACHE_RW=1 when appropriate.
+		if v := os.Getenv("FLOW_TEST_ALLOW_MODCACHE_RW"); v == "1" || strings.EqualFold(v, "true") {
+			env = append(env, "GOFLAGS=-modcacherw")
+		}
+
 		cmd.Env = env
+
+		// Diagnostics: when FLOW_TEST_DIAG=1 is set, print the exact go
+		// command and the relevant env vars so we can trace where flags
+		// like -modcacherw originate.
+		if os.Getenv("FLOW_TEST_DIAG") == "1" {
+			// Print to stderr so test logs capture it reliably.
+			fmt.Fprintf(os.Stderr, "[gen-testutil] running: %s %s\n", name, strings.Join(args, " "))
+			for _, e := range cmd.Env {
+				if strings.HasPrefix(e, "GOFLAGS=") || strings.HasPrefix(e, "GOMODCACHE=") || strings.HasPrefix(e, "GOPROXY=") || strings.HasPrefix(e, "GOSUMDB=") {
+					fmt.Fprintln(os.Stderr, "[gen-testutil] env:", e)
+				}
+			}
+		}
 	}
 
 	out, err := cmd.CombinedOutput()
@@ -151,10 +172,18 @@ func RunCmdCombined(dir string, name string, args ...string) ([]byte, error) {
 		}
 		return out, nil
 	}
-	// try to capture go env to aid debugging
-	if envOut, e := exec.Command("go", "env").CombinedOutput(); e == nil {
+	// try to capture go env to aid debugging. When possible, run the
+	// `go env` capture with the same environment we used for the failing
+	// command so the diagnostic output matches what the tool saw.
+	goEnvCmd := exec.Command("go", "env")
+	goEnvGP := exec.Command("go", "env", "GOPROXY", "GOSUMDB")
+	if cmd.Env != nil {
+		goEnvCmd.Env = cmd.Env
+		goEnvGP.Env = cmd.Env
+	}
+	if envOut, e := goEnvCmd.CombinedOutput(); e == nil {
 		// Also include GOPROXY and GOSUMDB explicitly (helpful for CI debugging).
-		gpOut, _ := exec.Command("go", "env", "GOPROXY", "GOSUMDB").CombinedOutput()
+		gpOut, _ := goEnvGP.CombinedOutput()
 		// best-effort relax perms on failure path too
 		if name == "go" {
 			gomodcache := filepath.Join(dir, ".gomodcache")
@@ -187,7 +216,10 @@ func WriteTempGoMod(projDir, moduleName string, replaceSelf bool) error {
 	}
 	gov, err := readGoVersion(repo)
 	if err != nil {
-		gov = "1.20"
+		// Prefer a modern baseline for generated test modules. Use 1.24
+		// to match repository tooling and avoid older-default toolchain
+		// behavior that can make CI brittle.
+		gov = "1.24"
 	}
 	absRepo, err := filepath.Abs(repo)
 	if err != nil {
