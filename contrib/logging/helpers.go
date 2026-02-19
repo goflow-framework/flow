@@ -1,7 +1,5 @@
 package logging
 
-import "context"
-
 // kvToMap converts a variadic key/value slice into a map[string]interface{}.
 // It ignores non-string keys and odd-length slices.
 func kvToMap(kv []interface{}) map[string]interface{} {
@@ -18,8 +16,3 @@ func kvToMap(kv []interface{}) map[string]interface{} {
 	}
 	return m
 }
-
-// The adapters' convenience helpers accept a context.Context to match the
-// flow.StructuredLogger helper signatures. The context is intentionally unused
-// here but included for interface compatibility.
-var _ = context.Background
