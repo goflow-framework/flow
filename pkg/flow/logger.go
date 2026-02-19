@@ -1,6 +1,7 @@
 package flow
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -107,15 +108,20 @@ func Redact(s string, secrets ...string) string {
 	return out
 }
 
-// StructuredLogger is an optional logger interface that supports structured
-// key/value fields. Middleware and framework code will attempt a type
-// assertion to this interface and emit structured logs when available. This
-// keeps the core Logger (Printf) backward-compatible while allowing richer
-// adapters.
+// StructuredLogger is a minimal interface that the framework uses for
+// structured logging. Keep it small so adapters are easy to provide.
 type StructuredLogger interface {
-	// Log emits a structured log entry at the given level with message and
-	// optional key/value fields. Implementations should handle nil fields.
+	Debug(ctx context.Context, msg string, keyvals ...interface{})
+	Info(ctx context.Context, msg string, keyvals ...interface{})
+	Warn(ctx context.Context, msg string, keyvals ...interface{})
+	Error(ctx context.Context, msg string, keyvals ...interface{})
 	Log(level string, msg string, fields map[string]interface{})
+}
+
+// LoggerAdapter is a small helper that allows providing a nil-safe logger
+// to App. Consumers can provide adapters for zap/zerolog in contrib/.
+type LoggerAdapter struct {
+	L StructuredLogger
 }
 
 // JSONLogger is a tiny JSON-line logger implementing both Printf (so it can
@@ -157,4 +163,65 @@ func (j *JSONLogger) Log(level string, msg string, fields map[string]interface{}
 		j.out.Write(b)
 		j.out.Write([]byte("\n"))
 	}
+}
+
+// keyvalsToMap converts a variadic key/value list into a map for the
+// framework's StructuredLogger.Log method. If an odd number of elements is
+// provided the last key is ignored.
+func keyvalsToMap(kv []interface{}) map[string]interface{} {
+	if len(kv) == 0 {
+		return nil
+	}
+	m := make(map[string]interface{}, len(kv)/2)
+	for i := 0; i < len(kv)-1; i += 2 {
+		k, ok := kv[i].(string)
+		if !ok {
+			continue
+		}
+		m[k] = kv[i+1]
+	}
+	return m
+}
+
+// Convenience helpers to implement StructuredLogger so JSONLogger can be
+// used directly where StructuredLogger is preferred.
+func (j *JSONLogger) Debug(ctx context.Context, msg string, keyvals ...interface{}) {
+	j.Log("debug", msg, keyvalsToMap(keyvals))
+}
+func (j *JSONLogger) Info(ctx context.Context, msg string, keyvals ...interface{}) {
+	j.Log("info", msg, keyvalsToMap(keyvals))
+}
+func (j *JSONLogger) Warn(ctx context.Context, msg string, keyvals ...interface{}) {
+	j.Log("warn", msg, keyvalsToMap(keyvals))
+}
+func (j *JSONLogger) Error(ctx context.Context, msg string, keyvals ...interface{}) {
+	j.Log("error", msg, keyvalsToMap(keyvals))
+}
+
+func (a *LoggerAdapter) Debug(ctx context.Context, msg string, keyvals ...interface{}) {
+	if a == nil || a.L == nil {
+		return
+	}
+	a.L.Log("debug", msg, keyvalsToMap(keyvals))
+}
+
+func (a *LoggerAdapter) Info(ctx context.Context, msg string, keyvals ...interface{}) {
+	if a == nil || a.L == nil {
+		return
+	}
+	a.L.Log("info", msg, keyvalsToMap(keyvals))
+}
+
+func (a *LoggerAdapter) Warn(ctx context.Context, msg string, keyvals ...interface{}) {
+	if a == nil || a.L == nil {
+		return
+	}
+	a.L.Log("warn", msg, keyvalsToMap(keyvals))
+}
+
+func (a *LoggerAdapter) Error(ctx context.Context, msg string, keyvals ...interface{}) {
+	if a == nil || a.L == nil {
+		return
+	}
+	a.L.Log("error", msg, keyvalsToMap(keyvals))
 }

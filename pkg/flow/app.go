@@ -124,6 +124,12 @@ type App struct {
 	pluginCtx    context.Context
 	pluginCancel context.CancelFunc
 	pluginWg     sync.WaitGroup
+
+	// Error handling: custom handler and verbosity flag. If no custom handler
+	// is provided the framework will use DefaultErrorHandler (with verbose
+	// controlled by verboseErrors).
+	errorHandler  func(http.ResponseWriter, *http.Request, error)
+	verboseErrors bool
 }
 
 type workerHandle struct {
@@ -470,7 +476,56 @@ func (a *App) Handler() http.Handler {
 	for i := len(a.middleware) - 1; i >= 0; i-- {
 		h = a.middleware[i](h)
 	}
-	return h
+	// Always wrap with recovery middleware that converts panics into errors and
+	// delegates to the configured error handler.
+	return a.recoveryMiddleware(h)
+}
+
+// recoveryMiddleware returns a middleware that recovers from panics and
+// delegates error rendering to App.errorHandler or DefaultErrorHandler.
+func (a *App) recoveryMiddleware(next http.Handler) http.Handler {
+	if a == nil {
+		return next
+	}
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer func() {
+			if rec := recover(); rec != nil {
+				var err error
+				switch v := rec.(type) {
+				case error:
+					err = v
+				default:
+					err = fmt.Errorf("panic: %v", v)
+				}
+				if a.errorHandler != nil {
+					a.errorHandler(w, r, err)
+					return
+				}
+				DefaultErrorHandler(w, r, err, a.verboseErrors)
+			}
+		}()
+		next.ServeHTTP(w, r)
+	})
+}
+
+// WithErrorHandler sets a custom error handler to render errors for requests.
+func WithErrorHandler(fn func(http.ResponseWriter, *http.Request, error)) Option {
+	return func(a *App) {
+		if a == nil {
+			return
+		}
+		a.errorHandler = fn
+	}
+}
+
+// WithVerboseErrors toggles whether the default error handler exposes internal
+// error messages in HTTP responses (only enable in non-production/dev).
+func WithVerboseErrors(v bool) Option {
+	return func(a *App) {
+		if a != nil {
+			a.verboseErrors = v
+		}
+	}
 }
 
 // RegisterPlugin registers a plugin with this App instance. It validates the
