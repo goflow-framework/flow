@@ -30,17 +30,31 @@ jobs:
 
       - name: Prepare modules for scan
         run: |
-          # Use a workspace-local module cache to avoid reading prebuilt
-          # export data compiled with a different toolchain/version.
-          go env -w GOMODCACHE=${{ github.workspace }}/.gomodcache-security
+          # Use workspace-local module & build caches to avoid reading prebuilt
+          # export data compiled with a different toolchain/version and to
+          # avoid touching the runner's global cache (which may be root-owned).
+          WORK_GOMODCACHE="${{ github.workspace }}/.gomodcache-security"
+          WORK_GOCACHE="${{ github.workspace }}/.gocache-security"
+
+          # Export for the current shell and persist with `go env -w` so all
+          # subsequent `go` invocations in this job use the workspace-local
+          # caches.
+          export GOMODCACHE="$WORK_GOMODCACHE"
+          export GOCACHE="$WORK_GOCACHE"
+          go env -w GOMODCACHE="$GOMODCACHE"
+          go env -w GOCACHE="$GOCACHE"
           go env -w GOPROXY=https://proxy.golang.org,direct
           go env -w GOSUMDB=sum.golang.org
+
+          # Download modules into the workspace-local module cache.
           go mod download
-          # Ensure any pre-existing compiled data is removed so analysis
-          # tools read fresh export data built with this job's toolchain.
-          go clean -cache -modcache || true
-          rm -rf ${GOMODCACHE}/* || true
-          rm -rf ${GOCACHE}/* || true
+
+          # Clean only the workspace-local caches (safe). Avoid `go clean -modcache`
+          # or removing the global module cache since the runner's default
+          # cache may contain files we can't remove (permission denied).
+          go clean -cache || true
+          rm -rf "$WORK_GOMODCACHE"/* || true
+          rm -rf "$WORK_GOCACHE"/* || true
 
       - name: Install gosec
         run: |
