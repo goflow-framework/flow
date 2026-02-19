@@ -52,7 +52,9 @@ jobs:
         run: |
           # Use the centralized script which checks only tracked files to avoid
           # accidentally reporting files inside a workspace-local module cache.
-          ./.github/scripts/check_gofmt.sh
+          # Run via bash to avoid relying on the executable bit in the checked
+          # out repository which may not be preserved on GitHub runners.
+          bash ./.github/scripts/check_gofmt.sh
 
       - name: Run tests with coverage (exclude generator integration)
         run: |

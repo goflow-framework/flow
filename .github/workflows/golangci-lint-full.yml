@@ -39,7 +39,7 @@ jobs:
         uses: golangci/golangci-lint-action@v4
         with:
           version: v2.9.0
-          args: --out-format=colored-line-number --timeout=10m
+          args: --timeout=10m
 
       - name: Upload golangci-lint cache (optional)
         if: always()

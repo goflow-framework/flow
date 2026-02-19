@@ -87,8 +87,10 @@ jobs:
           # Pin to a golangci-lint v2 release to match .golangci.yml (version: "2").
           # Adjust this to a newer v2.x when you intentionally bump the linter.
           version: v2.9.0
-          # Use the non-deprecated output format and a reasonable timeout.
-          args: --out-format=colored-line-number --timeout=10m
+          # Provide a reasonable timeout. Do not force an output-format here so
+          # the action can manage the best compatible format for the binary it
+          # installs. This avoids flag mismatch errors across versions.
+          args: --timeout=10m
 
       # staticcheck is now executed via golangci-lint (enabled in .golangci.yml).
 
