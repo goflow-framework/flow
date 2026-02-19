@@ -49,23 +49,38 @@ jobs:
           go env -w GOPROXY=https://proxy.golang.org,direct
           go env -w GOSUMDB=sum.golang.org
 
-          # Ensure workspace GOPATH directories exist and download modules into
-          # the workspace-local module cache.
+          # Ensure workspace GOPATH directories exist.
           mkdir -p "$WORK_GOMODCACHE" "$WORK_GOCACHE" "$WORK_GOPATH"
-          go mod download
 
-          # Clean only the workspace-local caches (safe). Avoid `go clean -modcache`
-          # or removing the global module cache since the runner's default
-          # cache may contain files we can't remove (permission denied).
-          go clean -cache || true
+          # Remove any pre-existing workspace-local caches so the job builds
+          # fresh exportdata with the current toolchain. IMPORTANT: do this
+          # before `go mod download` or installing analysis tools. Avoid
+          # touching the runner's global caches.
           rm -rf "$WORK_GOMODCACHE"/* || true
           rm -rf "$WORK_GOCACHE"/* || true
+          rm -rf "$WORK_GOPATH"/* || true
+
+          # Download modules into the workspace-local module cache.
+          go mod download
+
+          # Diagnostics: show the created caches and effective go environment
+          # so logs can help debug any remaining exportdata / version issues.
+          echo "--- go env ---"
+          go env
+          echo "--- GOMODCACHE contents ---"
+          ls -la "$WORK_GOMODCACHE" | sed -n '1,200p' || true
+          echo "--- GOPATH pkg/mod ---"
+          ls -la "$WORK_GOPATH"/pkg/mod 2>/dev/null | sed -n '1,200p' || true
 
       - name: Install gosec
         run: |
-          # Install a pinned gosec built with the current toolchain to avoid
-          # surprising changes from @latest.
-          go install github.com/securego/gosec/v2/cmd/gosec@v2.14.0
+          # Build and install gosec with the job's toolchain. Using `@latest`
+          # here lets the tool be built against recent `golang.org/x/tools`
+          # that are compatible with the Go toolchain on the runner. Pinning
+          # to an older tag can cause x/tools vs exportdata format mismatches
+          # (observed as "unsupported version: 2"). If you prefer a pinned
+          # version, pick a modern release known to work with Go 1.24.
+          go install github.com/securego/gosec/v2/cmd/gosec@latest
 
       - name: Run gosec (core only, fail on HIGH)
         run: |
