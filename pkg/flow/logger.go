@@ -124,6 +124,16 @@ type LoggerAdapter struct {
 	L StructuredLogger
 }
 
+// Printf implements the legacy Logger interface by forwarding to the
+// underlying StructuredLogger as an info-level entry. This makes
+// LoggerAdapter usable wherever a Logger is expected.
+func (a *LoggerAdapter) Printf(format string, v ...interface{}) {
+	if a == nil || a.L == nil {
+		return
+	}
+	a.L.Log("info", fmt.Sprintf(format, v...), nil)
+}
+
 // JSONLogger is a tiny JSON-line logger implementing both Printf (so it can
 // be used where Logger is expected) and StructuredLogger. It outputs one
 // compact JSON object per line with timestamp, level, message and fields.

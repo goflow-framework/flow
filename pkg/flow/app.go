@@ -185,6 +185,22 @@ func WithLogger(l Logger) Option {
 	return func(a *App) { a.logger = l }
 }
 
+// WithStructuredLogger sets a StructuredLogger on the App. Internally it
+// wraps the StructuredLogger with a LoggerAdapter so the rest of the App
+// (and middleware) can use the traditional Logger interface while middleware
+// that prefers StructuredLogger will detect and use it.
+func WithStructuredLogger(sl StructuredLogger) Option {
+	return func(a *App) {
+		if a == nil {
+			return
+		}
+		if sl == nil {
+			return
+		}
+		a.logger = &LoggerAdapter{L: sl}
+	}
+}
+
 // WithBun attaches a BunAdapter to the App during construction.
 func WithBun(b *orm.BunAdapter) Option {
 	return func(a *App) { a.SetBun(b) }
@@ -610,6 +626,11 @@ func (a *App) GetService(name string) (interface{}, bool) {
 	}
 	return a.services.Get(name)
 }
+
+// RegisterServiceTyped is a generic convenience wrapper that registers a
+// typed service under name. It preserves the existing behavior but provides
+// nicer ergonomics for callers using Go generics.
+// (Typed service helpers are provided as package-level generic functions in service_registry.go)
 
 // ListPlugins returns the registered plugin names for this App in
 // registration order.

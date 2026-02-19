@@ -214,14 +214,7 @@ func WriteTempGoMod(projDir, moduleName string, replaceSelf bool) error {
 
 // RunGoCombined is a convenience wrapper around RunCmdCombined for the go tool.
 func RunGoCombined(dir string, args ...string) ([]byte, error) {
-	// Ensure -modcacherw is used when invoking the go tool so the module
-	// cache created under the temporary project is writeable by test
-	// cleanup routines across different CI environments. It's safe to
-	// include this flag unconditionally for test runs.
-	args2 := make([]string, 0, 1+len(args))
-	args2 = append(args2, "-modcacherw")
-	args2 = append(args2, args...)
-	return RunCmdCombined(dir, "go", args2...)
+	return RunCmdCombined(dir, "go", args...)
 }
 
 // RunGoOrFail is a test helper that runs the go tool (via RunGoCombined) and
