@@ -102,8 +102,15 @@ func (rq *RedisQueue) popBlocking(ctx context.Context, timeout time.Duration) (*
 // moveDue moves jobs from delayed zset to immediate list when score <= now.
 func (rq *RedisQueue) moveDue(ctx context.Context) error {
 	now := float64(time.Now().UnixNano())
-	// ZRANGEBYSCORE with LIMIT to avoid large sweeps
-	vals, err := rq.client.ZRangeByScore(ctx, rq.delayedKey(), &redis.ZRangeBy{Min: "-inf", Max: fmt.Sprintf("%f", now), Count: 100}).Result()
+	// Use ZRangeArgs with ByScore (replaces deprecated ZRangeByScore) and LIMIT
+	zargs := redis.ZRangeArgs{
+		Key:     rq.delayedKey(),
+		Start:   "-inf",
+		Stop:    fmt.Sprintf("%f", now),
+		ByScore: true,
+		Count:   100,
+	}
+	vals, err := rq.client.ZRangeArgs(ctx, zargs).Result()
 	if err != nil {
 		return err
 	}
