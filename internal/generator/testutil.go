@@ -241,6 +241,18 @@ func WriteTempGoMod(projDir, moduleName string, replaceSelf bool) error {
 	return os.WriteFile(filepath.Join(projDir, "go.mod"), []byte(goMod), 0o644)
 }
 
+// WriteTempModule is a small helper to write a minimal temporary go.mod for
+// generator tests. It pins the go version to 1.24 and writes an absolute
+// replace directive pointing the module requirement to the provided repo
+// root. Use t.TempDir() to create the directory and pass it as `dir`.
+func WriteTempModule(t *testing.T, dir string, root string) {
+	// keep the module name generic; TempModule uses unique module names
+	content := fmt.Sprintf("module tempgen\n\ngo 1.24\n\nrequire github.com/undiegomejia/flow v0.0.0\n\nreplace github.com/undiegomejia/flow => %s\n", root)
+	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte(content), 0o644); err != nil {
+		t.Fatalf("WriteTempModule: %v", err)
+	}
+}
+
 // RunGoCombined is a convenience wrapper around RunCmdCombined for the go tool.
 func RunGoCombined(dir string, args ...string) ([]byte, error) {
 	return RunCmdCombined(dir, "go", args...)

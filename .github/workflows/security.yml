@@ -27,8 +27,9 @@ jobs:
 
       - name: Install gosec
         run: |
-          # Install a recent gosec built with the current toolchain.
-          go install github.com/securego/gosec/v2/cmd/gosec@latest
+          # Install a pinned gosec built with the current toolchain to avoid
+          # surprising changes from @latest.
+          go install github.com/securego/gosec/v2/cmd/gosec@v2.14.0
 
       - name: Run gosec (core only, fail on HIGH)
         run: |
@@ -39,5 +40,6 @@ jobs:
       - name: Run govulncheck
         run: |
           export PATH=$(go env GOPATH)/bin:$PATH
-          go install golang.org/x/vuln/cmd/govulncheck@latest
+          # Pin govulncheck to a stable tagged release to avoid CI surprises.
+          go install golang.org/x/vuln/cmd/govulncheck@v0.1.0
           govulncheck ./...
