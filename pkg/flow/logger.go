@@ -183,6 +183,21 @@ func keyvalsToMap(kv []interface{}) map[string]interface{} {
 	return m
 }
 
+// Convenience helpers to implement StructuredLogger so JSONLogger can be
+// used directly where StructuredLogger is preferred.
+func (j *JSONLogger) Debug(ctx context.Context, msg string, keyvals ...interface{}) {
+	j.Log("debug", msg, keyvalsToMap(keyvals))
+}
+func (j *JSONLogger) Info(ctx context.Context, msg string, keyvals ...interface{}) {
+	j.Log("info", msg, keyvalsToMap(keyvals))
+}
+func (j *JSONLogger) Warn(ctx context.Context, msg string, keyvals ...interface{}) {
+	j.Log("warn", msg, keyvalsToMap(keyvals))
+}
+func (j *JSONLogger) Error(ctx context.Context, msg string, keyvals ...interface{}) {
+	j.Log("error", msg, keyvalsToMap(keyvals))
+}
+
 func (a *LoggerAdapter) Debug(ctx context.Context, msg string, keyvals ...interface{}) {
 	if a == nil || a.L == nil {
 		return

@@ -18,7 +18,8 @@ func TestZerologAdapterImplementsStructuredLoggerAndHelpers(t *testing.T) {
 	if sl == nil {
 		t.Fatal("NewZerologAdapter returned nil")
 	}
-	var _ flow.StructuredLogger = sl
+	// compile-time interface check using nil-typed value
+	var _ flow.StructuredLogger = (*ZerologAdapter)(nil)
 
 	sl.Debug(context.Background(), "ztest", "k1", "v1")
 
