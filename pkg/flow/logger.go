@@ -8,6 +8,7 @@ import (
 	"os"
 	"strings"
 	"time"
+	"context"
 )
 
 // StdLogger is a small adapter that implements the framework Logger interface
@@ -157,4 +158,44 @@ func (j *JSONLogger) Log(level string, msg string, fields map[string]interface{}
 		j.out.Write(b)
 		j.out.Write([]byte("\n"))
 	}
+}
+
+// StructuredLogger is a minimal interface that the framework uses for
+// structured logging. Keep it small so adapters are easy to provide.
+type StructuredLogger interface {
+    Debug(ctx context.Context, msg string, keyvals ...interface{})
+    Info(ctx context.Context, msg string, keyvals ...interface{})
+    Warn(ctx context.Context, msg string, keyvals ...interface{})
+    Error(ctx context.Context, msg string, keyvals ...interface{})
+}
+
+// LoggerAdapter is a small helper that allows providing a nil-safe logger
+// to App. Consumers can provide adapters for zap/zerolog in contrib/.
+type LoggerAdapter struct {
+    L StructuredLogger
+}
+
+func (a *LoggerAdapter) Debug(ctx context.Context, msg string, keyvals ...interface{}) {
+    if a == nil || a.L == nil {
+        return
+    }
+    a.L.Debug(ctx, msg, keyvals...)
+}
+func (a *LoggerAdapter) Info(ctx context.Context, msg string, keyvals ...interface{}) {
+    if a == nil || a.L == nil {
+        return
+    }
+    a.L.Info(ctx, msg, keyvals...)
+}
+func (a *LoggerAdapter) Warn(ctx context.Context, msg string, keyvals ...interface{}) {
+    if a == nil || a.L == nil {
+        return
+    }
+    a.L.Warn(ctx, msg, keyvals...)
+}
+func (a *LoggerAdapter) Error(ctx context.Context, msg string, keyvals ...interface{}) {
+    if a == nil || a.L == nil {
+        return
+    }
+    a.L.Error(ctx, msg, keyvals...)
 }
