@@ -135,6 +135,9 @@ type App struct {
 	// true to preserve secure-by-default behavior; call WithRedaction(false)
 	// when you want to manage redaction externally.
 	redactionEnabled bool
+	// redactionCfg holds per-App redaction configuration when set via
+	// WithRedactionConfig. If zero-value the package defaults are used.
+	redactionCfg RedactionConfig
 }
 
 type workerHandle struct {
@@ -317,7 +320,37 @@ func WithLogging() Option {
 		if a == nil {
 			return
 		}
-		a.Use(LoggingMiddleware(a.logger))
+		// If the App has an explicit RedactionConfig use a middleware that
+		// applies that config when emitting structured logs. Otherwise fall
+		// back to the standard LoggingMiddleware which uses package defaults.
+		if cfg := GetRedactionConfig(a); cfg != nil {
+			a.Use(func(next http.Handler) http.Handler {
+				return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					start := time.Now()
+					fields := map[string]interface{}{
+						"method": r.Method,
+						"path":   r.URL.Path,
+						"remote": r.RemoteAddr,
+					}
+					if sl, ok := a.logger.(StructuredLogger); ok {
+						sl.Log("info", "request start", RedactMapWithConfig(cfg, fields))
+					} else {
+						a.logger.Printf("request start: %s %s", r.Method, r.URL.Path)
+					}
+
+					next.ServeHTTP(w, r)
+					elapsed := time.Since(start)
+					fields["elapsed"] = elapsed.String()
+					if sl, ok := a.logger.(StructuredLogger); ok {
+						sl.Log("info", "request complete", RedactMapWithConfig(cfg, fields))
+					} else {
+						a.logger.Printf("request complete: %s %s in %s", r.Method, r.URL.Path, elapsed)
+					}
+				})
+			})
+		} else {
+			a.Use(LoggingMiddleware(a.logger))
+		}
 	}
 }
 

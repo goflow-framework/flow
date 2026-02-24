@@ -1,9 +1,6 @@
 package flow
 
-import (
-	"strings"
-	"sync"
-)
+import "strings"
 
 // RedactionConfig controls which keys are treated as secrets and the maximum
 // string length before a value is considered sensitive and redacted.
@@ -12,16 +9,9 @@ type RedactionConfig struct {
 	MaxLen int
 }
 
-// WithRedactionConfig sets the App's redaction configuration.
-var (
-	appRedactionMu  sync.RWMutex
-	appRedactionCfg = make(map[*App]RedactionConfig)
-)
-
-// WithRedactionConfig sets the App's redaction configuration.
-// The configuration is stored in a package-level map keyed by the App
-// pointer to avoid modifying the App struct; helpers can retrieve it with
-// GetRedactionConfig.
+// WithRedactionConfig sets the App's redaction configuration by storing
+// the provided config directly on the App. This is the preferred long-term
+// storage location for per-App settings.
 func WithRedactionConfig(keys []string, maxLen int) Option {
 	return func(a *App) {
 		if a == nil {
@@ -31,24 +21,23 @@ func WithRedactionConfig(keys []string, maxLen int) Option {
 		for _, k := range keys {
 			cfg.Keys[strings.ToLower(strings.TrimSpace(k))] = struct{}{}
 		}
-		appRedactionMu.Lock()
-		appRedactionCfg[a] = cfg
-		appRedactionMu.Unlock()
+		a.redactionCfg = cfg
 	}
 }
 
 // GetRedactionConfig returns the RedactionConfig for the given App if set,
 // or nil otherwise.
+// GetRedactionConfig returns the RedactionConfig for the given App if it
+// has been explicitly configured via WithRedactionConfig. If no config was
+// set this returns nil so callers fall back to package defaults.
 func GetRedactionConfig(a *App) *RedactionConfig {
 	if a == nil {
 		return nil
 	}
-	appRedactionMu.RLock()
-	defer appRedactionMu.RUnlock()
-	if cfg, ok := appRedactionCfg[a]; ok {
-		return &cfg
+	if a.redactionCfg.Keys == nil && a.redactionCfg.MaxLen == 0 {
+		return nil
 	}
-	return nil
+	return &a.redactionCfg
 }
 
 // RedactMapWithConfig applies redaction using the provided config. If cfg is nil
