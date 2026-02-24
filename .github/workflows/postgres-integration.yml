@@ -1,0 +1,53 @@
+name: Postgres integration tests
+
+on:
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  pg-integration:
+    name: Postgres integration
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 2s
+          --health-retries 10
+    strategy:
+      matrix:
+        go-version: [1.24]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: ${{ matrix.go-version }}
+
+      - name: Wait for Postgres
+        run: |
+          # install pg_isready (postgres client) and wait for DB to be ready
+          sudo apt-get update -y
+          sudo apt-get install -y postgresql-client
+          for i in $(seq 1 30); do
+            pg_isready -h 127.0.0.1 -p 5432 && break || sleep 1
+          done
+
+      - name: Set PG_DSN
+        run: echo "PG_DSN=host=127.0.0.1 user=postgres password=postgres dbname=postgres port=5432 sslmode=disable" >> $GITHUB_ENV
+
+      - name: Install deps
+        run: go mod download
+
+      - name: Run Postgres integration test
+        run: go test ./contrib/orm/gorm -run TestConnectPostgresIntegration -v
