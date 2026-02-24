@@ -48,9 +48,13 @@ func startSimpleSMTPServer(t *testing.T) (addr string, msgs chan string, shutdow
 					return
 				}
 			case strings.HasPrefix(strings.ToUpper(line), "MAIL FROM:"):
-				fmt.Fprint(conn, "250 OK\r\n")
+				if _, err := fmt.Fprint(conn, "250 OK\r\n"); err != nil {
+					return
+				}
 			case strings.HasPrefix(strings.ToUpper(line), "RCPT TO:"):
-				fmt.Fprint(conn, "250 OK\r\n")
+				if _, err := fmt.Fprint(conn, "250 OK\r\n"); err != nil {
+					return
+				}
 			case strings.ToUpper(line) == "DATA":
 				if _, err := fmt.Fprint(conn, "354 End data with <CR><LF>.<CR><LF>\r\n"); err != nil {
 					return
