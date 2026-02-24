@@ -150,7 +150,7 @@ jobs:
           go test ./... -race -coverprofile=.ci/coverage.out -covermode=atomic || true
 
       - name: Upload coverage artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           # Make artifact name unique per matrix job and per workflow run to avoid 409 Conflict
           name: coverage-report-${{ matrix.go-version }}-${{ github.run_id }}
