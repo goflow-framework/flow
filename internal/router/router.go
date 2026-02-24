@@ -224,17 +224,37 @@ func (g *Group) Put(p string, h http.HandlerFunc)    { g.Handle("PUT", p, h) }
 func (g *Group) Patch(p string, h http.HandlerFunc)  { g.Handle("PATCH", p, h) }
 func (g *Group) Delete(p string, h http.HandlerFunc) { g.Handle("DELETE", p, h) }
 
-func (g *Group) GetWith(p string, h http.HandlerFunc, mws ...Middleware)    { g.HandleWith("GET", p, h, mws...) }
-func (g *Group) PostWith(p string, h http.HandlerFunc, mws ...Middleware)   { g.HandleWith("POST", p, h, mws...) }
-func (g *Group) PutWith(p string, h http.HandlerFunc, mws ...Middleware)    { g.HandleWith("PUT", p, h, mws...) }
-func (g *Group) PatchWith(p string, h http.HandlerFunc, mws ...Middleware)  { g.HandleWith("PATCH", p, h, mws...) }
-func (g *Group) DeleteWith(p string, h http.HandlerFunc, mws ...Middleware) { g.HandleWith("DELETE", p, h, mws...) }
+func (g *Group) GetWith(p string, h http.HandlerFunc, mws ...Middleware) {
+	g.HandleWith("GET", p, h, mws...)
+}
+func (g *Group) PostWith(p string, h http.HandlerFunc, mws ...Middleware) {
+	g.HandleWith("POST", p, h, mws...)
+}
+func (g *Group) PutWith(p string, h http.HandlerFunc, mws ...Middleware) {
+	g.HandleWith("PUT", p, h, mws...)
+}
+func (g *Group) PatchWith(p string, h http.HandlerFunc, mws ...Middleware) {
+	g.HandleWith("PATCH", p, h, mws...)
+}
+func (g *Group) DeleteWith(p string, h http.HandlerFunc, mws ...Middleware) {
+	g.HandleWith("DELETE", p, h, mws...)
+}
 
-func (g *Group) GetNamed(name, pattern string, h http.HandlerFunc)    { g.HandleNamed(name, "GET", pattern, h) }
-func (g *Group) PostNamed(name, pattern string, h http.HandlerFunc)   { g.HandleNamed(name, "POST", pattern, h) }
-func (g *Group) PutNamed(name, pattern string, h http.HandlerFunc)    { g.HandleNamed(name, "PUT", pattern, h) }
-func (g *Group) PatchNamed(name, pattern string, h http.HandlerFunc)  { g.HandleNamed(name, "PATCH", pattern, h) }
-func (g *Group) DeleteNamed(name, pattern string, h http.HandlerFunc) { g.HandleNamed(name, "DELETE", pattern, h) }
+func (g *Group) GetNamed(name, pattern string, h http.HandlerFunc) {
+	g.HandleNamed(name, "GET", pattern, h)
+}
+func (g *Group) PostNamed(name, pattern string, h http.HandlerFunc) {
+	g.HandleNamed(name, "POST", pattern, h)
+}
+func (g *Group) PutNamed(name, pattern string, h http.HandlerFunc) {
+	g.HandleNamed(name, "PUT", pattern, h)
+}
+func (g *Group) PatchNamed(name, pattern string, h http.HandlerFunc) {
+	g.HandleNamed(name, "PATCH", pattern, h)
+}
+func (g *Group) DeleteNamed(name, pattern string, h http.HandlerFunc) {
+	g.HandleNamed(name, "DELETE", pattern, h)
+}
 
 // Convenience sugar: GetNamed, PostNamed, PutNamed, PatchNamed, DeleteNamed
 func (r *Router) GetNamed(name, pattern string, h http.HandlerFunc) {
