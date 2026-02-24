@@ -47,10 +47,10 @@ type SMTPAdapter struct {
 	// be multiplied by attempt number (simple linear backoff). If zero
 	// a default of 250ms is used.
 	Backoff time.Duration
-	// InsecureSkipVerify controls whether the TLS client will verify the
-	// server certificate. Useful for tests against self-signed certs. Do
-	// NOT enable in production unless you understand the security risk.
-	InsecureSkipVerify bool
+	// TLSConfig is an optional TLS configuration used when establishing
+	// explicit TLS connections. If nil a sensible default is used and the
+	// ServerName will be set from the adapter's host portion.
+	TLSConfig *tls.Config
 }
 
 // NewSMTPAdapter constructs an SMTPAdapter. addr should be in the form
@@ -109,8 +109,16 @@ func (s *SMTPAdapter) sendOnce(to string, msg []byte) error {
 
 	var client *smtp.Client
 	if s.UseTLS {
-		// Dial and perform TLS handshake in one step.
-		tlsConn, err := tls.DialWithDialer(&dialer, "tcp", s.addr, &tls.Config{ServerName: host, InsecureSkipVerify: s.InsecureSkipVerify})
+		// Prepare tls.Config by copying provided config (if any) and ensuring
+		// ServerName is set so the handshake validates the certificate.
+		var cfg tls.Config
+		if s.TLSConfig != nil {
+			cfg = *s.TLSConfig
+		}
+		if cfg.ServerName == "" {
+			cfg.ServerName = host
+		}
+		tlsConn, err := tls.DialWithDialer(&dialer, "tcp", s.addr, &cfg)
 		if err != nil {
 			return err
 		}

@@ -18,6 +18,12 @@ jobs:
       - name: Run go vet
         run: |
           go vet ./...
+      - name: Cache golangci-lint
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/golangci-lint
+          key: ${{ runner.os }}-golangci-lint-${{ hashFiles('**/go.sum') }}
       - name: Run golangci-lint
         uses: golangci/golangci-lint-action@v4
         with:

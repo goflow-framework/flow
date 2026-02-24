@@ -52,7 +52,7 @@ func generateSelfSignedCert(host string) (certPEM []byte, keyPEM []byte, err err
 // startTLSSMTPServer starts a TLS listener that implements a tiny SMTP
 // server (enough to validate the adapter TLS path). Returns the addr and a
 // channel containing the DATA body.
-func startTLSSMTPServer(t *testing.T) (addr string, msgs chan string, shutdown func()) {
+func startTLSSMTPServer(t *testing.T) (addr string, msgs chan string, certPEM []byte, shutdown func()) {
 	t.Helper()
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -79,22 +79,17 @@ func startTLSSMTPServer(t *testing.T) (addr string, msgs chan string, shutdown f
 		defer close(done)
 		conn, err := tlsLn.Accept()
 		if err != nil {
-			t.Logf("accept error: %v", err)
 			return
 		}
-		t.Logf("server: accepted connection")
 		defer conn.Close()
 		r := bufio.NewReader(conn)
 		// greeting
 		conn.Write([]byte("220 localhost TLS-SMTP\r\n"))
-		t.Logf("server: wrote greeting")
 		for {
 			line, err := r.ReadString('\n')
 			if err != nil {
-				t.Logf("server read error: %v", err)
 				return
 			}
-			t.Logf("server got line: %q", line)
 			line = strings.TrimRight(line, "\r\n")
 			switch {
 			case strings.HasPrefix(strings.ToUpper(line), "EHLO"):
@@ -111,7 +106,6 @@ func startTLSSMTPServer(t *testing.T) (addr string, msgs chan string, shutdown f
 				for {
 					l, err := r.ReadString('\n')
 					if err != nil {
-						t.Logf("server data read error: %v", err)
 						return
 					}
 					if l == ".\r\n" || l == ".\n" {
@@ -121,7 +115,6 @@ func startTLSSMTPServer(t *testing.T) (addr string, msgs chan string, shutdown f
 				}
 				msgs <- b.String()
 				conn.Write([]byte("250 OK\r\n"))
-				t.Logf("server: done reading data")
 				return
 			case strings.ToUpper(line) == "QUIT":
 				conn.Write([]byte("221 Bye\r\n"))
@@ -132,7 +125,7 @@ func startTLSSMTPServer(t *testing.T) (addr string, msgs chan string, shutdown f
 		}
 	}()
 
-	return ln.Addr().String(), msgs, func() {
+	return ln.Addr().String(), msgs, certPEM, func() {
 		_ = tlsLn.Close()
 		_ = ln.Close()
 		select {
@@ -143,7 +136,7 @@ func startTLSSMTPServer(t *testing.T) (addr string, msgs chan string, shutdown f
 }
 
 func TestSMTPAdapter_TLSIntegration(t *testing.T) {
-	addr, msgs, shutdown := startTLSSMTPServer(t)
+	addr, msgs, certPEM, shutdown := startTLSSMTPServer(t)
 	defer shutdown()
 
 	// wait briefly for server to be ready
@@ -161,8 +154,13 @@ func TestSMTPAdapter_TLSIntegration(t *testing.T) {
 
 	a.Timeout = 3 * time.Second
 	a.Retries = 0
-	// For self-signed test certs allow skipping verification in test.
-	a.InsecureSkipVerify = true
+	// Trust the server certificate by adding it to RootCAs on a TLS config.
+	certPool := x509.NewCertPool()
+	if ok := certPool.AppendCertsFromPEM(certPEM); !ok {
+		t.Fatalf("failed to append cert PEM")
+	}
+	host, _, _ := net.SplitHostPort(addr)
+	a.TLSConfig = &tls.Config{RootCAs: certPool, ServerName: host}
 
 	err := a.Send("tls@local", "TLS Integration", "Hello TLS SMTP")
 	// Even if the client reports an EOF on quit, the server may have
