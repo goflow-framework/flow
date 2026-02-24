@@ -1,4 +1,6 @@
-# Specify code owners who will be automatically requested for review
-# Format: <path> <owner>
+# CODEOWNERS file
+# Set default owners for the repo. Replace or extend with team/user handles as appropriate.
+*       @undiegomejia
 
-* @undiegomejia
+# Docs owners
+docs/*  @undiegomejia
