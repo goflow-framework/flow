@@ -130,6 +130,11 @@ type App struct {
 	// controlled by verboseErrors).
 	errorHandler  func(http.ResponseWriter, *http.Request, error)
 	verboseErrors bool
+	// redactionEnabled controls whether built-in logging middleware will
+	// redact sensitive fields (see RedactMap/RedactedValue). Default is
+	// true to preserve secure-by-default behavior; call WithRedaction(false)
+	// when you want to manage redaction externally.
+	redactionEnabled bool
 }
 
 type workerHandle struct {
@@ -254,6 +259,18 @@ func WithViewsFuncMap(m template.FuncMap) Option {
 			a.Views = NewViewManager("views")
 		}
 		a.Views.SetFuncMap(m)
+	}
+}
+
+// WithRedaction configures whether the framework's built-in logging
+// middleware performs field redaction before emitting structured logs.
+// By default redaction is enabled. Pass false to opt-out.
+func WithRedaction(enabled bool) Option {
+	return func(a *App) {
+		if a == nil {
+			return
+		}
+		a.redactionEnabled = enabled
 	}
 }
 
@@ -438,6 +455,8 @@ func New(name string, opts ...Option) *App {
 		services:        NewServiceRegistry(), // Initialize services registry
 		ctxPool:         NewContextPool(),
 		plugins:         make(map[string]Plugin),
+		// preserve secure-by-default redaction behavior for middleware/logging
+		redactionEnabled: true,
 	}
 
 	for _, opt := range opts {
@@ -948,7 +967,11 @@ func WithDefaultMiddleware() Option {
 		// lightweight, in-process rate limiting per client IP
 		a.Use(RateLimitMiddleware(DefaultRateLimitRPS, DefaultRateLimitBurst))
 		// logging and basic metrics (response time, status codes)
-		a.Use(LoggingMiddlewareWithRedaction(a.logger))
+		if a.redactionEnabled {
+			a.Use(LoggingMiddlewareWithRedaction(a.logger))
+		} else {
+			a.Use(LoggingMiddleware(a.logger))
+		}
 		a.Use(MetricsMiddleware())
 	}
 }
