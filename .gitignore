@@ -40,6 +40,7 @@ pprof_client.log
 pprof_server.log
 artifacts/*
 /ci-export-*/*
+/.ci/*.txt
 
 # Databases
 *.db
