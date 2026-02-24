@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log"
 	"net/http"
 	"os"
@@ -38,5 +39,5 @@ func main() {
 	// Let the server run briefly so you can exercise it (eg. curl localhost:3000)
 	time.Sleep(250 * time.Millisecond)
 
-	_ = app.Shutdown(nil)
+	_ = app.Shutdown(context.TODO())
 }
