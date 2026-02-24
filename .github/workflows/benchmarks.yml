@@ -3,7 +3,7 @@ name: benchmarks
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 3 * * 1' # weekly on Monday UTC
+    - cron: '0 3 * * *' # nightly at 03:00 UTC
 
 jobs:
   benchmarks:
@@ -12,6 +12,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          persist-credentials: true
 
       - name: Setup Go
         uses: ./.github/actions/ci-setup
@@ -46,9 +48,46 @@ jobs:
           echo "== pkg/flow benchmarks ==" > bench-output/flow_bench.txt
           go test ./pkg/flow -bench . -benchmem -run ^$ >> bench-output/flow_bench.txt
 
+      - name: Run benchmark comparison
+        # Compare current run to baseline (.ci/bench_baseline.json in repo).
+        # If baseline is missing the tool will write it and exit code 2. If
+        # regressions are detected it exits 1 and writes .ci/bench_report.json
+        run: |
+          mkdir -p .ci
+          # run benchcmp tool
+          go run ./tools/benchcmp -baseline .ci/bench_baseline.json -thresholds .ci/bench_thresholds.json -report .ci/bench_report.json bench-output/* || true
+          rc=$?
+          echo "benchcmp exit code: $rc"
+          if [ "$rc" -eq 2 ]; then
+            echo "Baseline missing; committing baseline to repo"
+            git add .ci/bench_baseline.json
+            git -c user.name='github-actions[bot]' -c user.email='github-actions[bot]@users.noreply.github.com' commit -m 'chore(bench): add baseline benchmark results'
+            git push origin HEAD:${{ github.ref }} || true
+          elif [ "$rc" -eq 1 ]; then
+            echo "Regressions detected; will create issue"
+            # create an issue with the report using the GITHUB_TOKEN
+            REPORT=$(cat .ci/bench_report.json)
+            TITLE="[Benchmark Regression] Automated bench run (${GITHUB_RUN_ID})"
+            BODY=$(jq -r --arg r "$REPORT" '{body: $r, title: "'"$TITLE"'"}')
+            # Create the issue and attach labels to make it easy to triage
+            curl -sS -X POST -H "Authorization: token ${GITHUB_TOKEN}" -H "Accept: application/vnd.github+json" \
+              https://api.github.com/repos/${{ github.repository }}/issues -d "$(jq -n --arg title \"${TITLE}\" --argfile body .ci/bench_report.json '{title:$title, body:$body, labels:["benchmark","regression"]}')"
+            exit 1
+          else
+            echo "No regressions"
+          fi
+
       - name: Upload benchmark artifacts
         uses: actions/upload-artifact@v4
         with:
           name: benchmarks
           path: bench-output
+          retention-days: 14
+
+      - name: Upload benchmark report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bench-report
+          path: .ci/bench_report.json
           retention-days: 14
