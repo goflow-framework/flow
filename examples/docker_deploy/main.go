@@ -21,17 +21,16 @@ func main() {
 	app := flow.New("docker-app",
 		flow.WithLogger(zapadapter.NewZapAdapter(z)),
 		flow.WithBoundedExecutor(4, 16),
+		flow.WithDefaultMiddleware(),
 	)
 
-	// simple health endpoint
-	app.SetRouter(http.NewServeMux())
-	app.Use(flow.WithDefaultMiddleware())
-	app.Handler().(http.Handler)
-
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+	// simple health endpoint registered on the App's router
+	mux := http.NewServeMux()
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		fmt.Fprintln(w, "ok")
 	})
+	app.SetRouter(mux)
 
 	addr := os.Getenv("ADDR")
 	if addr == "" {
@@ -42,6 +41,7 @@ func main() {
 		Addr:         addr,
 		ReadTimeout:  5 * time.Second,
 		WriteTimeout: 10 * time.Second,
+		Handler:      app.Handler(),
 	}
 
 	log.Printf("listening on %s", addr)
