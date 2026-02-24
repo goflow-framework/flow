@@ -21,12 +21,108 @@ type Router struct {
 	app   *App
 }
 
+// RouteGroup is the public wrapper around an internal router Group. It
+// exposes the same registration helpers but accepts framework Context
+// handlers and flow.Middleware.
+type RouteGroup struct {
+	inner *routerpkg.Group
+	r     *Router
+}
+
 // NewRouter constructs a Router bound to the provided App. App may be nil
 // for tests, but Resource adapters that need App will require a non-nil
 // App to function correctly.
 func NewRouter(app *App) *Router {
 	return &Router{inner: routerpkg.New(), app: app}
 }
+
+// Group creates a new route group with the provided prefix and optional
+// middleware. Group middleware is applied outer-most.
+func (r *Router) Group(prefix string, mws ...Middleware) *RouteGroup {
+	// convert middleware types
+	conv := make([]routerpkg.Middleware, 0, len(mws))
+	for _, mw := range mws {
+		conv = append(conv, routerpkg.Middleware(mw))
+	}
+	return &RouteGroup{inner: r.inner.Group(prefix, conv...), r: r}
+}
+
+// RouteGroup registration helpers adapt flow.Context handlers to http handlers
+// and delegate to the internal group.
+func (g *RouteGroup) wrap(h func(*Context)) http.HandlerFunc {
+	return func(w http.ResponseWriter, req *http.Request) {
+		ctx := NewContext(g.r.app, w, req)
+		defer PutContext(ctx)
+		h(ctx)
+	}
+}
+
+func (g *RouteGroup) Get(pattern string, h func(*Context))  { g.inner.Get(g.join(pattern), g.wrap(h)) }
+func (g *RouteGroup) Post(pattern string, h func(*Context)) { g.inner.Post(g.join(pattern), g.wrap(h)) }
+func (g *RouteGroup) Put(pattern string, h func(*Context))  { g.inner.Put(g.join(pattern), g.wrap(h)) }
+func (g *RouteGroup) Patch(pattern string, h func(*Context)) {
+	g.inner.Patch(g.join(pattern), g.wrap(h))
+}
+func (g *RouteGroup) Delete(pattern string, h func(*Context)) {
+	g.inner.Delete(g.join(pattern), g.wrap(h))
+}
+
+func (g *RouteGroup) GetWith(pattern string, h func(*Context), mws ...Middleware) {
+	conv := make([]routerpkg.Middleware, 0, len(mws))
+	for _, mw := range mws {
+		conv = append(conv, routerpkg.Middleware(mw))
+	}
+	g.inner.GetWith(g.join(pattern), g.wrap(h), conv...)
+}
+func (g *RouteGroup) PostWith(pattern string, h func(*Context), mws ...Middleware) {
+	conv := make([]routerpkg.Middleware, 0, len(mws))
+	for _, mw := range mws {
+		conv = append(conv, routerpkg.Middleware(mw))
+	}
+	g.inner.PostWith(g.join(pattern), g.wrap(h), conv...)
+}
+func (g *RouteGroup) PutWith(pattern string, h func(*Context), mws ...Middleware) {
+	conv := make([]routerpkg.Middleware, 0, len(mws))
+	for _, mw := range mws {
+		conv = append(conv, routerpkg.Middleware(mw))
+	}
+	g.inner.PutWith(g.join(pattern), g.wrap(h), conv...)
+}
+func (g *RouteGroup) PatchWith(pattern string, h func(*Context), mws ...Middleware) {
+	conv := make([]routerpkg.Middleware, 0, len(mws))
+	for _, mw := range mws {
+		conv = append(conv, routerpkg.Middleware(mw))
+	}
+	g.inner.PatchWith(g.join(pattern), g.wrap(h), conv...)
+}
+func (g *RouteGroup) DeleteWith(pattern string, h func(*Context), mws ...Middleware) {
+	conv := make([]routerpkg.Middleware, 0, len(mws))
+	for _, mw := range mws {
+		conv = append(conv, routerpkg.Middleware(mw))
+	}
+	g.inner.DeleteWith(g.join(pattern), g.wrap(h), conv...)
+}
+
+func (g *RouteGroup) GetNamed(name, pattern string, h func(*Context)) {
+	g.inner.GetNamed(name, g.join(pattern), g.wrap(h))
+}
+func (g *RouteGroup) PostNamed(name, pattern string, h func(*Context)) {
+	g.inner.PostNamed(name, g.join(pattern), g.wrap(h))
+}
+func (g *RouteGroup) PutNamed(name, pattern string, h func(*Context)) {
+	g.inner.PutNamed(name, g.join(pattern), g.wrap(h))
+}
+func (g *RouteGroup) PatchNamed(name, pattern string, h func(*Context)) {
+	g.inner.PatchNamed(name, g.join(pattern), g.wrap(h))
+}
+func (g *RouteGroup) DeleteNamed(name, pattern string, h func(*Context)) {
+	g.inner.DeleteNamed(name, g.join(pattern), g.wrap(h))
+}
+
+// join is a small helper to ensure patterns passed to the internal group are
+// understood as relative (internal Group already manages prefixing) but we
+// leave this to be explicit for now.
+func (g *RouteGroup) join(p string) string { return p }
 
 // Get registers a GET handler that accepts a *flow.Context for the given pattern.
 // The provided handler will be adapted into an http.HandlerFunc using the

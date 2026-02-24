@@ -535,6 +535,64 @@ func (a *App) SetRouter(h http.Handler) {
 		h = http.NewServeMux()
 	}
 	a.router = h
+
+	// If the provided router exposes a URL(name, params) method, inject a
+	// convenient `url_for` template helper into the ViewManager so templates
+	// can generate named routes. We merge with any existing FuncMap to avoid
+	// clobbering user-provided functions.
+	type urler interface {
+		URL(string, map[string]string) (string, error)
+	}
+	var u urler
+	if h != nil {
+		if uu, ok := h.(urler); ok {
+			u = uu
+		} else {
+			// try a common public Router type which also implements URL
+			if fr, ok := h.(*Router); ok {
+				// Router.URL delegates to inner and implements urler
+				u = fr
+			}
+		}
+	}
+
+	if u != nil && a != nil && a.Views != nil {
+		fm := template.FuncMap{}
+		if a.Views.FuncMap != nil {
+			for k, v := range a.Views.FuncMap {
+				fm[k] = v
+			}
+		}
+		// url_for(name, "key", "value", "k2", value2...) or url_for(name, map[string]string{...})
+		fm["url_for"] = func(name string, args ...interface{}) string {
+			var params map[string]string
+			if len(args) == 1 {
+				if m, ok := args[0].(map[string]string); ok {
+					params = m
+				}
+			}
+			if params == nil && len(args) > 0 {
+				// expect key/value pairs
+				if len(args)%2 != 0 {
+					return "#"
+				}
+				params = make(map[string]string, len(args)/2)
+				for i := 0; i < len(args); i += 2 {
+					k, ok := args[i].(string)
+					if !ok {
+						return "#"
+					}
+					params[k] = fmt.Sprint(args[i+1])
+				}
+			}
+			ustr, err := u.URL(name, params)
+			if err != nil {
+				return "#"
+			}
+			return ustr
+		}
+		a.Views.SetFuncMap(fm)
+	}
 }
 
 // Handler builds the final http.Handler by applying middleware to the router.

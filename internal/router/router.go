@@ -88,6 +88,23 @@ func New() *Router {
 	return &Router{}
 }
 
+// Group represents a set of routes sharing a common prefix and optional
+// middleware. Group middleware is applied outer-most (first executed) and
+// is combined with per-route middleware during registration.
+type Group struct {
+	r          *Router
+	prefix     string
+	middleware []Middleware
+}
+
+// Group creates a new route group using the provided prefix and optional
+// middleware. The prefix may include leading/trailing slashes; it will be
+// normalized by the router.
+func (r *Router) Group(prefix string, mws ...Middleware) *Group {
+	p := strings.Trim(prefix, "/")
+	return &Group{r: r, prefix: p, middleware: mws}
+}
+
 // Handle registers a handler for method and pattern.
 // Pattern must start with '/'. Parameter segments start with ':' and match a
 // single path segment.
@@ -151,6 +168,73 @@ func (r *Router) HandleNamedWith(name, method, pattern string, h http.HandlerFun
 	rt.compiled = compileHandler(h, mws)
 	r.routes = append(r.routes, rt)
 }
+
+// Group helper registration methods. They build the full pattern by joining
+// the group's prefix with the provided pattern and combine middleware so
+// group middleware executes outer-most.
+func (g *Group) joinPattern(p string) string {
+	p = strings.Trim(p, "/")
+	if g.prefix == "" && p == "" {
+		return "/"
+	}
+	if g.prefix == "" {
+		return "/" + p
+	}
+	if p == "" {
+		return "/" + g.prefix
+	}
+	return "/" + g.prefix + "/" + p
+}
+
+func (g *Group) combineMiddleware(mws []Middleware) []Middleware {
+	if len(g.middleware) == 0 {
+		return mws
+	}
+	out := make([]Middleware, 0, len(g.middleware)+len(mws))
+	out = append(out, g.middleware...)
+	out = append(out, mws...)
+	return out
+}
+
+func (g *Group) Handle(method, pattern string, h http.HandlerFunc) {
+	g.HandleWith(method, pattern, h)
+}
+
+func (g *Group) HandleWith(method, pattern string, h http.HandlerFunc, mws ...Middleware) {
+	full := g.joinPattern(pattern)
+	combined := g.combineMiddleware(mws)
+	g.r.HandleWith(method, full, h, combined...)
+}
+
+func (g *Group) HandleNamed(name, method, pattern string, h http.HandlerFunc) {
+	full := g.joinPattern(pattern)
+	g.r.HandleNamed(name, method, full, h)
+}
+
+func (g *Group) HandleNamedWith(name, method, pattern string, h http.HandlerFunc, mws ...Middleware) {
+	full := g.joinPattern(pattern)
+	combined := g.combineMiddleware(mws)
+	g.r.HandleNamedWith(name, method, full, h, combined...)
+}
+
+// Convenience group methods
+func (g *Group) Get(p string, h http.HandlerFunc)    { g.Handle("GET", p, h) }
+func (g *Group) Post(p string, h http.HandlerFunc)   { g.Handle("POST", p, h) }
+func (g *Group) Put(p string, h http.HandlerFunc)    { g.Handle("PUT", p, h) }
+func (g *Group) Patch(p string, h http.HandlerFunc)  { g.Handle("PATCH", p, h) }
+func (g *Group) Delete(p string, h http.HandlerFunc) { g.Handle("DELETE", p, h) }
+
+func (g *Group) GetWith(p string, h http.HandlerFunc, mws ...Middleware)    { g.HandleWith("GET", p, h, mws...) }
+func (g *Group) PostWith(p string, h http.HandlerFunc, mws ...Middleware)   { g.HandleWith("POST", p, h, mws...) }
+func (g *Group) PutWith(p string, h http.HandlerFunc, mws ...Middleware)    { g.HandleWith("PUT", p, h, mws...) }
+func (g *Group) PatchWith(p string, h http.HandlerFunc, mws ...Middleware)  { g.HandleWith("PATCH", p, h, mws...) }
+func (g *Group) DeleteWith(p string, h http.HandlerFunc, mws ...Middleware) { g.HandleWith("DELETE", p, h, mws...) }
+
+func (g *Group) GetNamed(name, pattern string, h http.HandlerFunc)    { g.HandleNamed(name, "GET", pattern, h) }
+func (g *Group) PostNamed(name, pattern string, h http.HandlerFunc)   { g.HandleNamed(name, "POST", pattern, h) }
+func (g *Group) PutNamed(name, pattern string, h http.HandlerFunc)    { g.HandleNamed(name, "PUT", pattern, h) }
+func (g *Group) PatchNamed(name, pattern string, h http.HandlerFunc)  { g.HandleNamed(name, "PATCH", pattern, h) }
+func (g *Group) DeleteNamed(name, pattern string, h http.HandlerFunc) { g.HandleNamed(name, "DELETE", pattern, h) }
 
 // Convenience sugar: GetNamed, PostNamed, PutNamed, PatchNamed, DeleteNamed
 func (r *Router) GetNamed(name, pattern string, h http.HandlerFunc) {
@@ -345,6 +429,20 @@ func (r *Router) URL(name string, params map[string]string) (string, error) {
 					parts = append(parts, url.PathEscape(v))
 					continue
 				}
+				// wildcard segment (captures remaining path, may include '/').
+				if strings.HasPrefix(s, "*") {
+					key := strings.TrimPrefix(s, "*")
+					v, ok := params[key]
+					if !ok {
+						return "", fmt.Errorf("router: missing param %s for route %s", key, name)
+					}
+					// allow slashes in wildcard by escaping then restoring encoded '/'
+					esc := url.PathEscape(v)
+					esc = strings.ReplaceAll(esc, "%2F", "/")
+					esc = strings.ReplaceAll(esc, "%2f", "/")
+					parts = append(parts, esc)
+					continue
+				}
 				parts = append(parts, s)
 			}
 			return "/" + strings.Join(parts, "/"), nil
@@ -418,11 +516,35 @@ func matchRoute(segs []string, path string) (bool, map[string]string) {
 				params = getParams()
 			}
 			params[name] = part
+			// continue
+			segIndex++
+			pstart = pend + 1
+			continue
+		}
+		// wildcard segment captures the rest of the path and may include '/'
+		if strings.HasPrefix(s, "*") {
+			name := strings.TrimPrefix(s, "*")
+			if name == "" {
+				return false, nil
+			}
+			// wildcard must be the final segment in the pattern
+			if segIndex != len(segs)-1 {
+				return false, nil
+			}
+			if params == nil {
+				params = getParams()
+			}
+			// capture remainder of path from current pstart up to end
+			params[name] = path[pstart:end]
+			// consume all remaining segments
+			return true, params
 		} else {
 			if s != part {
 				return false, nil
 			}
 		}
+
+		// advance to next segment
 		segIndex++
 		pstart = pend + 1
 		// if we've consumed the path but there are still segments left, fail
