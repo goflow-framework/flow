@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 
+	"gorm.io/driver/postgres"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
@@ -22,6 +23,20 @@ func ConnectSQLite(dsn string) (*GormAdapter, error) {
 	gdb, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{})
 	if err != nil {
 		return nil, fmt.Errorf("open gorm sqlite: %w", err)
+	}
+	sqdb, err := gdb.DB()
+	if err != nil {
+		return nil, fmt.Errorf("gorm DB(): %w", err)
+	}
+	return &GormAdapter{DB: gdb, SQLDB: sqdb}, nil
+}
+
+// ConnectPostgres opens a gorm connection to Postgres using the provided DSN
+// (for example: "host=... user=... password=... dbname=... sslmode=disable").
+func ConnectPostgres(dsn string) (*GormAdapter, error) {
+	gdb, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
+	if err != nil {
+		return nil, fmt.Errorf("open gorm postgres: %w", err)
 	}
 	sqdb, err := gdb.DB()
 	if err != nil {

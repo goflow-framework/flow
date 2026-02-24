@@ -16,14 +16,11 @@ jobs:
         with:
           go-version: '1.24'
 
-      - name: Generate package docs (text)
+      - name: Generate package docs (HTML)
         run: |
-          mkdir -p .ci/docs
-          for pkg in $(go list ./...); do
-            outdir=.ci/docs/$(echo $pkg | tr '/' '-')
-            mkdir -p "$outdir"
-            go doc -all "$pkg" > "$outdir/doc.txt" || true
-          done
+          # Build and run the small docgen tool that wraps `go doc -all` output
+          # into simple HTML files under .ci/docs.
+          go run ./tools/docgen -out .ci/docs
 
       - name: Archive docs
         run: |
