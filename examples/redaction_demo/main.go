@@ -39,5 +39,8 @@ func main() {
 	// Let the server run briefly so you can exercise it (eg. curl localhost:3000)
 	time.Sleep(250 * time.Millisecond)
 
-	_ = app.Shutdown(context.TODO())
+	// Use a short timeout for shutdown so the example exits promptly.
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	_ = app.Shutdown(ctx)
 }
