@@ -26,6 +26,22 @@ type SMTPAdapter struct {
 	UseTLS bool
 }
 
+		// Auth allows callers to provide a custom smtp.Auth implementation.
+		// If nil and username is set, the adapter will fall back to smtp.PlainAuth.
+		Auth smtp.Auth
+
+		// Timeout configures a dial timeout for network operations. If zero a
+		// sensible default (5s) is used.
+		Timeout time.Duration
+
+		// Retries is the number of retry attempts (not including the first
+		// attempt). For example, Retries=2 results in up to 3 total attempts.
+		Retries int
+
+		// Backoff is the base backoff duration between retries. Duration will
+		// be multiplied by attempt number (simple linear backoff). If zero
+		// a default of 250ms is used.
+		Backoff time.Duration
 // NewSMTPAdapter constructs an SMTPAdapter. addr should be in the form
 // "host:port".
 func NewSMTPAdapter(addr, username, password string) *SMTPAdapter {
