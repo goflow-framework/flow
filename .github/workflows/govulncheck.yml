@@ -27,7 +27,7 @@ jobs:
           govulncheck ./... -json > .ci/vuln/govulncheck.json || true
 
       - name: Upload govulncheck report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: govulncheck-report
           path: .ci/vuln/govulncheck.json

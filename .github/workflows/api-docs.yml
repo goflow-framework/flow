@@ -27,7 +27,7 @@ jobs:
           tar -czf .ci/api-docs.tar.gz -C .ci docs
 
       - name: Upload docs artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: api-docs
           path: .ci/api-docs.tar.gz
