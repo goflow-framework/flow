@@ -1,3 +1,18 @@
+# Governance (starter)
+
+This repository follows a lightweight governance model. This file is a
+starting point and should be extended with contributor roles, decision
+making process, and security contact information.
+
+Key points
+- Maintain a Code of Conduct (already present in `CODE_OF_CONDUCT.md`).
+- Decisions about major API/architecture changes should be discussed and
+  recorded in issues and approved by maintainers.
+- Security issues should be reported to the security contacts listed here.
+
+Next steps
+- Add CODEOWNERS and fill in team members.
+- Clarify release sign-off process and maintainers.
 # Governance (quick, low-effort guidelines)
 
 This file contains brief governance notes to set expectations for small-to-medium
