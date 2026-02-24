@@ -12,12 +12,12 @@ import (
 )
 
 var (
-	baselinePath = flag.String("baseline", ".ci/bench_baseline.json", "path to baseline JSON file in repo")
+	baselinePath   = flag.String("baseline", ".ci/bench_baseline.json", "path to baseline JSON file in repo")
 	thresholdsPath = flag.String("thresholds", ".ci/bench_thresholds.json", "path to thresholds JSON file")
-	reportPath = flag.String("report", ".ci/bench_report.json", "output report path")
+	reportPath     = flag.String("report", ".ci/bench_report.json", "output report path")
 )
 
-var re = regexp.MustCompile(`^([^\s]+).*?([0-9]+\.?[0-9]*)\s+ns/op`) 
+var re = regexp.MustCompile(`^([^\s]+).*?([0-9]+\.?[0-9]*)\s+ns/op`)
 
 type Baseline struct {
 	Benchmarks map[string]float64 `json:"benchmarks"`

@@ -1,0 +1,36 @@
+name: API docs
+
+on:
+  schedule:
+    - cron: '0 5 * * *' # daily at 05:00 UTC
+  workflow_dispatch:
+
+jobs:
+  generate-docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.24'
+
+      - name: Generate package docs (text)
+        run: |
+          mkdir -p .ci/docs
+          for pkg in $(go list ./...); do
+            outdir=.ci/docs/$(echo $pkg | tr '/' '-')
+            mkdir -p "$outdir"
+            go doc -all "$pkg" > "$outdir/doc.txt" || true
+          done
+
+      - name: Archive docs
+        run: |
+          tar -czf .ci/api-docs.tar.gz -C .ci docs
+
+      - name: Upload docs artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: api-docs
+          path: .ci/api-docs.tar.gz
