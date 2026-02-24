@@ -1,7 +1,9 @@
 package mailer
 
 import (
+	"crypto/tls"
 	"fmt"
+	"net"
 	"net/smtp"
 )
 
@@ -18,6 +20,10 @@ type SMTPAdapter struct {
 	addr     string
 	username string
 	password string
+	// UseTLS indicates whether to establish an explicit TLS connection.
+	// If false, Send will use the plain smtp.SendMail which may negotiate
+	// STARTTLS depending on the server.
+	UseTLS bool
 }
 
 // NewSMTPAdapter constructs an SMTPAdapter. addr should be in the form
@@ -26,23 +32,79 @@ func NewSMTPAdapter(addr, username, password string) *SMTPAdapter {
 	return &SMTPAdapter{addr: addr, username: username, password: password}
 }
 
-// Send sends a minimal email using net/smtp. This implementation is
-// intentionally small; callers may provide richer MIME headers if needed.
+// NewSMTPAdapterWithTLS constructs an SMTPAdapter that will attempt to
+// use an explicit TLS connection when sending mail.
+func NewSMTPAdapterWithTLS(addr, username, password string, useTLS bool) *SMTPAdapter {
+	return &SMTPAdapter{addr: addr, username: username, password: password, UseTLS: useTLS}
+}
+
+// Send sends a minimal email. If UseTLS is true the implementation will
+// establish a TLS connection to the server and perform the SMTP dialog
+// over that connection. This implementation keeps behavior explicit but
+// intentionally small for the example.
 func (s *SMTPAdapter) Send(to, subject, body string) error {
 	if s == nil {
 		return fmt.Errorf("smtp adapter: nil")
 	}
-	auth := smtp.PlainAuth("", s.username, s.password, s.host())
+
 	msg := "Subject: " + subject + "\r\n" + "\r\n" + body
-	return smtp.SendMail(s.addr, auth, s.username, []string{to}, []byte(msg))
+
+	if !s.UseTLS {
+		auth := smtp.PlainAuth("", s.username, s.password, s.host())
+		return smtp.SendMail(s.addr, auth, s.username, []string{to}, []byte(msg))
+	}
+
+	// Establish TLS connection and use smtp.Client for explicit TLS
+	host := s.host()
+	conn, err := tls.Dial("tcp", s.addr, &tls.Config{ServerName: host})
+	if err != nil {
+		return err
+	}
+	c, err := smtp.NewClient(conn, host)
+	if err != nil {
+		_ = conn.Close()
+		return err
+	}
+	defer func() { _ = c.Quit(); _ = conn.Close() }()
+
+	// If username is set, attempt AUTH
+	if s.username != "" {
+		auth := smtp.PlainAuth("", s.username, s.password, host)
+		if ok, _ := c.Extension("AUTH"); ok {
+			if err := c.Auth(auth); err != nil {
+				return err
+			}
+		}
+	}
+
+	if err := c.Mail(s.username); err != nil {
+		return err
+	}
+	if err := c.Rcpt(to); err != nil {
+		return err
+	}
+	w, err := c.Data()
+	if err != nil {
+		return err
+	}
+	if _, err := w.Write([]byte(msg)); err != nil {
+		return err
+	}
+	if err := w.Close(); err != nil {
+		return err
+	}
+
+	return c.Quit()
 }
 
 func (s *SMTPAdapter) host() string {
 	// split host:port and return host portion
-	for i := 0; i < len(s.addr); i++ {
-		if s.addr[i] == ':' {
-			return s.addr[:i]
-		}
+	if s == nil {
+		return ""
 	}
-	return s.addr
+	host, _, err := net.SplitHostPort(s.addr)
+	if err != nil {
+		return s.addr
+	}
+	return host
 }
