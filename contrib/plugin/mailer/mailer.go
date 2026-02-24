@@ -109,16 +109,20 @@ func (s *SMTPAdapter) sendOnce(to string, msg []byte) error {
 
 	var client *smtp.Client
 	if s.UseTLS {
-		// Prepare tls.Config by copying provided config (if any) and ensuring
-		// ServerName is set so the handshake validates the certificate.
-		var cfg tls.Config
+		// Prepare tls.Config without copying the value (it embeds a mutex).
+		// Clone the provided config when available to avoid copying the lock
+		// value; otherwise create a fresh config and set ServerName so the
+		// handshake validates the certificate.
+		var cfg *tls.Config
 		if s.TLSConfig != nil {
-			cfg = *s.TLSConfig
+			cfg = s.TLSConfig.Clone()
+		} else {
+			cfg = &tls.Config{}
 		}
 		if cfg.ServerName == "" {
 			cfg.ServerName = host
 		}
-		tlsConn, err := tls.DialWithDialer(&dialer, "tcp", s.addr, &cfg)
+		tlsConn, err := tls.DialWithDialer(&dialer, "tcp", s.addr, cfg)
 		if err != nil {
 			return err
 		}
