@@ -27,15 +27,16 @@ jobs:
           path: |
             ~/.cache/golangci-lint
           key: ${{ runner.os }}-golangci-lint-${{ hashFiles('**/go.sum') }}
+      - name: Install golangci-lint
+        run: |
+          # Install golangci-lint using the runner Go toolchain so the
+          # binary is built against the same Go version used for type info.
+          go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.59.0
       - name: Run golangci-lint
-        uses: golangci/golangci-lint-action@v4
-        with:
-          version: v1.59.0
-          # Build/install the binary with the repository Go toolchain to avoid
-          # mismatches between the prebuilt binary and the module export
-          # format (causes "unsupported version" typecheck errors).
-          install: true
-          args: run ./... --out-format colored-line-number
+        run: |
+          # Ensure the installed binary is on PATH and run the linter.
+          export PATH="$(go env GOPATH)/bin:$PATH"
+          golangci-lint run ./... --out-format colored-line-number
       - name: Run plugin and contrib tests
         run: |
           go test ./contrib/... ./... -v
