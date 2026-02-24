@@ -1,79 +1,106 @@
 package mailer
 
 import (
-	"io"
+	"bufio"
+	"fmt"
 	"net"
+	"strings"
 	"testing"
 	"time"
-
-	smtpserver "github.com/emersion/go-smtp"
 )
 
-// Backend and Session implementations for go-smtp to capture messages in tests.
-type testBackend struct {
-	msgs chan string
-}
-
-func (b *testBackend) Login(state *smtpserver.ConnectionState, username, password string) (smtpserver.Session, error) {
-	return &testSession{msgs: b.msgs}, nil
-}
-
-func (b *testBackend) AnonymousLogin(state *smtpserver.ConnectionState) (smtpserver.Session, error) {
-	return &testSession{msgs: b.msgs}, nil
-}
-
-type testSession struct {
-	msgs chan string
-}
-
-func (s *testSession) Mail(from string, opts smtpserver.MailOptions) error { return nil }
-func (s *testSession) Rcpt(to string) error                                { return nil }
-func (s *testSession) Data(r io.Reader) error {
-	b, err := io.ReadAll(r)
-	if err != nil {
-		return err
-	}
-	s.msgs <- string(b)
-	return nil
-}
-func (s *testSession) Reset()        {}
-func (s *testSession) Logout() error { return nil }
-
-func startTestSMTPServer(t *testing.T) (addr string, shutdown func()) {
+// startSimpleSMTPServer runs a tiny SMTP-like server sufficient for our
+// adapter's non-TLS path. It captures the DATA body and sends it to the
+// returned channel. The returned shutdown func stops the listener.
+func startSimpleSMTPServer(t *testing.T) (addr string, msgs chan string, shutdown func()) {
 	t.Helper()
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("listen: %v", err)
 	}
-	msgs := make(chan string, 1)
-	be := &testBackend{msgs: msgs}
-	s := smtpserver.NewServer(be)
-	s.AllowInsecureAuth = true
+	msgs = make(chan string, 1)
+	done := make(chan struct{})
 	go func() {
-		_ = s.Serve(ln)
+		defer close(done)
+		conn, err := ln.Accept()
+		if err != nil {
+			return
+		}
+		defer conn.Close()
+		r := bufio.NewReader(conn)
+		// greeting
+		fmt.Fprint(conn, "220 localhost SimpleSMTP\r\n")
+		for {
+			line, err := r.ReadString('\n')
+			if err != nil {
+				return
+			}
+			line = strings.TrimRight(line, "\r\n")
+			switch {
+			case strings.HasPrefix(strings.ToUpper(line), "EHLO"):
+				fmt.Fprint(conn, "250-localhost greets\r\n250 OK\r\n")
+			case strings.HasPrefix(strings.ToUpper(line), "HELO"):
+				fmt.Fprint(conn, "250 OK\r\n")
+			case strings.HasPrefix(strings.ToUpper(line), "MAIL FROM:"):
+				fmt.Fprint(conn, "250 OK\r\n")
+			case strings.HasPrefix(strings.ToUpper(line), "RCPT TO:"):
+				fmt.Fprint(conn, "250 OK\r\n")
+			case strings.ToUpper(line) == "DATA":
+				fmt.Fprint(conn, "354 End data with <CR><LF>.<CR><LF>\r\n")
+				var b strings.Builder
+				for {
+					l, err := r.ReadString('\n')
+					if err != nil {
+						return
+					}
+					if l == ".\r\n" || l == ".\n" {
+						break
+					}
+					b.WriteString(l)
+				}
+				msgs <- b.String()
+				fmt.Fprint(conn, "250 OK\r\n")
+			case strings.ToUpper(line) == "QUIT":
+				fmt.Fprint(conn, "221 Bye\r\n")
+				return
+			default:
+				// ignore
+				fmt.Fprint(conn, "250 OK\r\n")
+			}
+		}
 	}()
-	return ln.Addr().String(), func() {
-		_ = s.Close()
+	return ln.Addr().String(), msgs, func() {
 		_ = ln.Close()
-		close(msgs)
+		// wait for goroutine to exit or timeout
+		select {
+		case <-done:
+		case <-time.After(200 * time.Millisecond):
+		}
 	}
 }
 
 func TestSMTPAdapter_IntegrationLocal(t *testing.T) {
-	addr, shutdown := startTestSMTPServer(t)
+	addr, msgs, shutdown := startSimpleSMTPServer(t)
 	defer shutdown()
 
-	// wait a short moment for server to be ready
-	time.Sleep(50 * time.Millisecond)
+	// wait briefly for server to be ready
+	time.Sleep(20 * time.Millisecond)
 
-	// use adapter with no auth for local test server
 	a := NewSMTPAdapter(addr, "", "")
-	// small timeouts to keep test fast
 	a.Timeout = 2 * time.Second
 	a.Retries = 1
-	a.Backoff = 100 * time.Millisecond
+	a.Backoff = 50 * time.Millisecond
 
 	if err := a.Send("test@local", "Integration", "Hello local SMTP"); err != nil {
 		t.Fatalf("send failed: %v", err)
+	}
+
+	select {
+	case m := <-msgs:
+		if !strings.Contains(m, "Hello local SMTP") {
+			t.Fatalf("message body missing, got: %q", m)
+		}
+	case <-time.After(1 * time.Second):
+		t.Fatalf("timed out waiting for server to receive message")
 	}
 }

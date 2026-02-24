@@ -105,11 +105,9 @@ func (s *SMTPAdapter) sendOnce(to string, msg []byte) error {
 	if s.UseTLS {
 		tlsConn := tls.Client(conn, &tls.Config{ServerName: host})
 		// perform handshake to detect TLS errors early
-		if tc, ok := tlsConn.(*tls.Conn); ok {
-			if err := tc.Handshake(); err != nil {
-				_ = conn.Close()
-				return err
-			}
+		if err := tlsConn.Handshake(); err != nil {
+			_ = conn.Close()
+			return err
 		}
 		client, err = smtp.NewClient(tlsConn, host)
 		if err != nil {
