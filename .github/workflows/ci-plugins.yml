@@ -22,7 +22,7 @@ jobs:
         uses: golangci/golangci-lint-action@v4
         with:
           version: v1.59.0
-          args: run ./contrib/...
+          args: run ./...
       - name: Run plugin and contrib tests
         run: |
           go test ./contrib/... ./... -v

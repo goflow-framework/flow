@@ -2,6 +2,7 @@ package mailer
 
 import (
 	"crypto/tls"
+	"encoding/base64"
 	"fmt"
 	"net"
 	"net/smtp"
@@ -29,6 +30,11 @@ type SMTPAdapter struct {
 	// If nil and username is set, the adapter will fall back to smtp.PlainAuth.
 	Auth smtp.Auth
 
+	// AuthFactory is an optional factory used to create an smtp.Auth for a
+	// given host. It is evaluated before the default PlainAuth fallback. Use
+	// this to provide dynamic token-based auth (e.g., OAuth2/XOAUTH2).
+	AuthFactory func(host string) smtp.Auth
+
 	// Timeout configures a dial timeout for network operations. If zero a
 	// sensible default (5s) is used.
 	Timeout time.Duration
@@ -41,6 +47,10 @@ type SMTPAdapter struct {
 	// be multiplied by attempt number (simple linear backoff). If zero
 	// a default of 250ms is used.
 	Backoff time.Duration
+	// InsecureSkipVerify controls whether the TLS client will verify the
+	// server certificate. Useful for tests against self-signed certs. Do
+	// NOT enable in production unless you understand the security risk.
+	InsecureSkipVerify bool
 }
 
 // NewSMTPAdapter constructs an SMTPAdapter. addr should be in the form
@@ -96,35 +106,38 @@ func (s *SMTPAdapter) Send(to, subject, body string) error {
 func (s *SMTPAdapter) sendOnce(to string, msg []byte) error {
 	host := s.host()
 	dialer := net.Dialer{Timeout: s.Timeout}
-	conn, err := dialer.Dial("tcp", s.addr)
-	if err != nil {
-		return err
-	}
 
 	var client *smtp.Client
 	if s.UseTLS {
-		tlsConn := tls.Client(conn, &tls.Config{ServerName: host})
-		// perform handshake to detect TLS errors early
-		if err := tlsConn.Handshake(); err != nil {
-			_ = conn.Close()
+		// Dial and perform TLS handshake in one step.
+		tlsConn, err := tls.DialWithDialer(&dialer, "tcp", s.addr, &tls.Config{ServerName: host, InsecureSkipVerify: s.InsecureSkipVerify})
+		if err != nil {
 			return err
 		}
 		client, err = smtp.NewClient(tlsConn, host)
 		if err != nil {
-			_ = conn.Close()
+			_ = tlsConn.Close()
 			return err
 		}
+		defer func() { _ = client.Quit(); _ = tlsConn.Close() }()
 	} else {
+		conn, err := dialer.Dial("tcp", s.addr)
+		if err != nil {
+			return err
+		}
 		client, err = smtp.NewClient(conn, host)
 		if err != nil {
 			_ = conn.Close()
 			return err
 		}
+		defer func() { _ = client.Quit(); _ = conn.Close() }()
 	}
-	defer func() { _ = client.Quit(); _ = conn.Close() }()
 
 	// determine auth
 	auth := s.Auth
+	if auth == nil && s.AuthFactory != nil {
+		auth = s.AuthFactory(host)
+	}
 	if auth == nil && s.username != "" {
 		auth = smtp.PlainAuth("", s.username, s.password, host)
 	}
@@ -171,4 +184,27 @@ func (s *SMTPAdapter) host() string {
 		return s.addr
 	}
 	return host
+}
+
+// XOAUTH2 implements the smtp.Auth interface for XOAUTH2 style tokens.
+// It constructs the initial client response as base64("user=...\1auth=Bearer <token>\1\1").
+type XOAUTH2 struct {
+	Username string
+	Token    string
+}
+
+func NewXOAuth2Auth(username, token string) smtp.Auth {
+	return &XOAUTH2{Username: username, Token: token}
+}
+
+func (a *XOAUTH2) Start(server *smtp.ServerInfo) (string, []byte, error) {
+	// XOAUTH2 is only meaningful over TLS or to servers that advertise it.
+	// Build the initial client response.
+	resp := "user=" + a.Username + "\x01auth=Bearer " + a.Token + "\x01\x01"
+	return "XOAUTH2", []byte(base64.StdEncoding.EncodeToString([]byte(resp))), nil
+}
+
+func (a *XOAUTH2) Next(fromServer []byte, more bool) ([]byte, error) {
+	// XOAUTH2 does not expect multi-step challenges from typical servers.
+	return nil, nil
 }
