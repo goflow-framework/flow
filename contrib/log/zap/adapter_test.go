@@ -2,9 +2,9 @@ package zapadapter
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
-	"fmt"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zaptest/observer"
@@ -15,7 +15,7 @@ func TestZapAdapter_Logs(t *testing.T) {
 	// create an observed core so we can inspect emitted entries
 	core, observed := observer.New(zapcore.DebugLevel)
 	logger := zap.New(core)
-	defer logger.Sync()
+	defer func() { _ = logger.Sync() }()
 
 	za := &ZapAdapter{L: logger}
 
