@@ -29,7 +29,9 @@ func startSimpleSMTPServer(t *testing.T) (addr string, msgs chan string, shutdow
 		defer conn.Close()
 		r := bufio.NewReader(conn)
 		// greeting
-		fmt.Fprint(conn, "220 localhost SimpleSMTP\r\n")
+		if _, err := fmt.Fprint(conn, "220 localhost SimpleSMTP\r\n"); err != nil {
+			return
+		}
 		for {
 			line, err := r.ReadString('\n')
 			if err != nil {
@@ -38,15 +40,21 @@ func startSimpleSMTPServer(t *testing.T) (addr string, msgs chan string, shutdow
 			line = strings.TrimRight(line, "\r\n")
 			switch {
 			case strings.HasPrefix(strings.ToUpper(line), "EHLO"):
-				fmt.Fprint(conn, "250-localhost greets\r\n250 OK\r\n")
+				if _, err := fmt.Fprint(conn, "250-localhost greets\r\n250 OK\r\n"); err != nil {
+					return
+				}
 			case strings.HasPrefix(strings.ToUpper(line), "HELO"):
-				fmt.Fprint(conn, "250 OK\r\n")
+				if _, err := fmt.Fprint(conn, "250 OK\r\n"); err != nil {
+					return
+				}
 			case strings.HasPrefix(strings.ToUpper(line), "MAIL FROM:"):
 				fmt.Fprint(conn, "250 OK\r\n")
 			case strings.HasPrefix(strings.ToUpper(line), "RCPT TO:"):
 				fmt.Fprint(conn, "250 OK\r\n")
 			case strings.ToUpper(line) == "DATA":
-				fmt.Fprint(conn, "354 End data with <CR><LF>.<CR><LF>\r\n")
+				if _, err := fmt.Fprint(conn, "354 End data with <CR><LF>.<CR><LF>\r\n"); err != nil {
+					return
+				}
 				var b strings.Builder
 				for {
 					l, err := r.ReadString('\n')
@@ -59,13 +67,19 @@ func startSimpleSMTPServer(t *testing.T) (addr string, msgs chan string, shutdow
 					b.WriteString(l)
 				}
 				msgs <- b.String()
-				fmt.Fprint(conn, "250 OK\r\n")
+				if _, err := fmt.Fprint(conn, "250 OK\r\n"); err != nil {
+					return
+				}
 			case strings.ToUpper(line) == "QUIT":
-				fmt.Fprint(conn, "221 Bye\r\n")
+				if _, err := fmt.Fprint(conn, "221 Bye\r\n"); err != nil {
+					return
+				}
 				return
 			default:
 				// ignore
-				fmt.Fprint(conn, "250 OK\r\n")
+				if _, err := fmt.Fprint(conn, "250 OK\r\n"); err != nil {
+					return
+				}
 			}
 		}
 	}()
