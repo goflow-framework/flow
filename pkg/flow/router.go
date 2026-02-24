@@ -166,3 +166,57 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 // Handler returns the underlying http.Handler so the Router can be used
 // directly with net/http servers.
 func (r *Router) Handler() http.Handler { return r.inner }
+
+// URL builds a path for a named route by delegating to the internal router.
+// It returns an error if the route is unknown or required params are missing.
+func (r *Router) URL(name string, params map[string]string) (string, error) {
+	return r.inner.URL(name, params)
+}
+
+// Named route registration helpers mirror the internal router API but accept
+// framework Context handlers. These are useful for code that needs named
+// routes for URL generation while still using flow.Context handlers.
+func (r *Router) GetNamed(name, pattern string, h func(*Context)) {
+	wrapped := func(w http.ResponseWriter, req *http.Request) {
+		ctx := NewContext(r.app, w, req)
+		defer PutContext(ctx)
+		h(ctx)
+	}
+	r.inner.GetNamed(name, pattern, wrapped)
+}
+
+func (r *Router) PostNamed(name, pattern string, h func(*Context)) {
+	wrapped := func(w http.ResponseWriter, req *http.Request) {
+		ctx := NewContext(r.app, w, req)
+		defer PutContext(ctx)
+		h(ctx)
+	}
+	r.inner.PostNamed(name, pattern, wrapped)
+}
+
+func (r *Router) PutNamed(name, pattern string, h func(*Context)) {
+	wrapped := func(w http.ResponseWriter, req *http.Request) {
+		ctx := NewContext(r.app, w, req)
+		defer PutContext(ctx)
+		h(ctx)
+	}
+	r.inner.PutNamed(name, pattern, wrapped)
+}
+
+func (r *Router) PatchNamed(name, pattern string, h func(*Context)) {
+	wrapped := func(w http.ResponseWriter, req *http.Request) {
+		ctx := NewContext(r.app, w, req)
+		defer PutContext(ctx)
+		h(ctx)
+	}
+	r.inner.PatchNamed(name, pattern, wrapped)
+}
+
+func (r *Router) DeleteNamed(name, pattern string, h func(*Context)) {
+	wrapped := func(w http.ResponseWriter, req *http.Request) {
+		ctx := NewContext(r.app, w, req)
+		defer PutContext(ctx)
+		h(ctx)
+	}
+	r.inner.DeleteNamed(name, pattern, wrapped)
+}
