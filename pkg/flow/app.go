@@ -983,7 +983,32 @@ func WithLoggingLegacy() Option {
 		if a == nil {
 			return
 		}
-		a.Use(LoggingMiddleware(a.logger))
+		// Use a closure that captures the App so we can consult per-App
+		// redaction configuration via GetRedactionConfig when emitting
+		// structured log entries.
+		a.Use(func(next http.Handler) http.Handler {
+			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				start := time.Now()
+				fields := map[string]interface{}{
+					"method": r.Method,
+					"path":   r.URL.Path,
+					"remote": r.RemoteAddr,
+				}
+				if sl, ok := a.logger.(StructuredLogger); ok {
+					sl.Log("info", "request start", RedactMapWithConfig(GetRedactionConfig(a), fields))
+				} else {
+					a.logger.Printf("request start: %s %s", r.Method, r.URL.Path)
+				}
+				next.ServeHTTP(w, r)
+				elapsed := time.Since(start)
+				fields["elapsed"] = elapsed.String()
+				if sl, ok := a.logger.(StructuredLogger); ok {
+					sl.Log("info", "request complete", RedactMapWithConfig(GetRedactionConfig(a), fields))
+				} else {
+					a.logger.Printf("request complete: %s %s in %s", r.Method, r.URL.Path, elapsed)
+				}
+			})
+		})
 	}
 }
 
