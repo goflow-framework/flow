@@ -74,7 +74,7 @@ jobs:
           gosumdb: sum.golang.org
 
       - name: Cache generator gomodcache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ${{ github.workspace }}/.gomodcache
           key: ${{ runner.OS }}-generator-gomodcache-${{ hashFiles('**/go.sum') }}
@@ -107,7 +107,7 @@ jobs:
           gosumdb: sum.golang.org
 
       - name: Cache Go build/cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.cache/go-build
