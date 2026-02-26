@@ -3,7 +3,7 @@ module github.com/undiegomejia/flow
 go 1.24.11
 
 require (
-	github.com/alicebob/miniredis/v2 v2.36.1
+	github.com/alicebob/miniredis/v2 v2.37.0
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/google/uuid v1.6.0
 	github.com/prometheus/client_golang v1.23.2
