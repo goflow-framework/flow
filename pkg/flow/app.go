@@ -34,6 +34,7 @@ import (
 	"time"
 
 	orm "github.com/undiegomejia/flow/internal/orm"
+	"github.com/undiegomejia/flow/internal/server"
 	"github.com/undiegomejia/flow/pkg/assets"
 	execpkg "github.com/undiegomejia/flow/pkg/exec"
 	flowexec "github.com/undiegomejia/flow/pkg/flow/exec"
@@ -78,7 +79,7 @@ type App struct {
 
 	middleware []Middleware
 
-	server *http.Server
+	server *server.Server
 	// db is the optional database connection attached to the App.
 	db *sql.DB
 	// bunAdapter holds an optional Bun adapter for ORM operations. If set,
@@ -829,27 +830,17 @@ func (a *App) Start() error {
 		return ErrAppAlreadyRunning
 	}
 
-	srv := &http.Server{
-		Addr:         a.Addr,
-		Handler:      a.Handler(),
-		ReadTimeout:  a.ReadTimeout,
-		WriteTimeout: a.WriteTimeout,
-		IdleTimeout:  a.IdleTimeout,
-	}
-	a.server = srv
+	// construct internal server wrapper and start it
+	s := server.New(a.Handler(), a.Addr, a.ReadTimeout, a.WriteTimeout, a.IdleTimeout)
+	a.server = s
 
 	// create a plugin context for Start lifecycle. It will be canceled in Shutdown.
 	a.pluginCtx, a.pluginCancel = context.WithCancel(context.Background())
-	// start plugin Start() implementations after server goroutine is launched.
-	go func() {
-		a.logger.Printf("starting %s on %s", a.Name, a.Addr)
-		// http.ErrServerClosed is returned on normal shutdown and should not be logged as an error
-		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			a.logger.Printf("server error: %v", err)
-		}
-		// transition to stopped
-		atomic.StoreInt32(&a.state, 2)
-	}()
+
+	// start the HTTP server
+	if err := s.Start(); err != nil {
+		return err
+	}
 
 	// Start plugin goroutines (they should return when pluginCtx is canceled)
 	a.startPlugins(a.pluginCtx)
