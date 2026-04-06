@@ -23,7 +23,7 @@ jobs:
       - name: Setup Go (for security scan)
         uses: ./.github/actions/ci-setup
         with:
-          go-version: 1.24.13
+          go-version: 1.25.8
           gomodcache: ${{ github.workspace }}/.gomodcache-security
           goproxy: https://proxy.golang.org,direct
           gosumdb: sum.golang.org

@@ -196,6 +196,10 @@ func (w *Worker) Start(ctx context.Context) error {
 	concurrency := max(1, w.opts.Concurrency)
 	for i := 0; i < concurrency; i++ {
 		w.workersWg.Add(1)
+		// detachedCtx is intentionally independent of the worker's cancellation
+		// context so that in-flight job handlers are not abruptly cancelled when
+		// Stop() is called. Job handlers must manage their own deadlines/timeouts.
+		detachedCtx := context.Background() // #nosec G118
 		go func() {
 			defer w.workersWg.Done()
 			for {
@@ -220,19 +224,19 @@ func (w *Worker) Start(ctx context.Context) error {
 
 				// if stopping, push job back and exit
 				if atomic.LoadInt32(&w.stopping) == 1 {
-					_ = w.queue.Enqueue(context.Background(), j)
+					_ = w.queue.Enqueue(detachedCtx, j)
 					return
 				}
 
 				// process job: either dispatch via executor or run synchronously
 				if w.exec != nil {
 					// try to submit; if executor rejects, re-enqueue and continue
-					err := w.exec.Submit(context.Background(), func(ctx context.Context) {
+					err := w.exec.Submit(detachedCtx, func(ctx context.Context) {
 						_ = w.handleJob(ctx, j)
 					})
 					if err != nil {
 						// requeue job for later
-						_ = w.queue.Enqueue(context.Background(), j)
+						_ = w.queue.Enqueue(detachedCtx, j)
 						// small backoff to avoid tight loop
 						time.Sleep(10 * time.Millisecond)
 						continue
@@ -242,7 +246,7 @@ func (w *Worker) Start(ctx context.Context) error {
 
 				// synchronous processing in worker goroutine
 				w.wg.Add(1)
-				_ = w.handleJob(context.Background(), j)
+				_ = w.handleJob(detachedCtx, j)
 				w.wg.Done()
 			}
 		}()
