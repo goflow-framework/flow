@@ -1,6 +1,6 @@
 module github.com/undiegomejia/flow
 
-go 1.24.11
+go 1.25.8
 
 require (
 	github.com/alicebob/miniredis/v2 v2.37.0
