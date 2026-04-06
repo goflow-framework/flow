@@ -162,9 +162,7 @@ func RunCmdCombined(dir string, name string, args ...string) ([]byte, error) {
 				if e != nil {
 					return nil
 				}
-				// Skip symlinks to avoid TOCTOU issues flagged by gosec (G122).
-				// Prefer to check DirEntry.Type where available and fall back to
-				// d.Info() if necessary. Best-effort: silently ignore errors.
+				// Skip symlinks: do not follow/chmod symlinks to avoid TOCTOU.
 				if (d.Type() & os.ModeSymlink) != 0 {
 					return nil
 				}
@@ -174,10 +172,10 @@ func RunCmdCombined(dir string, name string, args ...string) ([]byte, error) {
 					}
 				}
 				if d.IsDir() {
-					_ = os.Chmod(p, 0o777)
+					_ = os.Chmod(p, 0o777) // #nosec G122 -- path comes from WalkDir on a controlled temp dir; symlinks skipped above.
 					return nil
 				}
-				_ = os.Chmod(p, 0o666)
+				_ = os.Chmod(p, 0o666) // #nosec G122 -- path comes from WalkDir on a controlled temp dir; symlinks skipped above.
 				return nil
 			})
 		}
@@ -202,7 +200,7 @@ func RunCmdCombined(dir string, name string, args ...string) ([]byte, error) {
 				if e != nil {
 					return nil
 				}
-				// Skip symlinks to avoid TOCTOU issues flagged by gosec (G122).
+				// Skip symlinks: do not follow/chmod symlinks to avoid TOCTOU.
 				if (d.Type() & os.ModeSymlink) != 0 {
 					return nil
 				}
@@ -212,10 +210,10 @@ func RunCmdCombined(dir string, name string, args ...string) ([]byte, error) {
 					}
 				}
 				if d.IsDir() {
-					_ = os.Chmod(p, 0o777)
+					_ = os.Chmod(p, 0o777) // #nosec G122 -- path comes from WalkDir on a controlled temp dir; symlinks skipped above.
 					return nil
 				}
-				_ = os.Chmod(p, 0o666)
+				_ = os.Chmod(p, 0o666) // #nosec G122 -- path comes from WalkDir on a controlled temp dir; symlinks skipped above.
 				return nil
 			})
 		}

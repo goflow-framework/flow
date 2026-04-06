@@ -196,7 +196,7 @@ func (w *Worker) Start(ctx context.Context) error {
 	concurrency := max(1, w.opts.Concurrency)
 	for i := 0; i < concurrency; i++ {
 		w.workersWg.Add(1)
-		go func() {
+		go func() { //nolint:contextcheck // #nosec G118 -- worker goroutines intentionally use context.Background for handlers so Stop() does not cancel in-flight jobs; this is by design.
 			defer w.workersWg.Done()
 			for {
 				// respect stop or cancelled context
