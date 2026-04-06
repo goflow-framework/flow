@@ -69,7 +69,7 @@ jobs:
           fi
 
       - name: Upload coverage report
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v6
         with:
           name: coverage-report
           path: .ci/coverage.out
@@ -84,7 +84,7 @@ jobs:
           go test ./pkg/flow -bench Benchmark -benchmem -run TestFastRequestIDFormat > .ci/bench/requestid_bench.txt || true
 
       - name: Upload requestid benchmark artifact
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v6
         with:
           name: requestid-benchmark
           path: .ci/bench/requestid_bench.txt
@@ -124,7 +124,7 @@ jobs:
           GOOS=windows GOARCH=amd64 go build -o release/flow-windows-amd64.exe ./cmd/flow
 
       - name: Upload release artifacts
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v6
         with:
           name: flow-binaries
           path: release/
@@ -207,7 +207,10 @@ jobs:
       - name: Upload generator integration artifact
         uses: actions/upload-artifact@v7
         with:
-          name: generator-integration-${{ matrix.go-version }}
+          # Prefix with job name to avoid a 409 Conflict when generator-nightly
+          # runs the same Go version and both jobs try to upload an artifact with
+          # the same name in the same workflow run.
+          name: generator-compile-${{ matrix.go-version }}
           path: .ci/integration/generator_tests_${{ matrix.go-version }}.txt
   # staticcheck moved to a dedicated workflow (`.github/workflows/staticcheck.yml`)
   # and now runs on pushes to `main`. Removing the inline `staticcheck` job
@@ -363,7 +366,9 @@ jobs:
       - name: Upload generator integration artifact
         uses: actions/upload-artifact@v7
         with:
-          name: generator-integration-${{ matrix.go-version }}
+          # Include job name and goproxy in artifact name to ensure uniqueness
+          # across generator-compile and generator-nightly jobs on the same run.
+          name: generator-nightly-${{ matrix.go-version }}-${{ env.SANITIZED_GOPROXY }}
           path: .ci/integration/*.txt
 
 
