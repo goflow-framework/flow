@@ -281,6 +281,11 @@ jobs:
         # exposing the value in the matrix itself.
         go-version: [1.24, 1.25, 1.26]
         goproxy: ["https://proxy.golang.org,direct", "https://goproxy.cn,direct", "direct", "PRIVATE_GOPROXY"]
+    env:
+      # Initialize SANITIZED_GOPROXY so workflow parsing/validation accepts
+      # references to this env var in later steps; it will be overwritten at
+      # runtime by the sanitization step inserted before caching.
+      SANITIZED_GOPROXY: ""
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -297,16 +302,32 @@ jobs:
           PRIVATE_GOPROXY: ${{ secrets.PRIVATE_GOPROXY }}
         run: |
           # Handle a sentinel value for private GOPROXY entries. If the
-          # matrix value is the sentinel "PRIVATE_GOPROXY", read the real
-          # value from the repository secret `PRIVATE_GOPROXY`.
+          # matrix value is the sentinel "PRIVATE_GOPROXY", prefer the
+          # repository secret `PRIVATE_GOPROXY`. If the secret isn't set,
+          # fall back to a safe default (direct) rather than failing the
+          # workflow. This makes the nightly matrix optional for private
+          # proxy testing.
           if [ "${{ matrix.goproxy }}" = "PRIVATE_GOPROXY" ]; then
             if [ -z "$PRIVATE_GOPROXY" ]; then
-              echo "PRIVATE_GOPROXY not set in secrets, aborting"; exit 1
+              echo "PRIVATE_GOPROXY not set in secrets; falling back to 'direct'"
+              go env -w GOPROXY=direct
+            else
+              go env -w GOPROXY="$PRIVATE_GOPROXY"
             fi
-            go env -w GOPROXY="$PRIVATE_GOPROXY"
           else
-            go env -w GOPROXY=${{ matrix.goproxy }}
+            go env -w GOPROXY="${{ matrix.goproxy }}"
           fi
+
+      - name: Sanitize GOPROXY for cache key
+        run: |
+          # Use the actual GOPROXY value configured in the runner rather
+          # than the matrix placeholder. This avoids the sentinel value
+          # "PRIVATE_GOPROXY" being embedded into cache keys when a secret
+          # fallback is used.
+          ACTUAL_GOPROXY=$(go env GOPROXY)
+          echo "Using GOPROXY: $ACTUAL_GOPROXY"
+          SANITIZED_GOPROXY=$(echo "$ACTUAL_GOPROXY" | sed 's/[^A-Za-z0-9]/_/g')
+          echo "SANITIZED_GOPROXY=$SANITIZED_GOPROXY" >> $GITHUB_ENV
 
       - name: Cache Go build cache
         uses: actions/cache@v5
@@ -314,7 +335,10 @@ jobs:
           path: |
             ~/.cache/go-build
             ${{ github.workspace }}/.gomodcache
-          key: ${{ runner.OS }}-go-${{ matrix.go-version }}-${{ hashFiles('**/go.sum') }}-${{ matrix.goproxy }}
+          # Use the sanitized GOPROXY value exported to the environment by the
+          # previous step so the cache key doesn't contain commas or other
+          # disallowed characters.
+          key: ${{ runner.OS }}-go-${{ matrix.go-version }}-${{ hashFiles('**/go.sum') }}-${{ env.SANITIZED_GOPROXY }}
           restore-keys: |
             ${{ runner.OS }}-go-${{ matrix.go-version }}-
 
