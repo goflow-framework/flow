@@ -220,6 +220,8 @@ func (w *Worker) Start(ctx context.Context) error {
 
 				// if stopping, push job back and exit
 				if atomic.LoadInt32(&w.stopping) == 1 {
+					// #nosec G118 -- intentional: create an independent context
+					// for re-enqueue so the job survives worker cancellation.
 					_ = w.queue.Enqueue(context.Background(), j)
 					return
 				}
@@ -227,6 +229,10 @@ func (w *Worker) Start(ctx context.Context) error {
 				// process job: either dispatch via executor or run synchronously
 				if w.exec != nil {
 					// try to submit; if executor rejects, re-enqueue and continue
+					// #nosec G118 -- intentional: submit handler with a
+					// detached context so handler execution is not cancelled by
+					// the worker's internal cancellation; this decouples the
+					// worker lifecycle from handler lifecycle by design.
 					err := w.exec.Submit(context.Background(), func(ctx context.Context) {
 						_ = w.handleJob(ctx, j)
 					})
@@ -242,6 +248,10 @@ func (w *Worker) Start(ctx context.Context) error {
 
 				// synchronous processing in worker goroutine
 				w.wg.Add(1)
+				// #nosec G118 -- intentional: run the handler with a
+				// detached background context so Stop() does not cancel
+				// already-started handlers. This is intentional and safe
+				// because handlers are expected to handle their own timeouts.
 				_ = w.handleJob(context.Background(), j)
 				w.wg.Done()
 			}

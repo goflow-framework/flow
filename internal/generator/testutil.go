@@ -162,6 +162,17 @@ func RunCmdCombined(dir string, name string, args ...string) ([]byte, error) {
 				if e != nil {
 					return nil
 				}
+				// Skip symlinks to avoid TOCTOU issues flagged by gosec (G122).
+				// Prefer to check DirEntry.Type where available and fall back to
+				// d.Info() if necessary. Best-effort: silently ignore errors.
+				if (d.Type() & os.ModeSymlink) != 0 {
+					return nil
+				}
+				if fi, err := d.Info(); err == nil {
+					if fi.Mode()&os.ModeSymlink != 0 {
+						return nil
+					}
+				}
 				if d.IsDir() {
 					_ = os.Chmod(p, 0o777)
 					return nil
@@ -190,6 +201,15 @@ func RunCmdCombined(dir string, name string, args ...string) ([]byte, error) {
 			_ = filepath.WalkDir(gomodcache, func(p string, d os.DirEntry, e error) error {
 				if e != nil {
 					return nil
+				}
+				// Skip symlinks to avoid TOCTOU issues flagged by gosec (G122).
+				if (d.Type() & os.ModeSymlink) != 0 {
+					return nil
+				}
+				if fi, err := d.Info(); err == nil {
+					if fi.Mode()&os.ModeSymlink != 0 {
+						return nil
+					}
 				}
 				if d.IsDir() {
 					_ = os.Chmod(p, 0o777)
