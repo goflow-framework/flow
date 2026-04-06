@@ -196,7 +196,11 @@ func (w *Worker) Start(ctx context.Context) error {
 	concurrency := max(1, w.opts.Concurrency)
 	for i := 0; i < concurrency; i++ {
 		w.workersWg.Add(1)
-		go func() { //nolint:contextcheck // #nosec G118 -- worker goroutines intentionally use context.Background for handlers so Stop() does not cancel in-flight jobs; this is by design.
+		// detachedCtx is intentionally independent of the worker's cancellation
+		// context so that in-flight job handlers are not abruptly cancelled when
+		// Stop() is called. Job handlers must manage their own deadlines/timeouts.
+		detachedCtx := context.Background() // #nosec G118
+		go func() {
 			defer w.workersWg.Done()
 			for {
 				// respect stop or cancelled context
@@ -220,25 +224,19 @@ func (w *Worker) Start(ctx context.Context) error {
 
 				// if stopping, push job back and exit
 				if atomic.LoadInt32(&w.stopping) == 1 {
-					// #nosec G118 -- intentional: create an independent context
-					// for re-enqueue so the job survives worker cancellation.
-					_ = w.queue.Enqueue(context.Background(), j)
+					_ = w.queue.Enqueue(detachedCtx, j)
 					return
 				}
 
 				// process job: either dispatch via executor or run synchronously
 				if w.exec != nil {
 					// try to submit; if executor rejects, re-enqueue and continue
-					// #nosec G118 -- intentional: submit handler with a
-					// detached context so handler execution is not cancelled by
-					// the worker's internal cancellation; this decouples the
-					// worker lifecycle from handler lifecycle by design.
-					err := w.exec.Submit(context.Background(), func(ctx context.Context) {
+					err := w.exec.Submit(detachedCtx, func(ctx context.Context) {
 						_ = w.handleJob(ctx, j)
 					})
 					if err != nil {
 						// requeue job for later
-						_ = w.queue.Enqueue(context.Background(), j)
+						_ = w.queue.Enqueue(detachedCtx, j)
 						// small backoff to avoid tight loop
 						time.Sleep(10 * time.Millisecond)
 						continue
@@ -248,11 +246,7 @@ func (w *Worker) Start(ctx context.Context) error {
 
 				// synchronous processing in worker goroutine
 				w.wg.Add(1)
-				// #nosec G118 -- intentional: run the handler with a
-				// detached background context so Stop() does not cancel
-				// already-started handlers. This is intentional and safe
-				// because handlers are expected to handle their own timeouts.
-				_ = w.handleJob(context.Background(), j)
+				_ = w.handleJob(detachedCtx, j)
 				w.wg.Done()
 			}
 		}()
