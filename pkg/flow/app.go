@@ -33,6 +33,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/undiegomejia/flow/internal/config"
 	orm "github.com/undiegomejia/flow/internal/orm"
 	"github.com/undiegomejia/flow/internal/server"
 	"github.com/undiegomejia/flow/pkg/assets"
@@ -223,6 +224,43 @@ func WithAddr(addr string) Option {
 // WithShutdownTimeout sets the graceful shutdown timeout.
 func WithShutdownTimeout(d time.Duration) Option {
 	return func(a *App) { a.ShutdownTimeout = d }
+}
+
+// WithConfig applies a *config.Config to the App. It sets all transport-level
+// fields (Addr, timeouts), wires the session manager secret from
+// SecretKeyBase, and applies cookie security flags derived from the
+// environment. Individual WithAddr / WithShutdownTimeout calls made after
+// WithConfig will override the values set here.
+//
+// If cfg is nil the call is a no-op so it is safe to pass the result of
+// config.Load() directly even when the config is optional.
+func WithConfig(cfg *config.Config) Option {
+	return func(a *App) {
+		if a == nil || cfg == nil {
+			return
+		}
+		if cfg.Addr != "" {
+			a.Addr = cfg.Addr
+		}
+		if cfg.ReadTimeout > 0 {
+			a.ReadTimeout = cfg.ReadTimeout
+		}
+		if cfg.WriteTimeout > 0 {
+			a.WriteTimeout = cfg.WriteTimeout
+		}
+		if cfg.IdleTimeout > 0 {
+			a.IdleTimeout = cfg.IdleTimeout
+		}
+		if cfg.ShutdownTimeout > 0 {
+			a.ShutdownTimeout = cfg.ShutdownTimeout
+		}
+		// Wire session secret and cookie security flags.
+		if a.Sessions != nil {
+			a.Sessions.secret = cfg.SecretKeyBytes()
+			a.Sessions.CookieSecure = cfg.CookieSecure
+			a.Sessions.CookieSameSite = cfg.CookieSameSite
+		}
+	}
 }
 
 // WithViewsDefaultLayout configures the default layout file (relative to the
