@@ -20,6 +20,15 @@ type Context interface {
 	JSON(code int, v interface{}) error
 	// Redirect sends an HTTP redirect
 	Redirect(url string, code int)
+	// BindForm decodes form-encoded request body into dst (pointer to struct).
+	// Uses `form:"name"` struct tags; falls back to lowercase field names.
+	BindForm(dst interface{}) error
+	// BindQuery decodes URL query parameters into dst (pointer to struct).
+	// Uses the same `form:"name"` tag convention as BindForm.
+	BindQuery(dst interface{}) error
+	// Validate runs struct-level validation on dst using the configured
+	// validator. Returns validator.ValidationErrors on failure.
+	Validate(dst interface{}) error
 }
 
 // AppLogger is a minimal logger interface that AppContext implementations may
