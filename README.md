@@ -7,6 +7,8 @@
 
 This README gives a concise introduction, quickstart, and reference for the main building blocks so you (or contributors) can get started quickly.
 
+> **New to Flow?** Start with the [Getting Started guide](docs/getting-started.md) for a full walkthrough: scaffold → migrate → controller → serve.
+
 ## Highlights
 
 - Small, dependency-free internal router with RESTful `Resources` helper.
