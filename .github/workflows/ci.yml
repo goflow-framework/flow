@@ -22,7 +22,7 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
 
       - name: Set up Go (shared)
         uses: ./.github/actions/ci-setup
@@ -34,7 +34,7 @@ jobs:
         with:
           path: |
             ~/.cache/go-build
-            ${{ github.workspace }}/pkg/mod
+            ~/go/pkg/mod
           key: ${{ runner.OS }}-go-${{ hashFiles('**/go.sum') }}
           restore-keys: |
             ${{ runner.OS }}-go-
@@ -61,39 +61,42 @@ jobs:
           mkdir -p .ci
           # exclude the internal/generator package from the broad test run so
           # it can be executed in an isolated job with a pinned toolchain.
-          pkgs=$(go list ./... | grep -v "internal/generator" || true)
-          if [ -z "$pkgs" ]; then
-            echo "no packages to test"
-          else
-            go test $pkgs -v -coverprofile=.ci/coverage.out || true
-          fi
+          pkgs=$(go list ./... | grep -v "internal/generator")
+          go test $pkgs -coverprofile=.ci/coverage.out -covermode=atomic
+
+      - name: Enforce coverage threshold (≥ 50%)
+        run: |
+          pct=$(go tool cover -func=.ci/coverage.out \
+                  | awk '/^total:/ { gsub(/%/, "", $3); print $3 }')
+          echo "Total coverage: ${pct}%"
+          awk -v pct="$pct" 'BEGIN {
+            if (pct + 0 < 50) {
+              print "FAIL: coverage " pct "% is below the 50% threshold"
+              exit 1
+            }
+            print "PASS: coverage " pct "% meets the 50% threshold"
+          }'
 
       - name: Upload coverage report
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: coverage-report
           path: .ci/coverage.out
 
       - name: Run benchmarks (basic)
-        run: go test -bench=. -run=^$ ./... || true
+        run: go test -bench=. -run=^$ ./...
 
       - name: Run RequestID microbenchmark (pkg/flow)
         run: |
           mkdir -p .ci/bench
           # Run only the microbenchmarks for request id generators and save output
-          go test ./pkg/flow -bench Benchmark -benchmem -run TestFastRequestIDFormat > .ci/bench/requestid_bench.txt || true
+          go test ./pkg/flow -bench Benchmark -benchmem -run TestFastRequestIDFormat > .ci/bench/requestid_bench.txt
 
       - name: Upload requestid benchmark artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: requestid-benchmark
           path: .ci/bench/requestid_bench.txt
-      - name: Vet
-        run: go vet ./...
-
-      - name: Run tests
-        run: go test ./... -v -count=1
-
   build-binaries:
     name: Build cross-platform binaries
     if: ${{ github.event_name != 'schedule' }}
@@ -101,7 +104,7 @@ jobs:
     needs: lint-and-test
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
 
       - name: Set up Go (shared)
         uses: ./.github/actions/ci-setup
@@ -124,7 +127,7 @@ jobs:
           GOOS=windows GOARCH=amd64 go build -o release/flow-windows-amd64.exe ./cmd/flow
 
       - name: Upload release artifacts
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: flow-binaries
           path: release/
@@ -136,16 +139,19 @@ jobs:
     needs: lint-and-test
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
 
       - name: Set up Go (shared)
         uses: ./.github/actions/ci-setup
         with:
           go-version: '1.24'
 
-      - name: Run other integration tests (if any)
+      - name: Run integration tests
         run: |
-          echo "No other integration tests configured; generator tests run in dedicated job."
+          # Placeholder: add integration test commands here when available.
+          # This step intentionally exits 0 when there is nothing to run so
+          # the job stays green without silencing real failures via || true.
+          echo "No integration tests configured yet."
 
   generator-compile:
     name: Generator compile tests (isolated)
@@ -159,7 +165,7 @@ jobs:
         go-version: [1.24, 1.25, 1.26]
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
 
       - name: Set up Go (shared)
         uses: ./.github/actions/ci-setup
@@ -201,7 +207,7 @@ jobs:
           go mod edit -replace=github.com/undiegomejia/flow=${GITHUB_WORKSPACE} || true
           # Run the generator tests by targeting the package path explicitly so
           # the temporary module is used for the test invocation.
-          go test ${GITHUB_WORKSPACE}/internal/generator -v 2>&1 | tee ${GITHUB_WORKSPACE}/.ci/integration/generator_tests_${{ matrix.go-version }}.txt || true
+          go test ${GITHUB_WORKSPACE}/internal/generator -v 2>&1 | tee ${GITHUB_WORKSPACE}/.ci/integration/generator_tests_${{ matrix.go-version }}.txt
           popd
 
       - name: Upload generator integration artifact
@@ -223,13 +229,14 @@ jobs:
     name: Test (Go ${{ matrix.go-version }})
     if: ${{ github.event_name != 'schedule' }}
     runs-on: ubuntu-latest
+    needs: lint-and-test
     strategy:
       matrix:
         go-version: [1.24, 1.25, 1.26]
 
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
 
       - name: Set up Go (shared)
         uses: ./.github/actions/ci-setup
@@ -266,11 +273,8 @@ jobs:
       - name: Vet
         run: go vet ./...
 
-      - name: Run tests (verbose)
-        run: go test ./... -v
-
-      - name: Run tests (no cache)
-        run: go test ./... -count=1
+      - name: Run tests (verbose, no cache)
+        run: go test ./... -v -count=1
 
   generator-nightly:
     name: Generator nightly matrix
@@ -294,7 +298,7 @@ jobs:
       SANITIZED_GOPROXY: ""
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
 
       - name: Set up Go (shared)
         uses: ./.github/actions/ci-setup
@@ -370,7 +374,7 @@ jobs:
           go mod init tmpgen || true
           go mod edit -require=github.com/undiegomejia/flow@v0.0.0 || true
           go mod edit -replace=github.com/undiegomejia/flow=${GITHUB_WORKSPACE} || true
-          go test ${GITHUB_WORKSPACE}/internal/generator -v 2>&1 | tee "${GITHUB_WORKSPACE}/$file" || true
+          go test ${GITHUB_WORKSPACE}/internal/generator -v 2>&1 | tee "${GITHUB_WORKSPACE}/$file"
           popd
 
       - name: Upload generator integration artifact
