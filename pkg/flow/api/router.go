@@ -8,14 +8,12 @@ package api
 
 import (
 	"net/http"
-
-	flowpkg "github.com/undiegomejia/flow/pkg/flow"
 )
 
 // ContextHandler is the canonical handler signature used by framework
 // controllers and routes. It accepts a framework Context which carries the
 // request, response writer and helpers.
-type ContextHandler func(*flowpkg.Context)
+type ContextHandler func(Context)
 
 // Middleware wraps an http.Handler and returns a new handler. Middlewares
 // are applied in registration order (first registered is outer-most).
@@ -24,13 +22,13 @@ type Middleware func(http.Handler) http.Handler
 // Resource is the minimal interface a resource-style controller should
 // implement to be wired via Router.Resources.
 type Resource interface {
-	Index(*flowpkg.Context)
-	New(*flowpkg.Context)
-	Create(*flowpkg.Context)
-	Show(*flowpkg.Context)
-	Edit(*flowpkg.Context)
-	Update(*flowpkg.Context)
-	Destroy(*flowpkg.Context)
+	Index(Context)
+	New(Context)
+	Create(Context)
+	Show(Context)
+	Edit(Context)
+	Update(Context)
+	Destroy(Context)
 }
 
 // RouteGroup represents a group of routes sharing a common prefix and
