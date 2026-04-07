@@ -1,30 +1,35 @@
 // Command-line interface for the Flow framework.
 //
 // This file implements a small, user-facing CLI using cobra. It provides
-// a `serve` command to run an App and a `version` command. The CLI is
-// intentionally minimal but fully functional so it can be extended with
-// generators and other developer tools later.
+// a `serve` command to run an App, a `new` command to scaffold new projects,
+// a `db` group with `migrate` / `rollback` / `status` subcommands wired to
+// internal/migrations, and generator subcommands under `generate`.
 package main
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"text/tabwriter"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/cobra"
+	gen "github.com/undiegomejia/flow/internal/generator"
+	migrations "github.com/undiegomejia/flow/internal/migrations"
 	routerpkg "github.com/undiegomejia/flow/internal/router"
 	flowpkg "github.com/undiegomejia/flow/pkg/flow"
 	"github.com/undiegomejia/flow/pkg/observability"
 	"github.com/undiegomejia/flow/pkg/plugins"
 
-	gen "github.com/undiegomejia/flow/internal/generator"
+	// register the pure-Go SQLite driver used by db migrate in development
+	_ "modernc.org/sqlite"
 	// include the sample plugin so the CLI binary built during tests
 	// includes an example generator registered via init().
 	_ "github.com/undiegomejia/flow/pkg/plugins/sample"
@@ -39,6 +44,10 @@ var (
 	otlpEndpoint   string
 	otlpInsecure   bool
 	otlpHeaders    string
+
+	// db command flags
+	dbMigrationsDir string
+	dbDSN           string
 )
 
 func main() {
@@ -52,10 +61,19 @@ func main() {
 		cancel()
 	}()
 
-	rootCmd := &cobra.Command{Use: "app"}
-	// core serve command (starts the app)
+	rootCmd := &cobra.Command{
+		Use:   "flow",
+		Short: "Flow – opinionated Go web framework CLI",
+		Long: `flow is the developer CLI for the Flow web framework.
+
+Use it to scaffold new projects, run the development server, manage
+database migrations, and generate code artifacts.`,
+	}
+	// core commands
+	rootCmd.AddCommand(newCmd)
 	rootCmd.AddCommand(serveCmd)
 	rootCmd.AddCommand(generateCmd)
+	rootCmd.AddCommand(dbCmd)
 	if err := rootCmd.ExecuteContext(ctx); err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(1)
@@ -65,6 +83,258 @@ func main() {
 var generateCmd = &cobra.Command{
 	Use:   "generate",
 	Short: "Generate code artifacts",
+}
+
+// ---------------------------------------------------------------------------
+// flow new
+// ---------------------------------------------------------------------------
+
+var newCmd = &cobra.Command{
+	Use:   "new <app-name>",
+	Short: "Scaffold a new Flow application",
+	Long: `Scaffold a new Flow application directory with a minimal, opinionated
+layout ready for development.
+
+The generated structure includes:
+  <app-name>/
+    cmd/<app-name>/main.go   – application entry-point
+    internal/                – private application packages
+    db/migrations/           – SQL migration files
+    go.mod                   – module definition
+    .env.example             – documented environment variables
+    Makefile                 – common developer tasks`,
+	Args: cobra.ExactArgs(1),
+	RunE: runNew,
+}
+
+func runNew(cmd *cobra.Command, args []string) error {
+	name := args[0]
+	root := name
+
+	// Refuse to overwrite an existing directory
+	if _, err := os.Stat(root); err == nil {
+		return fmt.Errorf("directory %q already exists", root)
+	}
+
+	dirs := []string{
+		filepath.Join(root, "cmd", name),
+		filepath.Join(root, "internal"),
+		filepath.Join(root, "db", "migrations"),
+	}
+	for _, d := range dirs {
+		if err := os.MkdirAll(d, 0o755); err != nil {
+			return fmt.Errorf("create dir %s: %w", d, err)
+		}
+	}
+
+	files := map[string]string{
+		filepath.Join(root, "go.mod"): fmt.Sprintf("module %s\n\ngo 1.24\n\nrequire github.com/undiegomejia/flow v0.0.0\n", name),
+
+		filepath.Join(root, "cmd", name, "main.go"): fmt.Sprintf(`package main
+
+import (
+	"log"
+
+	"github.com/undiegomejia/flow/pkg/flow"
+)
+
+func main() {
+	app := flow.New(%q,
+		flow.WithDefaultMiddleware(),
+	)
+
+	if err := app.Run(); err != nil {
+		log.Fatal(err)
+	}
+}
+`, name),
+
+		filepath.Join(root, ".env.example"): `# Runtime environment: development | test | production
+FLOW_ENV=development
+
+# HTTP listen address
+FLOW_ADDR=:3000
+
+# Primary database DSN (postgres or sqlite)
+DATABASE_URL=sqlite://db/development.db
+
+# Session signing secret – set to a random 32+ char string in production
+# FLOW_SECRET_KEY_BASE=
+
+# Logging verbosity: debug | info | warn | error
+FLOW_LOG_LEVEL=info
+`,
+
+		filepath.Join(root, "Makefile"): fmt.Sprintf(`# Common developer tasks for %s
+
+.PHONY: run build test migrate rollback
+
+run:
+	go run ./cmd/%s
+
+build:
+	go build -o bin/%s ./cmd/%s
+
+test:
+	go test ./... -v
+
+migrate:
+	flow db migrate --dir db/migrations
+
+rollback:
+	flow db rollback --dir db/migrations
+`, name, name, name, name),
+	}
+
+	for path, content := range files {
+		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+			return fmt.Errorf("write %s: %w", path, err)
+		}
+	}
+
+	fmt.Printf("✓ Created new Flow application: %s\n\n", name)
+	fmt.Printf("  cd %s\n", name)
+	fmt.Printf("  cp .env.example .env\n")
+	fmt.Printf("  go mod tidy\n")
+	fmt.Printf("  make run\n\n")
+	return nil
+}
+
+// ---------------------------------------------------------------------------
+// flow db
+// ---------------------------------------------------------------------------
+
+// openDB opens a *sql.DB from dsn, falling back to DATABASE_URL env var.
+// It infers the driver from the DSN prefix:
+//   - "postgres://" or "postgresql://" → "pgx" (requires pgx driver)
+//   - everything else (including "sqlite://") → "sqlite" (modernc pure-Go)
+func openDB(dsn string) (*sql.DB, error) {
+	if dsn == "" {
+		dsn = os.Getenv("DATABASE_URL")
+	}
+	if dsn == "" {
+		return nil, fmt.Errorf("no database DSN: set --dsn or DATABASE_URL")
+	}
+	driver := "sqlite"
+	rawDSN := dsn
+	switch {
+	case len(dsn) >= 11 && dsn[:11] == "postgresql://":
+		driver = "pgx"
+	case len(dsn) >= 11 && dsn[:11] == "postgres://":
+		driver = "pgx"
+	case len(dsn) >= 9 && dsn[:9] == "sqlite://":
+		// strip the scheme so modernc/sqlite receives a plain file path
+		rawDSN = dsn[9:]
+	}
+	return sql.Open(driver, rawDSN)
+}
+
+var dbCmd = &cobra.Command{
+	Use:   "db",
+	Short: "Database management commands",
+}
+
+var dbMigrateCmd = &cobra.Command{
+	Use:   "migrate",
+	Short: "Apply all pending SQL migrations",
+	Long: `Apply all pending .up.sql migrations found in the migrations directory.
+
+Migrations are tracked in a flow_migrations table so each file is only
+applied once. Files are applied in ascending lexicographic (timestamp) order.
+
+The target database is resolved from --dsn or the DATABASE_URL environment
+variable.`,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		db, err := openDB(dbDSN)
+		if err != nil {
+			return err
+		}
+		defer db.Close()
+
+		runner := &migrations.MigrationRunner{}
+		pending, err := runner.PendingMigrations(dbMigrationsDir, db)
+		if err != nil {
+			return fmt.Errorf("db migrate: %w", err)
+		}
+		if len(pending) == 0 {
+			fmt.Println("Nothing to migrate – all migrations are already applied.")
+			return nil
+		}
+		fmt.Printf("Applying %d migration(s)...\n", len(pending))
+		if err := runner.ApplyAll(dbMigrationsDir, db); err != nil {
+			return fmt.Errorf("db migrate: %w", err)
+		}
+		for _, name := range pending {
+			fmt.Printf("  ✓ %s\n", name)
+		}
+		fmt.Println("Done.")
+		return nil
+	},
+}
+
+var dbRollbackCmd = &cobra.Command{
+	Use:   "rollback",
+	Short: "Roll back the last applied migration",
+	Long: `Execute the .down.sql file for the most recently applied migration and
+remove it from the tracking table.`,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		db, err := openDB(dbDSN)
+		if err != nil {
+			return err
+		}
+		defer db.Close()
+
+		runner := &migrations.MigrationRunner{}
+		if err := runner.RollbackLast(dbMigrationsDir, db); err != nil {
+			return fmt.Errorf("db rollback: %w", err)
+		}
+		fmt.Println("✓ Rolled back last migration.")
+		return nil
+	},
+}
+
+var dbStatusCmd = &cobra.Command{
+	Use:   "status",
+	Short: "Show applied and pending migrations",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		db, err := openDB(dbDSN)
+		if err != nil {
+			return err
+		}
+		defer db.Close()
+
+		runner := &migrations.MigrationRunner{}
+
+		applied, err := runner.AppliedMigrations(db)
+		if err != nil {
+			return fmt.Errorf("db status: %w", err)
+		}
+		pending, err := runner.PendingMigrations(dbMigrationsDir, db)
+		if err != nil {
+			return fmt.Errorf("db status: %w", err)
+		}
+
+		tw := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 8, 2, ' ', 0)
+		if _, err := fmt.Fprintln(tw, "STATUS\tMIGRATION"); err != nil {
+			return err
+		}
+		for _, name := range applied {
+			if _, err := fmt.Fprintf(tw, "applied\t%s\n", name); err != nil {
+				return err
+			}
+		}
+		for _, name := range pending {
+			if _, err := fmt.Fprintf(tw, "pending\t%s\n", name); err != nil {
+				return err
+			}
+		}
+		if len(applied) == 0 && len(pending) == 0 {
+			if _, err := fmt.Fprintln(tw, "(no migrations found)"); err != nil {
+				return err
+			}
+		}
+		return tw.Flush()
+	},
 }
 
 var genControllerCmd = &cobra.Command{
@@ -441,6 +711,7 @@ func init() {
 	genScaffoldCmd.Flags().Bool("skip-migrations", false, "do not create migration files")
 	genScaffoldCmd.Flags().Bool("no-views", false, "do not generate view files")
 	generateCmd.PersistentFlags().StringVar(&generateTarget, "target", "", "target project root (defaults to cwd)")
+
 	serveCmd.Flags().StringVar(&serveAddr, "addr", ":3000", "listen address for the server")
 	serveCmd.Flags().StringVar(&metricsAddr, "metrics-addr", "", "optional address to expose Prometheus /metrics (e\n g. :9090)")
 	serveCmd.Flags().BoolVar(&traceStdout, "trace-stdout", false, "enable stdout OpenTelemetry tracer for local deb\n ugging")
@@ -448,4 +719,12 @@ func init() {
 	serveCmd.Flags().StringVar(&otlpEndpoint, "otlp-endpoint", "", "OTLP gRPC endpoint (e.g. otel-collector:4317)")
 	serveCmd.Flags().BoolVar(&otlpInsecure, "otlp-insecure", false, "use insecure gRPC connection for OTLP (local collector)")
 	serveCmd.Flags().StringVar(&otlpHeaders, "otlp-headers", "", "comma-separated key=val headers for OTLP (e.g. api-key=foo)")
+
+	// db subcommands
+	dbCmd.AddCommand(dbMigrateCmd)
+	dbCmd.AddCommand(dbRollbackCmd)
+	dbCmd.AddCommand(dbStatusCmd)
+	// shared persistent flags for all db subcommands
+	dbCmd.PersistentFlags().StringVar(&dbMigrationsDir, "dir", "db/migrations", "directory containing SQL migration files")
+	dbCmd.PersistentFlags().StringVar(&dbDSN, "dsn", "", "database DSN (overrides DATABASE_URL env var)")
 }
