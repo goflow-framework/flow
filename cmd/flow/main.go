@@ -315,18 +315,25 @@ var dbStatusCmd = &cobra.Command{
 		}
 
 		tw := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 8, 2, ' ', 0)
-		defer tw.Flush()
-		fmt.Fprintln(tw, "STATUS\tMIGRATION")
+		if _, err := fmt.Fprintln(tw, "STATUS\tMIGRATION"); err != nil {
+			return err
+		}
 		for _, name := range applied {
-			fmt.Fprintf(tw, "applied\t%s\n", name)
+			if _, err := fmt.Fprintf(tw, "applied\t%s\n", name); err != nil {
+				return err
+			}
 		}
 		for _, name := range pending {
-			fmt.Fprintf(tw, "pending\t%s\n", name)
+			if _, err := fmt.Fprintf(tw, "pending\t%s\n", name); err != nil {
+				return err
+			}
 		}
 		if len(applied) == 0 && len(pending) == 0 {
-			fmt.Fprintln(tw, "(no migrations found)")
+			if _, err := fmt.Fprintln(tw, "(no migrations found)"); err != nil {
+				return err
+			}
 		}
-		return nil
+		return tw.Flush()
 	},
 }
 
