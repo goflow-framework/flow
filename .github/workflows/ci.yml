@@ -326,14 +326,21 @@ jobs:
 
       - name: Sanitize GOPROXY for cache key
         run: |
-          # Use the actual GOPROXY value configured in the runner rather
-          # than the matrix placeholder. This avoids the sentinel value
-          # "PRIVATE_GOPROXY" being embedded into cache keys when a secret
-          # fallback is used.
+          # SANITIZED_GOPROXY: derived from the actual runtime GOPROXY value.
+          # Used only for cache keys where the resolved proxy URL is relevant.
           ACTUAL_GOPROXY=$(go env GOPROXY)
           echo "Using GOPROXY: $ACTUAL_GOPROXY"
           SANITIZED_GOPROXY=$(echo "$ACTUAL_GOPROXY" | sed 's/[^A-Za-z0-9]/_/g')
           echo "SANITIZED_GOPROXY=$SANITIZED_GOPROXY" >> $GITHUB_ENV
+
+          # ARTIFACT_GOPROXY_KEY: always derived from the matrix label, never
+          # the resolved runtime value. This is critical for artifact names:
+          # when matrix.goproxy == "PRIVATE_GOPROXY" and the secret is absent,
+          # the runtime GOPROXY falls back to "direct" -- identical to the
+          # explicit matrix leg (go-version, "direct"). Using the matrix label
+          # keeps the two legs distinct and prevents a 409 Conflict.
+          ARTIFACT_GOPROXY_KEY=$(echo "${{ matrix.goproxy }}" | sed 's/[^A-Za-z0-9]/_/g')
+          echo "ARTIFACT_GOPROXY_KEY=$ARTIFACT_GOPROXY_KEY" >> $GITHUB_ENV
 
       - name: Cache Go build cache
         uses: actions/cache@v5
@@ -369,9 +376,16 @@ jobs:
       - name: Upload generator integration artifact
         uses: actions/upload-artifact@v7
         with:
-          # Include job name and goproxy in artifact name to ensure uniqueness
-          # across generator-compile and generator-nightly jobs on the same run.
-          name: generator-nightly-${{ matrix.go-version }}-${{ env.SANITIZED_GOPROXY }}
+          # Use ARTIFACT_GOPROXY_KEY (derived from the matrix label, not the
+          # resolved runtime GOPROXY) so that the "PRIVATE_GOPROXY" sentinel
+          # leg and the explicit "direct" leg never produce the same name.
+          # When the secret is absent and the runtime falls back to "direct",
+          # ARTIFACT_GOPROXY_KEY remains "PRIVATE_GOPROXY" -- keeping the two
+          # legs distinct and avoiding a 409 Conflict.
+          # run_attempt is appended so manual re-runs of the same workflow run
+          # also produce a unique name rather than colliding with attempt 1.
+          name: generator-nightly-${{ matrix.go-version }}-${{ env.ARTIFACT_GOPROXY_KEY }}-attempt${{ github.run_attempt }}
           path: .ci/integration/*.txt
+          overwrite: true
 
 
