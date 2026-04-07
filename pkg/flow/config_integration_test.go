@@ -7,6 +7,8 @@ import (
 
 	"github.com/undiegomejia/flow/internal/config"
 	flowpkg "github.com/undiegomejia/flow/pkg/flow"
+
+	_ "modernc.org/sqlite" // register sqlite driver for WithConfig DB auto-open tests
 )
 
 func TestWithConfig_AppliesTransportFields(t *testing.T) {
@@ -90,5 +92,48 @@ func TestWithConfig_OverriddenBySubsequentOption(t *testing.T) {
 
 	if app.Addr != ":9999" {
 		t.Errorf("Addr = %q, want :9999 (option after WithConfig should win)", app.Addr)
+	}
+}
+
+// TestWithConfig_DatabaseURL_AutoOpensSQLite verifies that WithConfig
+// automatically opens a BunAdapter and attaches it to the App when
+// DatabaseURL is set to a sqlite DSN.
+func TestWithConfig_DatabaseURL_AutoOpensSQLite(t *testing.T) {
+	cfg := &config.Config{
+		Env:             config.EnvDevelopment,
+		Addr:            ":3000",
+		LogLevel:        "info",
+		DatabaseURL:     "sqlite://file::memory:?cache=shared",
+		ReadTimeout:     5 * time.Second,
+		WriteTimeout:    10 * time.Second,
+		IdleTimeout:     120 * time.Second,
+		ShutdownTimeout: 10 * time.Second,
+	}
+
+	app := flowpkg.New("db-test", flowpkg.WithConfig(cfg))
+
+	if app.Bun() == nil {
+		t.Fatal("Bun() = nil after WithConfig with DatabaseURL set, want non-nil *bun.DB")
+	}
+}
+
+// TestWithConfig_EmptyDatabaseURL_NilBun verifies that when DatabaseURL is
+// empty no BunAdapter is attached and Bun() returns nil.
+func TestWithConfig_EmptyDatabaseURL_NilBun(t *testing.T) {
+	cfg := &config.Config{
+		Env:             config.EnvDevelopment,
+		Addr:            ":3000",
+		LogLevel:        "info",
+		DatabaseURL:     "", // no DB configured
+		ReadTimeout:     5 * time.Second,
+		WriteTimeout:    10 * time.Second,
+		IdleTimeout:     120 * time.Second,
+		ShutdownTimeout: 10 * time.Second,
+	}
+
+	app := flowpkg.New("no-db-test", flowpkg.WithConfig(cfg))
+
+	if app.Bun() != nil {
+		t.Fatal("Bun() should be nil when DatabaseURL is empty")
 	}
 }
