@@ -26,16 +26,12 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"os"
-	"os/signal"
-	"strings"
 	"sync"
-	"sync/atomic"
-	"syscall"
 	"time"
 
+	internalapp "github.com/undiegomejia/flow/internal/app"
 	"github.com/undiegomejia/flow/internal/config"
 	orm "github.com/undiegomejia/flow/internal/orm"
-	"github.com/undiegomejia/flow/internal/server"
 	"github.com/undiegomejia/flow/pkg/assets"
 	execpkg "github.com/undiegomejia/flow/pkg/exec"
 	flowexec "github.com/undiegomejia/flow/pkg/flow/exec"
@@ -80,7 +76,9 @@ type App struct {
 
 	middleware []Middleware
 
-	server *server.Server
+	// lc is the HTTP server lifecycle engine. It is created lazily in Start
+	// and drives the start/run/shutdown state machine via internal/app.
+	lc *internalapp.Lifecycle
 	// db is the optional database connection attached to the App.
 	db *sql.DB
 	// bunAdapter holds an optional Bun adapter for ORM operations. If set,
@@ -792,209 +790,6 @@ func (a *App) ListPlugins() []string {
 	out := make([]string, len(a.pluginOrder))
 	copy(out, a.pluginOrder)
 	return out
-}
-
-// shutdownPlugins invokes Stop(ctx) on registered plugins in reverse
-// registration order and aggregates errors similarly to pkg/plugins.ShutdownAll.
-func (a *App) shutdownPlugins(ctx context.Context) error {
-	if a == nil {
-		return nil
-	}
-	a.pluginsMu.RLock()
-	names := make([]string, len(a.pluginOrder))
-	copy(names, a.pluginOrder)
-	a.pluginsMu.RUnlock()
-
-	var errs []string
-	for i := len(names) - 1; i >= 0; i-- {
-		name := names[i]
-		a.pluginsMu.RLock()
-		p := a.plugins[name]
-		a.pluginsMu.RUnlock()
-		if p == nil {
-			continue
-		}
-		if err := p.Stop(ctx); err != nil {
-			errs = append(errs, fmt.Sprintf("%s: %v", name, err))
-		}
-	}
-
-	switch len(errs) {
-	case 0:
-		return nil
-	case 1:
-		return fmt.Errorf("plugin shutdown error: %s", errs[0])
-	default:
-		return fmt.Errorf("plugin shutdown errors: %s", strings.Join(errs, "; "))
-	}
-}
-
-// startPlugins invokes Start(ctx) for each registered plugin in registration
-// order in its own goroutine. Errors returned by Start are logged. The provided
-// ctx is canceled by App.Shutdown (via pluginCancel) to signal plugin goroutines
-// to exit.
-func (a *App) startPlugins(ctx context.Context) {
-	if a == nil {
-		return
-	}
-	// copy names to avoid holding lock
-	a.pluginsMu.RLock()
-	names := make([]string, len(a.pluginOrder))
-	copy(names, a.pluginOrder)
-	a.pluginsMu.RUnlock()
-
-	for _, name := range names {
-		a.pluginsMu.RLock()
-		p := a.plugins[name]
-		a.pluginsMu.RUnlock()
-		if p == nil {
-			continue
-		}
-		// start each plugin in its own goroutine and track via WaitGroup
-		a.pluginWg.Add(1)
-		go func(p Plugin, n string) {
-			defer a.pluginWg.Done()
-			if err := p.Start(ctx); err != nil {
-				a.Logger().Printf("plugin %s start error: %v", n, err)
-			}
-		}(p, name)
-	}
-}
-
-// Start starts the HTTP server in a background goroutine and returns immediately.
-// It returns ErrAppAlreadyRunning if called while the server is already running.
-func (a *App) Start() error {
-	if !atomic.CompareAndSwapInt32(&a.state, 0, 1) {
-		return ErrAppAlreadyRunning
-	}
-
-	// construct internal server wrapper and start it
-	s := server.New(a.Handler(), a.Addr, a.ReadTimeout, a.WriteTimeout, a.IdleTimeout)
-	a.server = s
-
-	// create a plugin context for Start lifecycle. It will be canceled in Shutdown.
-	a.pluginCtx, a.pluginCancel = context.WithCancel(context.Background())
-
-	// start the HTTP server
-	if err := s.Start(); err != nil {
-		return err
-	}
-
-	// Start plugin goroutines (they should return when pluginCtx is canceled)
-	a.startPlugins(a.pluginCtx)
-
-	return nil
-}
-
-// Run starts the server and blocks until a termination signal is received or
-// the context is canceled. It performs a graceful shutdown with the configured
-// ShutdownTimeout.
-func (a *App) Run(ctx context.Context) error {
-	if err := a.Start(); err != nil {
-		return err
-	}
-
-	// listen for termination signals or context cancellation
-	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
-	defer signal.Stop(sigCh)
-
-	select {
-	case <-ctx.Done():
-		a.logger.Printf("context canceled, shutting down: %v", ctx.Err())
-	case sig := <-sigCh:
-		a.logger.Printf("received signal %s, shutting down", sig)
-	}
-
-	// perform graceful shutdown with timeout
-	t := a.ShutdownTimeout
-	if t <= 0 {
-		t = 10 * time.Second
-	}
-	ctxShutdown, cancel := context.WithTimeout(context.Background(), t)
-	defer cancel()
-
-	return a.Shutdown(ctxShutdown)
-}
-
-// Shutdown gracefully stops the HTTP server. It is safe to call multiple times.
-func (a *App) Shutdown(ctx context.Context) error {
-	// if server is nil, nothing to do
-	if a.server == nil {
-		return nil
-	}
-	// only attempt shutdown once
-	if !atomic.CompareAndSwapInt32(&a.state, 1, 2) {
-		// if state is already 2 (shutting down/stopped), return nil
-		if atomic.LoadInt32(&a.state) == 2 {
-			return nil
-		}
-	}
-
-	// Cancel plugin Start contexts so plugin goroutines can exit.
-	if a.pluginCancel != nil {
-		a.pluginCancel()
-		// wait for plugin goroutines to finish, but respect Shutdown ctx
-		done := make(chan struct{})
-		go func() {
-			a.pluginWg.Wait()
-			close(done)
-		}()
-		select {
-		case <-done:
-			// plugins stopped
-		case <-ctx.Done():
-			return ctx.Err()
-		}
-	}
-
-	a.logger.Printf("shutting down %s", a.Name)
-	if err := a.server.Shutdown(ctx); err != nil {
-		// if forced close is required, attempt Close
-		a.logger.Printf("shutdown error: %v; attempting force close", err)
-		if cerr := a.server.Close(); cerr != nil {
-			a.logger.Printf("force close error: %v", cerr)
-		}
-		return fmt.Errorf("shutdown: %w", err)
-	}
-
-	a.logger.Printf("shutdown complete")
-
-	// stop any started job workers and wait for them to exit
-	if len(a.workers) > 0 {
-		a.workersMu.Lock()
-		handles := make([]workerHandle, len(a.workers))
-		copy(handles, a.workers)
-		a.workersMu.Unlock()
-		for _, h := range handles {
-			// signal worker to stop
-			h.w.Stop()
-		}
-		// wait for each worker's done channel or context cancellation
-		for _, h := range handles {
-			select {
-			case <-h.done:
-				// worker finished
-			case <-ctx.Done():
-				return ctx.Err()
-			}
-		}
-	}
-
-	// shutdown executor if App created/owns one
-	if a.executorShutdown != nil {
-		_ = a.executorShutdown(ctx)
-	}
-
-	// allow tracer shutdown to flush/export spans if configured
-	if a.tracerShutdown != nil {
-		_ = a.tracerShutdown(ctx)
-	}
-
-	// shutdown plugins (calls Stop(ctx) in reverse order)
-	_ = a.shutdownPlugins(ctx)
-
-	return nil
 }
 
 // ServeHTTP implements http.Handler so App can be used directly in tests.
