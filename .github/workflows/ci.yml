@@ -207,11 +207,14 @@ jobs:
       - name: Upload generator integration artifact
         uses: actions/upload-artifact@v7
         with:
-          # Prefix with job name to avoid a 409 Conflict when generator-nightly
-          # runs the same Go version and both jobs try to upload an artifact with
-          # the same name in the same workflow run.
-          name: generator-compile-${{ matrix.go-version }}
+          # Include run_attempt in the artifact name so that manual re-runs of
+          # the same workflow run do not produce a 409 Conflict. The run_attempt
+          # counter increments every time the workflow (or a failed job within
+          # it) is re-run, guaranteeing a unique artifact name even when the
+          # same Go version is exercised more than once on the same run ID.
+          name: generator-compile-${{ matrix.go-version }}-attempt${{ github.run_attempt }}
           path: .ci/integration/generator_tests_${{ matrix.go-version }}.txt
+          overwrite: true
   # staticcheck moved to a dedicated workflow (`.github/workflows/staticcheck.yml`)
   # and now runs on pushes to `main`. Removing the inline `staticcheck` job
   # here avoids duplicate lint runs on push to `main` while keeping the
