@@ -215,4 +215,3 @@ func TestConnectFromDSN_PostgresPrefix(t *testing.T) {
 		})
 	}
 }
-

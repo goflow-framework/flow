@@ -230,6 +230,13 @@ func WithShutdownTimeout(d time.Duration) Option {
 // environment. Individual WithAddr / WithShutdownTimeout calls made after
 // WithConfig will override the values set here.
 //
+// When cfg.DatabaseURL is non-empty WithConfig automatically opens a database
+// connection via orm.ConnectFromDSN (postgres:// → pgdialect, everything else
+// → sqlite) and attaches the resulting BunAdapter to the App. The App will
+// close the connection during Shutdown. Connection errors are logged but do
+// not prevent the App from starting so that read-only deployments without a
+// database still boot.
+//
 // If cfg is nil the call is a no-op so it is safe to pass the result of
 // config.Load() directly even when the config is optional.
 func WithConfig(cfg *config.Config) Option {
@@ -257,6 +264,15 @@ func WithConfig(cfg *config.Config) Option {
 			a.Sessions.secret = cfg.SecretKeyBytes()
 			a.Sessions.CookieSecure = cfg.CookieSecure
 			a.Sessions.CookieSameSite = cfg.CookieSameSite
+		}
+		// Auto-open database when DatabaseURL is configured.
+		if cfg.DatabaseURL != "" {
+			adapter, err := orm.ConnectFromDSN(cfg.DatabaseURL)
+			if err != nil {
+				a.Logger().Printf("WithConfig: failed to open database (%s): %v", cfg.DatabaseURL, err)
+			} else {
+				a.SetBun(adapter)
+			}
 		}
 	}
 }
