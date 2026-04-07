@@ -137,6 +137,18 @@ func (c *Context) Params() map[string]string {
 	return routerpkg.ParamsFromContext(c.R.Context())
 }
 
+// Request returns the underlying *http.Request for the current request.
+// It satisfies the api.Context interface.
+func (c *Context) Request() *http.Request {
+	return c.R
+}
+
+// Writer returns the http.ResponseWriter for the current request.
+// It satisfies the api.Context interface.
+func (c *Context) Writer() http.ResponseWriter {
+	return c.W
+}
+
 // Param returns the named path parameter or an empty string if missing.
 func (c *Context) Param(name string) string {
 	return routerpkg.Param(c.R, name)

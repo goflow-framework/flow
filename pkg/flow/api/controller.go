@@ -2,8 +2,6 @@ package api
 
 import (
 	"net/http"
-
-	flowpkg "github.com/undiegomejia/flow/pkg/flow"
 )
 
 // Context is the minimal subset of the framework request context used by
@@ -21,7 +19,26 @@ type Context interface {
 	// JSON writes a JSON response
 	JSON(code int, v interface{}) error
 	// Redirect sends an HTTP redirect
-	Redirect(code int, url string)
+	Redirect(url string, code int)
+}
+
+// AppLogger is a minimal logger interface that AppContext implementations may
+// return. It matches the subset of log.Logger that the framework exposes.
+// Kept here for use in future AppContext extensions.
+type AppLogger interface {
+	Printf(format string, v ...interface{})
+}
+
+// AppContext is the minimal interface that controllers use to reach framework
+// services. It deliberately avoids importing pkg/flow so that the api package
+// stays import-cycle-free.
+//
+// Note: Logger() is intentionally omitted from this interface because
+// pkg/flow.App.Logger() returns a pkg/flow-local type. Use GetService to
+// retrieve a logger from the service registry, or add a Logger() method once
+// pkg/flow adopts api.AppLogger as its Logger return type.
+type AppContext interface {
+	GetService(name string) (interface{}, bool)
 }
 
 // Controller is a marker interface for controller implementations. Concrete
@@ -33,5 +50,5 @@ type Controller interface{}
 // pkg/flow will provide concrete helpers; the API package keeps the
 // contract minimal.
 type BaseController interface {
-	App() *flowpkg.App
+	App() AppContext
 }
