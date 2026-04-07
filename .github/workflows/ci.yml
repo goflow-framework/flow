@@ -59,10 +59,13 @@ jobs:
       - name: Run tests with coverage (exclude generator integration)
         run: |
           mkdir -p .ci
-          # exclude the internal/generator package from the broad test run so
-          # it can be executed in an isolated job with a pinned toolchain.
-          pkgs=$(go list ./... | grep -v "internal/generator")
-          go test $pkgs -coverprofile=.ci/coverage.out -covermode=atomic
+          # Select only packages that have test files. This avoids passing
+          # -coverprofile to main-only packages (tools/, examples/, cmd/*
+          # without tests) which trigger "go: no such tool covdata" on Go 1.24+.
+          # internal/generator runs in its own isolated job with a pinned toolchain.
+          go list -f '{{if or .TestGoFiles .XTestGoFiles}}{{.ImportPath}}{{end}}' ./... \
+            | grep -v "internal/generator" \
+            | xargs go test -coverprofile=.ci/coverage.out -covermode=atomic
 
       - name: Enforce coverage threshold (≥ 50%)
         run: |
