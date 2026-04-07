@@ -27,8 +27,23 @@ import (
 	"net/http"
 	"sync"
 
+	"github.com/go-playground/validator/v10"
 	routerpkg "github.com/undiegomejia/flow/internal/router"
 )
+
+// validate is the package-level validator instance. It is created once and
+// cached for performance. Users can replace it via SetValidator before the
+// first request.
+var validate = validator.New()
+
+// SetValidator replaces the package-level validator used by Context.Validate.
+// Call this during application setup (e.g. in main) to register custom tags
+// or translations before any requests are handled.
+func SetValidator(v *validator.Validate) {
+	if v != nil {
+		validate = v
+	}
+}
 
 // Context is a small, testable wrapper around ResponseWriter and Request.
 // Controllers should accept or construct a Context rather than using global
@@ -240,6 +255,62 @@ func (c *Context) FormValue(key string) string {
 	// ParseForm is idempotent and safe to call multiple times.
 	_ = c.R.ParseForm()
 	return c.R.FormValue(key)
+}
+
+// BindForm decodes application/x-www-form-urlencoded (or multipart/form-data)
+// request body into dst using schema tags. dst must be a pointer to a struct.
+// Field names default to the lowercase struct field name; use `form:"name"`
+// tags to override. Example:
+//
+//	type SignupForm struct {
+//	    Email    string `form:"email"    validate:"required,email"`
+//	    Password string `form:"password" validate:"required,min=8"`
+//	}
+func (c *Context) BindForm(dst interface{}) error {
+	if dst == nil {
+		return fmt.Errorf("bind form: dst is nil")
+	}
+	if err := c.R.ParseForm(); err != nil {
+		return fmt.Errorf("bind form: parse: %w", err)
+	}
+	if err := decodeForm(c.R.Form, dst); err != nil {
+		return fmt.Errorf("bind form: %w", err)
+	}
+	return nil
+}
+
+// BindQuery decodes URL query parameters into dst using the same rules as
+// BindForm. dst must be a pointer to a struct. Use `form:"name"` tags to
+// map query parameter names. Example:
+//
+//	type SearchQuery struct {
+//	    Q    string `form:"q"`
+//	    Page int    `form:"page" validate:"min=1"`
+//	}
+func (c *Context) BindQuery(dst interface{}) error {
+	if dst == nil {
+		return fmt.Errorf("bind query: dst is nil")
+	}
+	if err := decodeForm(c.R.URL.Query(), dst); err != nil {
+		return fmt.Errorf("bind query: %w", err)
+	}
+	return nil
+}
+
+// Validate runs struct-level validation on dst using the package-level
+// validator (go-playground/validator/v10). dst must be a pointer to a struct
+// with `validate:"..."` tags.
+//
+// Returns a validator.ValidationErrors value on failure so callers can
+// iterate over individual field errors.
+func (c *Context) Validate(dst interface{}) error {
+	if dst == nil {
+		return fmt.Errorf("validate: dst is nil")
+	}
+	if err := validate.Struct(dst); err != nil {
+		return fmt.Errorf("validate: %w", err)
+	}
+	return nil
 }
 
 // Render is a convenience helper that uses the App's ViewManager to render
