@@ -31,18 +31,28 @@ import (
 	routerpkg "github.com/undiegomejia/flow/internal/router"
 )
 
-// validate is the package-level validator instance. It is created once and
-// cached for performance. Users can replace it via SetValidator before the
-// first request.
-var validate = validator.New()
+// pkgValidator is the package-level fallback validator used when Context.App
+// is nil (e.g. in tests that call NewContext(nil, …)).  Access is protected
+// by pkgValidatorMu so that SetValidator is safe to call concurrently.
+var (
+	pkgValidator   = validator.New()
+	pkgValidatorMu sync.RWMutex
+)
 
-// SetValidator replaces the package-level validator used by Context.Validate.
-// Call this during application setup (e.g. in main) to register custom tags
-// or translations before any requests are handled.
+// SetValidator replaces the package-level fallback validator used by
+// Context.Validate when no App-level validator has been configured.
+//
+// Deprecated: prefer WithValidator(v) when constructing an App so each App
+// instance has its own isolated validator and concurrent use is safe by
+// default.  SetValidator exists for backwards compatibility and is safe to
+// call concurrently with requests.
 func SetValidator(v *validator.Validate) {
-	if v != nil {
-		validate = v
+	if v == nil {
+		return
 	}
+	pkgValidatorMu.Lock()
+	pkgValidator = v
+	pkgValidatorMu.Unlock()
 }
 
 // Context is a small, testable wrapper around ResponseWriter and Request.
@@ -297,9 +307,10 @@ func (c *Context) BindQuery(dst interface{}) error {
 	return nil
 }
 
-// Validate runs struct-level validation on dst using the package-level
-// validator (go-playground/validator/v10). dst must be a pointer to a struct
-// with `validate:"..."` tags.
+// Validate runs struct-level validation on dst using the validator configured
+// for this request's App. If no App-level validator has been set it falls back
+// to the package-level validator (see SetValidator). dst must be a non-nil
+// pointer to a struct with `validate:"..."` tags.
 //
 // Returns a validator.ValidationErrors value on failure so callers can
 // iterate over individual field errors.
@@ -307,10 +318,26 @@ func (c *Context) Validate(dst interface{}) error {
 	if dst == nil {
 		return fmt.Errorf("validate: dst is nil")
 	}
-	if err := validate.Struct(dst); err != nil {
+	v := c.validator()
+	if err := v.Struct(dst); err != nil {
 		return fmt.Errorf("validate: %w", err)
 	}
 	return nil
+}
+
+// validator returns the *validator.Validate to use for this request.
+// It prefers the App-level validator (set via WithValidator / App.SetValidator)
+// and falls back to the protected package-level instance.
+func (c *Context) validator() *validator.Validate {
+	if c != nil && c.App != nil {
+		if v := c.App.Validator(); v != nil {
+			return v
+		}
+	}
+	pkgValidatorMu.RLock()
+	v := pkgValidator
+	pkgValidatorMu.RUnlock()
+	return v
 }
 
 // Render is a convenience helper that uses the App's ViewManager to render

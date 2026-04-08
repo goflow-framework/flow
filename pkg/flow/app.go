@@ -29,6 +29,8 @@ import (
 	"sync"
 	"time"
 
+	gvalidator "github.com/go-playground/validator/v10"
+
 	internalapp "github.com/undiegomejia/flow/internal/app"
 	"github.com/undiegomejia/flow/internal/config"
 	orm "github.com/undiegomejia/flow/internal/orm"
@@ -138,6 +140,13 @@ type App struct {
 	// redactionCfg holds per-App redaction configuration when set via
 	// WithRedactionConfig. If zero-value the package defaults are used.
 	redactionCfg RedactionConfig
+
+	// validatorMu protects validator so WithValidator / SetValidator can be
+	// called concurrently with in-flight requests.
+	validatorMu sync.RWMutex
+	// validator is the per-App instance of go-playground/validator. When nil
+	// Context.Validate falls back to the package-level pkgValidator.
+	validator *gvalidator.Validate
 }
 
 type workerHandle struct {
@@ -238,6 +247,46 @@ func WithDBPool(pool orm.PoolConfig) Option {
 			orm.ApplyPool(a.DB(), pool)
 		}
 	}
+}
+
+// ---------------------------------------------------------------------------
+// Per-App validator (fix: validate data race)
+// ---------------------------------------------------------------------------
+
+// Validator returns the per-App *validator.Validate instance, or nil if none
+// has been set via WithValidator or App.SetValidator. Context.Validate falls
+// back to the package-level validator when this returns nil.
+func (a *App) Validator() *gvalidator.Validate {
+	if a == nil {
+		return nil
+	}
+	a.validatorMu.RLock()
+	v := a.validator
+	a.validatorMu.RUnlock()
+	return v
+}
+
+// SetValidator replaces the per-App validator. Safe to call concurrently
+// with in-flight requests; subsequent calls to Context.Validate will pick up
+// the new instance.
+func (a *App) SetValidator(v *gvalidator.Validate) {
+	if a == nil || v == nil {
+		return
+	}
+	a.validatorMu.Lock()
+	a.validator = v
+	a.validatorMu.Unlock()
+}
+
+// WithValidator sets a custom *validator.Validate on the App at construction
+// time. Use this to register custom tags, translations, or struct-level
+// validators before the server starts.
+//
+//	app := flow.New("myapp",
+//	    flow.WithValidator(myValidator),
+//	)
+func WithValidator(v *gvalidator.Validate) Option {
+	return func(a *App) { a.SetValidator(v) }
 }
 
 // WithAddr sets the listen address (eg. ":3000").
