@@ -62,7 +62,8 @@ func (cs *CookieStore) DeleteResponse(w http.ResponseWriter, r *http.Request, id
 		Value:    "",
 		Path:     "/",
 		HttpOnly: true,
-		Secure:   false,
+		Secure:   cs.sm.CookieSecure,
+		SameSite: cs.sm.CookieSameSite,
 		Expires:  time.Unix(0, 0),
 		MaxAge:   -1,
 	}
@@ -78,6 +79,11 @@ type RedisStoreAdapter struct {
 	secret     []byte
 	CookieName string
 	MaxAge     int
+	// CookieSecure marks session cookies with the Secure flag. Defaults to
+	// true; set to false only for local HTTP development.
+	CookieSecure bool
+	// CookieSameSite controls the SameSite attribute. Defaults to Lax.
+	CookieSameSite http.SameSite
 }
 
 // NewRedisStoreAdapter creates an adapter that will sign ids placed in a cookie.
@@ -85,7 +91,8 @@ func NewRedisStoreAdapter(secret []byte, cookieName string, store *RedisStore) *
 	if cookieName == "" {
 		cookieName = "flow_session"
 	}
-	return &RedisStoreAdapter{Store: store, secret: secret, CookieName: cookieName, MaxAge: 86400}
+	return &RedisStoreAdapter{Store: store, secret: secret, CookieName: cookieName, MaxAge: 86400,
+		CookieSecure: true, CookieSameSite: http.SameSiteLaxMode}
 }
 
 func (rsm *RedisStoreAdapter) signID(id string) string {
@@ -129,7 +136,8 @@ func (rsm *RedisStoreAdapter) SaveResponse(w http.ResponseWriter, r *http.Reques
 		Value:    id + "|" + sig,
 		Path:     "/",
 		HttpOnly: true,
-		Secure:   false,
+		Secure:   rsm.CookieSecure,
+		SameSite: rsm.CookieSameSite,
 		Expires:  time.Now().Add(time.Duration(rsm.MaxAge) * time.Second),
 		MaxAge:   rsm.MaxAge,
 	}
@@ -151,7 +159,8 @@ func (rsm *RedisStoreAdapter) DeleteResponse(w http.ResponseWriter, r *http.Requ
 		Value:    "",
 		Path:     "/",
 		HttpOnly: true,
-		Secure:   false,
+		Secure:   rsm.CookieSecure,
+		SameSite: rsm.CookieSameSite,
 		Expires:  time.Unix(0, 0),
 		MaxAge:   -1,
 	}
