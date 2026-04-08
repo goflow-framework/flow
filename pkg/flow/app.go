@@ -214,6 +214,32 @@ func WithBun(b *orm.BunAdapter) Option {
 	return func(a *App) { a.SetBun(b) }
 }
 
+// WithDBPool applies connection-pool settings to the App's current *sql.DB.
+// It must be placed after any option that opens the database (e.g. WithConfig
+// or WithBun), otherwise it is a no-op because there is no connection yet.
+//
+// Example – override production pool size at construction time:
+//
+//	app := flow.New("myapp",
+//	    flow.WithConfig(cfg),           // opens the DB
+//	    flow.WithDBPool(orm.PoolConfig{ // tunes the pool
+//	        MaxOpenConns:    50,
+//	        MaxIdleConns:    10,
+//	        ConnMaxLifetime: 30 * time.Minute,
+//	    }),
+//	)
+func WithDBPool(pool orm.PoolConfig) Option {
+	return func(a *App) {
+		if a == nil {
+			return
+		}
+		// Apply to the raw *sql.DB if one has been attached via SetDB.
+		if a.DB() != nil {
+			orm.ApplyPool(a.DB(), pool)
+		}
+	}
+}
+
 // WithAddr sets the listen address (eg. ":3000").
 func WithAddr(addr string) Option {
 	return func(a *App) { a.Addr = addr }
@@ -267,7 +293,13 @@ func WithConfig(cfg *config.Config) Option {
 		}
 		// Auto-open database when DatabaseURL is configured.
 		if cfg.DatabaseURL != "" {
-			adapter, err := orm.ConnectFromDSN(cfg.DatabaseURL)
+			pool := orm.PoolConfig{
+				MaxOpenConns:    cfg.DBPool.MaxOpenConns,
+				MaxIdleConns:    cfg.DBPool.MaxIdleConns,
+				ConnMaxLifetime: cfg.DBPool.ConnMaxLifetime,
+				ConnMaxIdleTime: cfg.DBPool.ConnMaxIdleTime,
+			}
+			adapter, err := orm.ConnectFromDSNWithPool(cfg.DatabaseURL, pool)
 			if err != nil {
 				a.Logger().Printf("WithConfig: failed to open database (%s): %v", cfg.DatabaseURL, err)
 			} else {
