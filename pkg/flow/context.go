@@ -64,11 +64,14 @@ type Context struct {
 	// access logger, config, or shared services.
 	App *App
 
-	// W is the response writer for the current request.
-	W http.ResponseWriter
+	// w is the response writer for the current request. Use ResponseWriter()
+	// or Writer() to access it; the field is unexported to prevent callers
+	// from replacing it mid-request.
+	w http.ResponseWriter
 
-	// R is the incoming http request.
-	R *http.Request
+	// r is the incoming http request. Use Request() to access it; the field
+	// is unexported to prevent callers from replacing it mid-request.
+	r *http.Request
 
 	// status stores the last status set via Status or one of the render
 	// helpers. Zero means unset; helper methods will set sensible defaults.
@@ -94,13 +97,13 @@ func NewContext(app *App, w http.ResponseWriter, r *http.Request) *Context {
 		if v := contextPool.Get(); v != nil {
 			c := v.(*Context)
 			c.App = app
-			c.W = w
-			c.R = r
+			c.w = w
+			c.r = r
 			c.status = 0
 			return c
 		}
 	}
-	return &Context{App: app, W: w, R: r}
+	return &Context{App: app, w: w, r: r}
 }
 
 var contextPool sync.Pool
@@ -131,8 +134,8 @@ func PutContext(c *Context) {
 	// the app reference.
 	app := c.App
 	c.App = nil
-	c.W = nil
-	c.R = nil
+	c.w = nil
+	c.r = nil
 	c.status = 0
 	if UseContextPool {
 		// Prefer returning to the App-local pool when present.
@@ -150,8 +153,8 @@ func PutContext(c *Context) {
 // NewContext when reusing instances.
 func (c *Context) Reset(app *App, w http.ResponseWriter, r *http.Request) {
 	c.App = app
-	c.W = w
-	c.R = r
+	c.w = w
+	c.r = r
 	c.status = 0
 	c.rg = nil
 }
@@ -159,29 +162,35 @@ func (c *Context) Reset(app *App, w http.ResponseWriter, r *http.Request) {
 // Params returns the path parameters extracted by the router for this request.
 // It always returns a non-nil map.
 func (c *Context) Params() map[string]string {
-	return routerpkg.ParamsFromContext(c.R.Context())
+	return routerpkg.ParamsFromContext(c.r.Context())
 }
 
 // Request returns the underlying *http.Request for the current request.
 // It satisfies the api.Context interface.
 func (c *Context) Request() *http.Request {
-	return c.R
+	return c.r
 }
 
 // Writer returns the http.ResponseWriter for the current request.
 // It satisfies the api.Context interface.
 func (c *Context) Writer() http.ResponseWriter {
-	return c.W
+	return c.w
+}
+
+// ResponseWriter is an alias for Writer. It returns the http.ResponseWriter
+// for the current request. Prefer this name in application code for clarity.
+func (c *Context) ResponseWriter() http.ResponseWriter {
+	return c.w
 }
 
 // Param returns the named path parameter or an empty string if missing.
 func (c *Context) Param(name string) string {
-	return routerpkg.Param(c.R, name)
+	return routerpkg.Param(c.r, name)
 }
 
 // SetHeader sets a header on the response.
 func (c *Context) SetHeader(key, value string) {
-	c.W.Header().Set(key, value)
+	c.w.Header().Set(key, value)
 }
 
 // Status sets the HTTP status code for the response. It immediately writes
@@ -189,7 +198,7 @@ func (c *Context) SetHeader(key, value string) {
 // than once is allowed; the first call wins from the net/http perspective.
 func (c *Context) Status(code int) {
 	c.status = code
-	c.W.WriteHeader(code)
+	c.w.WriteHeader(code)
 }
 
 // JSON writes v as a JSON response with the provided status code.
@@ -200,7 +209,7 @@ func (c *Context) JSON(status int, v interface{}) error {
 		status = http.StatusOK
 	}
 	c.Status(status)
-	enc := json.NewEncoder(c.W)
+	enc := json.NewEncoder(c.w)
 	// Use compact encoding by default. Caller can pre-encode for custom
 	// options.
 	if err := enc.Encode(v); err != nil {
@@ -221,7 +230,7 @@ func (c *Context) RenderTemplate(t *template.Template, name string, data interfa
 	if c.status == 0 {
 		c.Status(http.StatusOK)
 	}
-	if err := t.ExecuteTemplate(c.W, name, data); err != nil {
+	if err := t.ExecuteTemplate(c.w, name, data); err != nil {
 		return fmt.Errorf("render template: %w", err)
 	}
 	return nil
@@ -232,7 +241,7 @@ func (c *Context) Redirect(urlStr string, code int) {
 	if code == 0 {
 		code = http.StatusFound
 	}
-	http.Redirect(c.W, c.R, urlStr, code)
+	http.Redirect(c.w, c.r, urlStr, code)
 }
 
 // BindJSON decodes the request body into dst. dst must be a pointer. This
@@ -243,16 +252,16 @@ func (c *Context) BindJSON(dst interface{}) error {
 	}
 	defer func() {
 		// best-effort close of body for servers that don't rely on it
-		if _, err := io.Copy(io.Discard, c.R.Body); err != nil && !errors.Is(err, io.EOF) {
+		if _, err := io.Copy(io.Discard, c.r.Body); err != nil && !errors.Is(err, io.EOF) {
 			// prefer the App-provided logger if available; otherwise ignore
 			if c != nil && c.App != nil && c.App.logger != nil {
 				c.App.logger.Printf("failed draining body: %v", err)
 			}
 		}
 		// ignore close error during best-effort cleanup
-		_ = c.R.Body.Close()
+		_ = c.r.Body.Close()
 	}()
-	dec := json.NewDecoder(c.R.Body)
+	dec := json.NewDecoder(c.r.Body)
 	if err := dec.Decode(dst); err != nil {
 		return fmt.Errorf("bind json: %w", err)
 	}
@@ -263,8 +272,8 @@ func (c *Context) BindJSON(dst interface{}) error {
 // ParseForm if necessary.
 func (c *Context) FormValue(key string) string {
 	// ParseForm is idempotent and safe to call multiple times.
-	_ = c.R.ParseForm()
-	return c.R.FormValue(key)
+	_ = c.r.ParseForm()
+	return c.r.FormValue(key)
 }
 
 // BindForm decodes application/x-www-form-urlencoded (or multipart/form-data)
@@ -280,10 +289,10 @@ func (c *Context) BindForm(dst interface{}) error {
 	if dst == nil {
 		return fmt.Errorf("bind form: dst is nil")
 	}
-	if err := c.R.ParseForm(); err != nil {
+	if err := c.r.ParseForm(); err != nil {
 		return fmt.Errorf("bind form: parse: %w", err)
 	}
-	if err := decodeForm(c.R.Form, dst); err != nil {
+	if err := decodeForm(c.r.Form, dst); err != nil {
 		return fmt.Errorf("bind form: %w", err)
 	}
 	return nil
@@ -301,7 +310,7 @@ func (c *Context) BindQuery(dst interface{}) error {
 	if dst == nil {
 		return fmt.Errorf("bind query: dst is nil")
 	}
-	if err := decodeForm(c.R.URL.Query(), dst); err != nil {
+	if err := decodeForm(c.r.URL.Query(), dst); err != nil {
 		return fmt.Errorf("bind query: %w", err)
 	}
 	return nil
@@ -353,7 +362,7 @@ func (c *Context) Render(name string, data interface{}) error {
 // sessions are not configured. Use Session().Get/Set/Delete to manage
 // session data. Session writes a cookie on Set/Delete/Save.
 func (c *Context) Session() *Session {
-	return FromContext(c.R.Context())
+	return FromContext(c.r.Context())
 }
 
 // Flash helpers — store simple flash messages in session under the "_flash"
@@ -428,7 +437,7 @@ func (c *Context) Error(status int, msg string) {
 	}
 	c.SetHeader("Content-Type", "text/plain; charset=utf-8")
 	c.Status(status)
-	_, _ = c.W.Write([]byte(msg))
+	_, _ = c.w.Write([]byte(msg))
 }
 
 // RequestGroup returns a request-scoped RequestGroup. It is lazily created
@@ -440,8 +449,8 @@ func (c *Context) RequestGroup() *RequestGroup {
 	if c.rg == nil {
 		// Use the request context so cancellations and deadlines carry over.
 		parent := context.Background()
-		if c.R != nil {
-			parent = c.R.Context()
+		if c.r != nil {
+			parent = c.r.Context()
 		}
 		c.rg = NewRequestGroup(parent)
 	}

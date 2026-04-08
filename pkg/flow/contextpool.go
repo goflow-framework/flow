@@ -23,16 +23,16 @@ func NewContextPool() *ContextPool {
 // request. It never returns nil.
 func (p *ContextPool) Get(app *App, w http.ResponseWriter, r *http.Request) *Context {
 	if p == nil {
-		return &Context{App: app, W: w, R: r}
+		return &Context{App: app, w: w, r: r}
 	}
 	v := p.pool.Get()
 	if v == nil {
-		return &Context{App: app, W: w, R: r}
+		return &Context{App: app, w: w, r: r}
 	}
 	c := v.(*Context)
 	c.App = app
-	c.W = w
-	c.R = r
+	c.w = w
+	c.r = r
 	c.status = 0
 	c.rg = nil
 	return c
@@ -50,8 +50,8 @@ func (p *ContextPool) Put(c *Context) {
 	}
 	// clear references
 	c.App = nil
-	c.W = nil
-	c.R = nil
+	c.w = nil
+	c.r = nil
 	c.status = 0
 	p.pool.Put(c)
 }

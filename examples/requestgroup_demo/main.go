@@ -49,7 +49,7 @@ func main() {
 		// returned to the pool.
 		ctx.SetHeader("Content-Type", "text/plain; charset=utf-8")
 		ctx.Status(http.StatusOK)
-		_, _ = ctx.W.Write([]byte("ok\n"))
+		_, _ = ctx.ResponseWriter().Write([]byte("ok\n"))
 	})
 
 	// Endpoint that demonstrates cancellation propagation: one goroutine
@@ -76,7 +76,7 @@ func main() {
 
 		ctx.SetHeader("Content-Type", "text/plain; charset=utf-8")
 		ctx.Status(http.StatusOK)
-		_, _ = ctx.W.Write([]byte("cancel endpoint queued\n"))
+		_, _ = ctx.ResponseWriter().Write([]byte("cancel endpoint queued\n"))
 	})
 
 	// Endpoint that explicitly waits for the RequestGroup and surfaces
