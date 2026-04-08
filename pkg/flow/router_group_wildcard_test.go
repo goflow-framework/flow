@@ -13,7 +13,7 @@ func TestRouteGroupAndWildcardAndUrlFor(t *testing.T) {
 
 	// Group example: register a named route under /admin
 	grp := r.Group("admin")
-	grp.GetNamed("admin_ping", "/ping", func(ctx *Context) { ctx.W.WriteHeader(200) })
+	grp.GetNamed("admin_ping", "/ping", func(ctx *Context) { ctx.ResponseWriter().WriteHeader(200) })
 
 	u, err := r.URL("admin_ping", nil)
 	if err != nil {
@@ -25,7 +25,7 @@ func TestRouteGroupAndWildcardAndUrlFor(t *testing.T) {
 
 	// Wildcard route: /files/*path should capture remainder including slashes
 	r.Get("/files/*path", func(ctx *Context) {
-		_, _ = io.WriteString(ctx.W, ctx.Param("path"))
+		_, _ = io.WriteString(ctx.ResponseWriter(), ctx.Param("path"))
 	})
 
 	rr := httptest.NewRecorder()

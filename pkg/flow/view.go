@@ -68,7 +68,7 @@ func (v *ViewManager) Render(name string, data interface{}, ctx *Context) error 
 	}
 	clone = clone.Funcs(template.FuncMap{
 		"T": func(key string, args ...interface{}) string {
-			return i18n.TFromContext(ctx.R.Context(), key, args...)
+			return i18n.TFromContext(ctx.r.Context(), key, args...)
 		},
 	})
 	return ctx.RenderTemplate(clone, execName, data)

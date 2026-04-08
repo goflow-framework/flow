@@ -14,16 +14,16 @@ func NewUsersController(app *App) *UsersController {
 	return &UsersController{Controller: NewController(app)}
 }
 
-func (u *UsersController) Index(ctx *Context)  { ctx.W.WriteHeader(200) }
-func (u *UsersController) New(ctx *Context)    { ctx.W.WriteHeader(200) }
-func (u *UsersController) Create(ctx *Context) { ctx.W.WriteHeader(200) }
+func (u *UsersController) Index(ctx *Context)  { ctx.ResponseWriter().WriteHeader(200) }
+func (u *UsersController) New(ctx *Context)    { ctx.ResponseWriter().WriteHeader(200) }
+func (u *UsersController) Create(ctx *Context) { ctx.ResponseWriter().WriteHeader(200) }
 func (u *UsersController) Show(ctx *Context) {
 	// echo the :id param
-	_, _ = ctx.W.Write([]byte(ctx.Param("id")))
+	_, _ = ctx.ResponseWriter().Write([]byte(ctx.Param("id")))
 }
-func (u *UsersController) Edit(ctx *Context)    { ctx.W.WriteHeader(200) }
-func (u *UsersController) Update(ctx *Context)  { ctx.W.WriteHeader(200) }
-func (u *UsersController) Destroy(ctx *Context) { ctx.W.WriteHeader(200) }
+func (u *UsersController) Edit(ctx *Context)    { ctx.ResponseWriter().WriteHeader(200) }
+func (u *UsersController) Update(ctx *Context)  { ctx.ResponseWriter().WriteHeader(200) }
+func (u *UsersController) Destroy(ctx *Context) { ctx.ResponseWriter().WriteHeader(200) }
 
 func TestPublicRouterIntegration(t *testing.T) {
 	app := New("test-app")
@@ -31,7 +31,7 @@ func TestPublicRouterIntegration(t *testing.T) {
 
 	// simple GET with Context handler
 	r.Get("/hello", func(ctx *Context) {
-		_, _ = ctx.W.Write([]byte("world"))
+		_, _ = ctx.ResponseWriter().Write([]byte("world"))
 	})
 
 	rr := httptest.NewRecorder()

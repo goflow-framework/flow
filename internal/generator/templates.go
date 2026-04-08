@@ -205,7 +205,7 @@ This project includes a minimal i18n scaffold under ` + "app/i18n" + ` with an e
 In handlers, use the helper ` + "i18n.TFromContext" + ` to fetch translated strings from the request context. Example:
 
     func (c *PostsAdminController) Index(ctx *flow.Context) {
-        title := i18n.TFromContext(ctx.R.Context(), "admin.posts.index")
+        title := i18n.TFromContext(ctx.Request().Context(), "admin.posts.index")
         _ = c.Render(ctx, "admin/posts/index", map[string]interface{}{"Title": title})
     }
 `
@@ -235,7 +235,7 @@ func NewAuthController(app *flow.App) *AuthController {
 
 // Login renders the login page (GET) and handles authentication (POST).
 func (c *AuthController) Login(ctx *flow.Context) {
-    if ctx.R.Method == http.MethodGet {
+    if ctx.Request().Method == http.MethodGet {
         _ = ctx.Render("auth/login", map[string]interface{}{"Title": "Login"})
         return
     }
@@ -455,7 +455,7 @@ path if needed.
     )
 
     func (c *DashboardController) Index(ctx *flow.Context) {
-        if u, ok := middleware.GetCurrentUser(ctx.R); ok {
+        if u, ok := middleware.GetCurrentUser(ctx.Request()); ok {
             // u is *models.User — you can inspect fields such as u.Email or u.Role
             ctx.Render("dashboard/index", map[string]interface{}{"User": u}, ctx)
             return
@@ -502,7 +502,7 @@ Enable it by creating a Manager, loading the i18n directory and registering the 
 In controllers, fetch translations with ` + "i18n.TFromContext" + `:
 
     func (c *DashboardController) Index(ctx *flow.Context) {
-        title := i18n.TFromContext(ctx.R.Context(), "auth.login")
+        title := i18n.TFromContext(ctx.Request().Context(), "auth.login")
         _ = c.Render(ctx, "dashboard/index", map[string]interface{}{"Title": title}, ctx)
     }
 `

@@ -28,7 +28,7 @@ func TestPutContextWaitsForGoroutines(t *testing.T) {
 		})
 		ctx.SetHeader("Content-Type", "text/plain")
 		ctx.Status(http.StatusOK)
-		_, _ = ctx.W.Write([]byte("ok"))
+		_, _ = ctx.ResponseWriter().Write([]byte("ok"))
 	})
 
 	srv := httptest.NewServer(r.Handler())
@@ -74,7 +74,7 @@ func TestRequestGroupCancellationCancelsOtherGoroutines(t *testing.T) {
 
 		ctx.SetHeader("Content-Type", "text/plain")
 		ctx.Status(http.StatusOK)
-		_, _ = ctx.W.Write([]byte("queued"))
+		_, _ = ctx.ResponseWriter().Write([]byte("queued"))
 	})
 
 	srv := httptest.NewServer(r.Handler())
