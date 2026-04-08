@@ -42,6 +42,36 @@ const (
 	EnvProduction Env = "production"
 )
 
+// DBPoolConfig holds sql.DB connection-pool knobs. All fields are optional;
+// zero values leave the corresponding sql.DB setting at its Go default (which
+// is deliberately overridden by applyEnvDefaults for production safety).
+//
+// Environment variables (all optional):
+//
+//	FLOW_DB_MAX_OPEN          – maximum number of open connections (0 = unlimited)
+//	FLOW_DB_MAX_IDLE          – maximum number of idle connections in the pool
+//	FLOW_DB_CONN_MAX_LIFETIME – maximum time a connection may be reused (e.g. "30m")
+//	FLOW_DB_CONN_MAX_IDLE_TIME – maximum time a connection may sit idle (e.g. "10m")
+type DBPoolConfig struct {
+	// MaxOpenConns is the maximum number of open connections to the database.
+	// 0 means unlimited (Go default). In production a non-zero value is
+	// strongly recommended to prevent connection storms.
+	MaxOpenConns int
+
+	// MaxIdleConns is the maximum number of connections in the idle pool.
+	// Go's default is 2; we raise it to match MaxOpenConns for typical workloads.
+	MaxIdleConns int
+
+	// ConnMaxLifetime is the maximum amount of time a connection may be
+	// reused. 0 means connections are reused forever. Set this to a value
+	// shorter than your database's wait_timeout to avoid "broken pipe" errors.
+	ConnMaxLifetime time.Duration
+
+	// ConnMaxIdleTime is the maximum amount of time a connection may sit
+	// idle before being closed. 0 means idle connections are never closed.
+	ConnMaxIdleTime time.Duration
+}
+
 // Config holds all application-wide configuration. Zero values are safe to
 // use for development; call Validate() or use Load() which calls it
 // automatically.
@@ -66,6 +96,11 @@ type Config struct {
 	// DatabaseURL is the DSN for the primary database. Empty means no
 	// database is configured.
 	DatabaseURL string
+
+	// DBPool controls the sql.DB connection-pool parameters. See DBPoolConfig
+	// for field documentation and environment variable names. Sensible defaults
+	// are applied per-environment so this rarely needs to be set explicitly.
+	DBPool DBPoolConfig
 
 	// SecretKeyBase is used to sign/encrypt session cookies. In production
 	// this MUST be set via FLOW_SECRET_KEY_BASE and MUST be ≥ 32 bytes.
@@ -99,6 +134,10 @@ type Config struct {
 //	FLOW_IDLE_TIMEOUT      – e.g. "120s"
 //	FLOW_SHUTDOWN_TIMEOUT  – e.g. "10s"
 //	DATABASE_URL           – primary database DSN
+//	FLOW_DB_MAX_OPEN          – max open DB connections (int, 0=unlimited)
+//	FLOW_DB_MAX_IDLE          – max idle DB connections (int)
+//	FLOW_DB_CONN_MAX_LIFETIME – max connection lifetime (duration, e.g. "30m")
+//	FLOW_DB_CONN_MAX_IDLE_TIME – max connection idle time (duration, e.g. "10m")
 //	FLOW_SECRET_KEY_BASE   – session signing secret (≥ 32 chars in production)
 //	FLOW_LOG_LEVEL         – debug|info|warn|error
 //	FLOW_COOKIE_SECURE     – "true"/"false" (default derived from env)
@@ -139,6 +178,26 @@ func Load() (*Config, error) {
 	if v := os.Getenv("DATABASE_URL"); v != "" {
 		cfg.DatabaseURL = v
 	}
+	if v := os.Getenv("FLOW_DB_MAX_OPEN"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n >= 0 {
+			cfg.DBPool.MaxOpenConns = n
+		}
+	}
+	if v := os.Getenv("FLOW_DB_MAX_IDLE"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n >= 0 {
+			cfg.DBPool.MaxIdleConns = n
+		}
+	}
+	if v := os.Getenv("FLOW_DB_CONN_MAX_LIFETIME"); v != "" {
+		if d, err := time.ParseDuration(v); err == nil {
+			cfg.DBPool.ConnMaxLifetime = d
+		}
+	}
+	if v := os.Getenv("FLOW_DB_CONN_MAX_IDLE_TIME"); v != "" {
+		if d, err := time.ParseDuration(v); err == nil {
+			cfg.DBPool.ConnMaxIdleTime = d
+		}
+	}
 	if v := os.Getenv("FLOW_SECRET_KEY_BASE"); v != "" {
 		cfg.SecretKeyBase = v
 	}
@@ -172,6 +231,13 @@ func defaults() *Config {
 		LogLevel:        "info",
 		CookieSecure:    false,
 		CookieSameSite:  http.SameSiteDefaultMode,
+		// Development DB pool: small, never exhausted locally.
+		DBPool: DBPoolConfig{
+			MaxOpenConns:    5,
+			MaxIdleConns:    5,
+			ConnMaxLifetime: 0, // reuse forever in dev
+			ConnMaxIdleTime: 0,
+		},
 	}
 }
 
@@ -183,6 +249,12 @@ func applyEnvDefaults(cfg *Config) {
 	case EnvProduction:
 		cfg.CookieSecure = true
 		cfg.CookieSameSite = http.SameSiteLaxMode
+		// Always apply production-safe pool defaults here; they will be
+		// overridden below by any FLOW_DB_* env vars the operator sets.
+		cfg.DBPool.MaxOpenConns = 25
+		cfg.DBPool.MaxIdleConns = 25
+		cfg.DBPool.ConnMaxLifetime = 30 * time.Minute
+		cfg.DBPool.ConnMaxIdleTime = 10 * time.Minute
 	}
 }
 
