@@ -16,10 +16,20 @@ import (
 	internalapp "github.com/undiegomejia/flow/internal/app"
 )
 
+// DefaultPluginStartTimeout is the maximum time a plugin Start goroutine
+// may run before its context is force-canceled. Plugins that implement
+// long-running background loops should select on ctx.Done() and return
+// promptly when the context is canceled.
+const DefaultPluginStartTimeout = 30 * time.Second
+
 // startPlugins invokes Start(ctx) for each registered plugin in registration
 // order in its own goroutine. Errors returned by Start are logged. The
 // provided ctx is canceled by App.Shutdown (via pluginCancel) to signal
 // plugin goroutines to exit.
+//
+// If App.PluginStartTimeout is non-zero (default: DefaultPluginStartTimeout)
+// each plugin goroutine runs with a child context that is canceled after
+// that duration, preventing a hung Start from blocking shutdown forever.
 func (a *App) startPlugins(ctx context.Context) {
 	if a == nil {
 		return
@@ -28,6 +38,16 @@ func (a *App) startPlugins(ctx context.Context) {
 	names := make([]string, len(a.pluginOrder))
 	copy(names, a.pluginOrder)
 	a.pluginsMu.RUnlock()
+
+	// Resolve the per-plugin start deadline: use the configured value or fall
+	// back to the package default. Zero explicitly disables the deadline.
+	startTimeout := a.PluginStartTimeout
+	if startTimeout == 0 {
+		startTimeout = DefaultPluginStartTimeout
+	} else if startTimeout < 0 {
+		// Negative value is an explicit opt-out of any deadline.
+		startTimeout = 0
+	}
 
 	for _, name := range names {
 		a.pluginsMu.RLock()
@@ -39,8 +59,24 @@ func (a *App) startPlugins(ctx context.Context) {
 		a.pluginWg.Add(1)
 		go func(p Plugin, n string) {
 			defer a.pluginWg.Done()
-			if err := p.Start(ctx); err != nil {
-				a.Logger().Printf("plugin %s start error: %v", n, err)
+
+			// Wrap with a deadline context when a start timeout is configured.
+			pCtx := ctx
+			if startTimeout > 0 {
+				var cancel context.CancelFunc
+				pCtx, cancel = context.WithTimeout(ctx, startTimeout)
+				defer cancel()
+			}
+
+			if err := p.Start(pCtx); err != nil {
+				// Distinguish between a normal shutdown-driven cancellation
+				// (context.Canceled from pluginCancel) and a genuine error or
+				// a deadline-exceeded from the per-plugin timeout.
+				if pCtx.Err() == context.DeadlineExceeded {
+					a.Logger().Printf("plugin %s: Start timed out after %s — check for blocking operations", n, startTimeout)
+				} else if err != context.Canceled {
+					a.Logger().Printf("plugin %s start error: %v", n, err)
+				}
 			}
 		}(p, name)
 	}
