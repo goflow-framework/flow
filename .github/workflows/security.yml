@@ -18,12 +18,12 @@ jobs:
   scan:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
 
       - name: Setup Go (for security scan)
         uses: ./.github/actions/ci-setup
         with:
-          go-version: 1.25.8
+          go-version: 1.25.9
           gomodcache: ${{ github.workspace }}/.gomodcache-security
           goproxy: https://proxy.golang.org,direct
           gosumdb: sum.golang.org
@@ -102,16 +102,4 @@ jobs:
       - name: Run govulncheck
         run: |
           export PATH=$(go env GOPATH)/bin:$PATH
-          # govulncheck does not support -debug; print diagnostics and run
-          # the tool normally. If it panics, Go's runtime will print a stack
-          # trace to the job logs which we can use to diagnose the failure.
-          echo "--- govulncheck help ---"
-          govulncheck -h || true
-          echo "--- govulncheck binary info ---"
-          ls -la $(go env GOPATH)/bin || true
-          echo "--- head of govulncheck binary (strings) ---"
-          strings $(go env GOPATH)/bin/govulncheck | sed -n '1,80p' || true
-
-          # Run govulncheck over the repository. It may exit non-zero on
-          # findings; allow the job to fail so CI surfaces the result.
           govulncheck ./...
