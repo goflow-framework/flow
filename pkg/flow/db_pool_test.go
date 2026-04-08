@@ -97,11 +97,11 @@ func TestWithDBPool_AfterWithConfig_WinsOverConfigPool(t *testing.T) {
 	t.Parallel()
 
 	cfg := &config.Config{
-		Env:         config.EnvDevelopment,
-		Addr:        ":3000",
-		LogLevel:    "info",
-		DatabaseURL: "sqlite://file::memory:?cache=shared",
-		DBPool:      config.DBPoolConfig{MaxOpenConns: 10},
+		Env:             config.EnvDevelopment,
+		Addr:            ":3000",
+		LogLevel:        "info",
+		DatabaseURL:     "sqlite://file::memory:?cache=shared",
+		DBPool:          config.DBPoolConfig{MaxOpenConns: 10},
 		ReadTimeout:     5 * time.Second,
 		WriteTimeout:    10 * time.Second,
 		IdleTimeout:     120 * time.Second,
