@@ -32,7 +32,7 @@ func NewSessionManager(secret []byte, cookieName string) *SessionManager {
 	if cookieName == "" {
 		cookieName = "flow_session"
 	}
-	return &SessionManager{secret: secret, CookieName: cookieName, MaxAge: 86400, CookieSecure: false, CookieSameSite: http.SameSiteDefaultMode}
+	return &SessionManager{secret: secret, CookieName: cookieName, MaxAge: 86400, CookieSecure: true, CookieSameSite: http.SameSiteLaxMode}
 }
 
 // generateRandomSecret returns n bytes of randomness.
@@ -172,10 +172,18 @@ func DefaultSessionManager() *SessionManager {
 	return NewSessionManager(s, "flow_session")
 }
 
-// ApplySecureCookieDefaults enables conservative cookie flags for session
-// cookies: Secure=true, HttpOnly is already set by Save(), and
-// SameSite=Lax. Call this in app initialization when serving over HTTPS.
-func (sm *SessionManager) ApplySecureCookieDefaults() {
-	sm.CookieSecure = true
-	sm.CookieSameSite = http.SameSiteLaxMode
+// ApplySecureCookieDefaults is a no-op kept for backwards compatibility.
+// Secure=true and SameSite=Lax are now the defaults set by NewSessionManager.
+//
+// Deprecated: safe to remove from call-sites; the defaults already provide
+// the same behaviour.
+func (sm *SessionManager) ApplySecureCookieDefaults() {}
+
+// WithInsecureCookie disables the Secure flag on session cookies and resets
+// SameSite to the browser default. Use this only in local development or
+// test environments that do not serve over HTTPS.
+func (sm *SessionManager) WithInsecureCookie() *SessionManager {
+	sm.CookieSecure = false
+	sm.CookieSameSite = http.SameSiteDefaultMode
+	return sm
 }
