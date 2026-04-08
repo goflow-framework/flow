@@ -12,12 +12,12 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        go-version: [ '1.25', '1.25.8', '1.26' ]
+        go-version: [ '1.25', '1.25.9', '1.26' ]
         include:
-          - go-version: '1.25.8'
+          - go-version: '1.25.9'
             run-race: true
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
 
       - name: Cache Go modules
         uses: actions/cache@v5
@@ -48,7 +48,7 @@ jobs:
         run: go vet ./...
 
       - name: staticcheck
-        if: matrix.go-version == '1.25.8'
+        if: matrix.go-version == '1.25.9'
         run: |
           # Use a pinned staticcheck release that supports go 1.25+.
           go install honnef.co/go/tools/cmd/staticcheck@v0.7.0
@@ -56,16 +56,16 @@ jobs:
 
       - name: Run tests
         run: |
-          if [ "${{ matrix.go-version }}" = "1.25.8" ]; then
+          if [ "${{ matrix.go-version }}" = "1.25.9" ]; then
             go test ./... -v -race
           else
             go test ./... -v
           fi
 
       - name: Run runtime example (smoke)
-        if: matrix.go-version == '1.25.8'
+        if: matrix.go-version == '1.25.9'
         run: go run ./examples/plugins/runtime
 
       - name: Run middleware example (smoke)
-        if: matrix.go-version == '1.25.8'
+        if: matrix.go-version == '1.25.9'
         run: go run ./examples/plugins/middleware
