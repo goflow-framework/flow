@@ -891,6 +891,10 @@ func WithDefaultMiddleware() Option {
 		a.Use(Recovery(a.logger))
 		// request id for tracing
 		a.Use(RequestIDMiddleware(""))
+		// limit request body size early — before any middleware reads the body
+		// (CSRF parsing, JSON binding, form parsing). Protects against trivial
+		// request-body DoS. Default: DefaultBodyLimitBytes (4 MiB).
+		a.Use(BodyLimitMiddleware(DefaultBodyLimitBytes))
 		// secure headers (HSTS, X-Frame-Options, etc.)
 		a.Use(SecureHeaders())
 		// protect forms and unsafe methods with a per-session CSRF token
