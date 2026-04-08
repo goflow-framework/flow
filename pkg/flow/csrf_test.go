@@ -1,6 +1,7 @@
 package flow
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -88,5 +89,94 @@ func TestPostWithInvalidTokenRejected(t *testing.T) {
 	handler.ServeHTTP(postRR, postReq)
 	if postRR.Code != http.StatusForbidden {
 		t.Fatalf("expected forbidden for invalid token, got %d", postRR.Code)
+	}
+}
+
+// errReader is an io.Reader that always returns an error, used to simulate
+// crypto/rand failures in tests.
+type errReader struct{ msg string }
+
+func (e errReader) Read(_ []byte) (int, error) {
+	return 0, fmt.Errorf("%s", e.msg)
+}
+
+// TestCSRFMiddleware_RandFailureReturns500 verifies that when crypto/rand is
+// unavailable the middleware serves 500 instead of issuing a predictable token.
+func TestCSRFMiddleware_RandFailureReturns500(t *testing.T) {
+	// Swap rand reader for one that always fails, restore afterwards.
+	orig := csrfRandReader
+	csrfRandReader = errReader{msg: "entropy pool exhausted"}
+	defer func() { csrfRandReader = orig }()
+
+	sm := DefaultSessionManager().WithInsecureCookie()
+	h := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+	handler := sm.Middleware()(CSRFMiddleware()(h))
+
+	req := httptest.NewRequest("GET", "/", nil)
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500 on rand failure, got %d", rr.Code)
+	}
+}
+
+// TestCSRFMiddleware_RandFailureDoesNotIssueEmptyToken verifies that on rand
+// failure the body is not an empty CSRF token (i.e. no silent degradation).
+func TestCSRFMiddleware_RandFailureDoesNotIssueEmptyToken(t *testing.T) {
+	orig := csrfRandReader
+	csrfRandReader = errReader{msg: "entropy pool exhausted"}
+	defer func() { csrfRandReader = orig }()
+
+	sm := DefaultSessionManager().WithInsecureCookie()
+	h := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// If we reach here a token was issued — that is wrong.
+		w.Write([]byte(CSRFToken(r)))
+	})
+	handler := sm.Middleware()(CSRFMiddleware()(h))
+
+	req := httptest.NewRequest("GET", "/", nil)
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	// Must not reach the inner handler (500 returned above).
+	if rr.Code == http.StatusOK {
+		t.Fatalf("handler should not have been called on rand failure")
+	}
+	if strings.TrimSpace(rr.Body.String()) == "" && rr.Code != http.StatusInternalServerError {
+		t.Fatalf("unexpected response: code=%d body=%q", rr.Code, rr.Body.String())
+	}
+}
+
+// TestGenerateCSRFToken_ReturnsErrorOnBadReader unit-tests generateCSRFToken
+// directly with a failing reader.
+func TestGenerateCSRFToken_ReturnsErrorOnBadReader(t *testing.T) {
+	orig := csrfRandReader
+	csrfRandReader = errReader{msg: "no entropy"}
+	defer func() { csrfRandReader = orig }()
+
+	tok, err := generateCSRFToken()
+	if err == nil {
+		t.Fatalf("expected error from generateCSRFToken, got nil (token=%q)", tok)
+	}
+	if tok != "" {
+		t.Fatalf("expected empty token on error, got %q", tok)
+	}
+}
+
+// TestGenerateCSRFToken_SuccessReturnsNonEmpty verifies the happy path.
+func TestGenerateCSRFToken_SuccessReturnsNonEmpty(t *testing.T) {
+	tok, err := generateCSRFToken()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if tok == "" {
+		t.Fatal("expected non-empty token")
+	}
+	// base64url-encoded 32 bytes = 43 chars (no padding)
+	if len(tok) != 43 {
+		t.Fatalf("expected token length 43, got %d", len(tok))
 	}
 }

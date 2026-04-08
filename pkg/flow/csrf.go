@@ -4,13 +4,22 @@ import (
 	"crypto/rand"
 	"crypto/subtle"
 	"encoding/base64"
+	"fmt"
 	"io"
 	"net/http"
 )
 
 const csrfSessionKey = "_csrf_token"
 
-// CSRFMiddleware ensures a per-session CSRF token exists and validates unsafe requests.
+// csrfRandReader is the source of randomness used by generateCSRFToken.
+// It is a package-level variable so tests can swap it for a failing reader
+// to exercise the error path without touching crypto/rand.
+var csrfRandReader io.Reader = rand.Reader
+
+// CSRFMiddleware ensures a per-session CSRF token exists and validates unsafe
+// requests. If the OS entropy pool is unavailable while generating a new token
+// the middleware responds with 500 Internal Server Error rather than issuing a
+// predictable (all-zero) token that would silently degrade CSRF protection.
 func CSRFMiddleware() Middleware {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -25,7 +34,14 @@ func CSRFMiddleware() Middleware {
 				}
 			}
 			if token == "" {
-				token = generateCSRFToken()
+				var err error
+				token, err = generateCSRFToken()
+				if err != nil {
+					// crypto/rand failure — do NOT issue a predictable token.
+					// Serving 500 is safer than degrading CSRF protection.
+					http.Error(w, "internal server error", http.StatusInternalServerError)
+					return
+				}
 				if sess != nil {
 					// use Set which also persists via Save
 					_ = sess.Set(csrfSessionKey, token)
@@ -65,13 +81,15 @@ func CSRFToken(r *http.Request) string {
 	return ""
 }
 
-func generateCSRFToken() string {
+// generateCSRFToken returns a cryptographically random 32-byte token encoded
+// as base64url, or an error if the OS entropy source is unavailable.
+// It reads from csrfRandReader so tests can inject a failing reader.
+func generateCSRFToken() (string, error) {
 	var b [32]byte
-	if _, err := io.ReadFull(rand.Reader, b[:]); err != nil {
-		// fallback to empty on error
-		return ""
+	if _, err := io.ReadFull(csrfRandReader, b[:]); err != nil {
+		return "", fmt.Errorf("csrf: rand read: %w", err)
 	}
-	return base64.RawURLEncoding.EncodeToString(b[:])
+	return base64.RawURLEncoding.EncodeToString(b[:]), nil
 }
 
 func secureCompare(a, b string) bool {
