@@ -105,6 +105,10 @@ type App struct {
 	// 2 = shutting down/stopped.
 	state int32
 
+	// healthzRegistered guards against double-registration of the /healthz
+	// and /livez endpoints (EnableHealthz is a no-op after the first call).
+	healthzRegistered int32
+
 	// executor is an optional application-level executor for background work.
 	executor execpkg.Executor
 	// executorShutdown is called during App.Shutdown if non-nil.
