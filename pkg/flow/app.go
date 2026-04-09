@@ -62,6 +62,11 @@ type App struct {
 	WriteTimeout    time.Duration
 	IdleTimeout     time.Duration
 	ShutdownTimeout time.Duration
+	// PluginStartTimeout is the maximum time a single plugin Start goroutine
+	// may run before it is considered hung and its context is force-canceled.
+	// Zero means no per-plugin deadline (the shutdown context deadline applies).
+	// Use WithPluginStartTimeout or set this field directly.
+	PluginStartTimeout time.Duration
 
 	logger Logger
 
@@ -297,6 +302,15 @@ func WithAddr(addr string) Option {
 // WithShutdownTimeout sets the graceful shutdown timeout.
 func WithShutdownTimeout(d time.Duration) Option {
 	return func(a *App) { a.ShutdownTimeout = d }
+}
+
+// WithPluginStartTimeout sets the per-plugin start deadline. If a plugin's
+// Start method does not return within d the framework cancels its context,
+// logs a warning, and continues — preventing a single stuck plugin from
+// blocking the entire application startup or shutdown drain.
+// Zero disables the per-plugin deadline. The default is DefaultPluginStartTimeout.
+func WithPluginStartTimeout(d time.Duration) Option {
+	return func(a *App) { a.PluginStartTimeout = d }
 }
 
 // WithConfig applies a *config.Config to the App. It sets all transport-level
