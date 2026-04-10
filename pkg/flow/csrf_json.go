@@ -1,7 +1,9 @@
 package flow
 
 import (
+	"mime"
 	"net/http"
+	"strings"
 )
 
 // CSRFMiddlewareJSON returns a middleware targeted for JSON APIs. It validates
@@ -35,8 +37,23 @@ func CSRFMiddlewareJSON() Middleware {
 	}
 }
 
-// hasJSONContentType is a small helper to detect common JSON content types.
+// hasJSONContentType reports whether the Content-Type header value represents
+// a JSON media type. It uses mime.ParseMediaType to correctly strip parameters
+// (e.g. charset) before comparison, and accepts:
+//   - application/json          (RFC 4627 / RFC 8259)
+//   - any type ending in +json  (RFC 6839 structured-syntax suffix)
+//
+// Examples that return true:
+//
+//	"application/json"
+//	"application/json; charset=utf-8"
+//	"application/vnd.api+json"
+//	"application/ld+json"
+//	"application/problem+json"
 func hasJSONContentType(ct string) bool {
-	// content type may include a charset, so check prefix
-	return len(ct) >= 16 && (ct == "application/json" || ct[:16] == "application/json")
+	mediaType, _, err := mime.ParseMediaType(ct)
+	if err != nil {
+		return false
+	}
+	return mediaType == "application/json" || strings.HasSuffix(mediaType, "+json")
 }
