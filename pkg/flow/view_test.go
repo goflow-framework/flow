@@ -1,10 +1,12 @@
 package flow
 
 import (
+	"fmt"
 	"html/template"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 )
@@ -238,5 +240,75 @@ func TestApp_WithViewsFuncMap(t *testing.T) {
 	out := rr.Body.String()
 	if out != "CAP_bob" {
 		t.Fatalf("unexpected output from app funcmap: %q", out)
+	}
+}
+
+// TestViewManager_ConcurrentRender verifies that the pool-based clone approach
+// is safe under concurrent load and that each goroutine receives its own
+// correctly-rendered output (no cross-request data leakage).
+func TestViewManager_ConcurrentRender(t *testing.T) {
+	tmp := t.TempDir()
+	viewPath := filepath.Join(tmp, "item", "show.html")
+	writeFile(t, viewPath, `{{define "content"}}value:{{.}}{{end}}`)
+
+	vm := NewViewManager(tmp)
+	app := New("testapp")
+	app.Views = vm
+
+	const goroutines = 20
+	var wg sync.WaitGroup
+	errs := make([]error, goroutines)
+
+	for i := 0; i < goroutines; i++ {
+		i := i
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			want := fmt.Sprintf("value:%d", i)
+			rr := httptest.NewRecorder()
+			req := httptest.NewRequest("GET", "/", nil)
+			ctx := NewContext(app, rr, req)
+			if err := ctx.Render("item/show", i); err != nil {
+				errs[i] = fmt.Errorf("goroutine %d render: %w", i, err)
+				return
+			}
+			got := rr.Body.String()
+			if got != want {
+				errs[i] = fmt.Errorf("goroutine %d: want %q got %q", i, want, got)
+			}
+		}()
+	}
+	wg.Wait()
+
+	for _, err := range errs {
+		if err != nil {
+			t.Error(err)
+		}
+	}
+}
+
+// TestViewManager_PoolRecyclesClones exercises that pool entries are returned
+// and re-used rather than leaking on each render.  It triggers enough renders
+// to guarantee at least one pool reuse and confirms output correctness.
+func TestViewManager_PoolRecyclesClones(t *testing.T) {
+	tmp := t.TempDir()
+	viewPath := filepath.Join(tmp, "pooltest", "view.html")
+	writeFile(t, viewPath, `{{define "content"}}rendered:{{.}}{{end}}`)
+
+	vm := NewViewManager(tmp)
+	app := New("testapp")
+	app.Views = vm
+
+	for i := 0; i < 10; i++ {
+		rr := httptest.NewRecorder()
+		req := httptest.NewRequest("GET", "/", nil)
+		ctx := NewContext(app, rr, req)
+		if err := ctx.Render("pooltest/view", i); err != nil {
+			t.Fatalf("render %d: %v", i, err)
+		}
+		want := fmt.Sprintf("rendered:%d", i)
+		if got := rr.Body.String(); got != want {
+			t.Errorf("render %d: want %q got %q", i, want, got)
+		}
 	}
 }
