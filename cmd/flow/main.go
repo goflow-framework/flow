@@ -97,12 +97,13 @@ layout ready for development.
 
 The generated structure includes:
   <app-name>/
-    cmd/<app-name>/main.go   – application entry-point
-    internal/                – private application packages
-    db/migrations/           – SQL migration files
-    go.mod                   – module definition
-    .env.example             – documented environment variables
-    Makefile                 – common developer tasks`,
+    cmd/<app-name>/main.go          – application entry-point
+    cmd/<app-name>/main_test.go     – smoke test for the entry-point package
+    internal/<app-name>_test.go     – placeholder integration test
+    db/migrations/                  – SQL migration files
+    go.mod                          – module definition
+    .env.example                    – documented environment variables
+    Makefile                        – common developer tasks (includes 'make test')`,
 	Args: cobra.ExactArgs(1),
 	RunE: runNew,
 }
@@ -146,6 +147,34 @@ func main() {
 	if err := app.Run(); err != nil {
 		log.Fatal(err)
 	}
+}
+`, name),
+
+		filepath.Join(root, "cmd", name, "main_test.go"): fmt.Sprintf(`package main
+
+import (
+	"testing"
+)
+
+// TestSmoke verifies the application entry-point package compiles and the
+// test harness is wired up correctly. Replace this with meaningful tests
+// as your application grows.
+func TestSmoke(t *testing.T) {
+	t.Logf("%s: smoke test passed – add real tests here")
+}
+`, name),
+
+		filepath.Join(root, "internal", name+"_test.go"): fmt.Sprintf(`package internal_test
+
+import (
+	"testing"
+)
+
+// TestIntegration is a placeholder for %s integration tests.
+// Wire up your app, make HTTP requests against a test server, and assert
+// the responses here.
+func TestIntegration(t *testing.T) {
+	t.Skip("replace with real integration tests")
 }
 `, name),
 
