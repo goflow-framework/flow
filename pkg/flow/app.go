@@ -62,11 +62,6 @@ type App struct {
 	WriteTimeout    time.Duration
 	IdleTimeout     time.Duration
 	ShutdownTimeout time.Duration
-	// PluginStartTimeout is the maximum time a single plugin Start goroutine
-	// may run before it is considered hung and its context is force-canceled.
-	// Zero means no per-plugin deadline (the shutdown context deadline applies).
-	// Use WithPluginStartTimeout or set this field directly.
-	PluginStartTimeout time.Duration
 
 	logger Logger
 
@@ -104,10 +99,6 @@ type App struct {
 	// state indicates whether the server is running: 0 = idle, 1 = running,
 	// 2 = shutting down/stopped.
 	state int32
-
-	// healthzRegistered guards against double-registration of the /healthz
-	// and /livez endpoints (EnableHealthz is a no-op after the first call).
-	healthzRegistered int32
 
 	// executor is an optional application-level executor for background work.
 	executor execpkg.Executor
@@ -156,6 +147,14 @@ type App struct {
 	// validator is the per-App instance of go-playground/validator. When nil
 	// Context.Validate falls back to the package-level pkgValidator.
 	validator *gvalidator.Validate
+
+	// healthzRegistered is set to 1 (via atomic CAS) once the /healthz route
+	// has been mounted so it is only registered once per App instance.
+	healthzRegistered int32
+
+	// PluginStartTimeout overrides the default timeout for plugin Start calls.
+	// A zero value means DefaultPluginStartTimeout (30s) is used.
+	PluginStartTimeout time.Duration
 }
 
 type workerHandle struct {
@@ -306,15 +305,6 @@ func WithAddr(addr string) Option {
 // WithShutdownTimeout sets the graceful shutdown timeout.
 func WithShutdownTimeout(d time.Duration) Option {
 	return func(a *App) { a.ShutdownTimeout = d }
-}
-
-// WithPluginStartTimeout sets the per-plugin start deadline. If a plugin's
-// Start method does not return within d the framework cancels its context,
-// logs a warning, and continues — preventing a single stuck plugin from
-// blocking the entire application startup or shutdown drain.
-// Zero disables the per-plugin deadline. The default is DefaultPluginStartTimeout.
-func WithPluginStartTimeout(d time.Duration) Option {
-	return func(a *App) { a.PluginStartTimeout = d }
 }
 
 // WithConfig applies a *config.Config to the App. It sets all transport-level
@@ -606,6 +596,18 @@ func WithExecutor(e execpkg.Executor) Option {
 	}
 }
 
+// WithPluginStartTimeout sets the maximum time allowed for each plugin's Start
+// call. A negative value disables the timeout (plugins run without deadline).
+// Zero (the default) uses DefaultPluginStartTimeout (30s).
+func WithPluginStartTimeout(d time.Duration) Option {
+	return func(a *App) {
+		if a == nil {
+			return
+		}
+		a.PluginStartTimeout = d
+	}
+}
+
 // WithBoundedExecutor creates a bounded executor with n workers and queueSize
 // and wires it into the App. The App will call Shutdown on the executor
 // during App.Shutdown.
@@ -889,10 +891,34 @@ func (a *App) GetService(name string) (interface{}, bool) {
 	return a.services.Get(name)
 }
 
-// RegisterServiceTyped is a generic convenience wrapper that registers a
-// typed service under name. It preserves the existing behavior but provides
-// nicer ergonomics for callers using Go generics.
-// (Typed service helpers are provided as package-level generic functions in service_registry.go)
+// RegisterServiceTyped is a package-level generic helper that registers a
+// typed service on the App's ServiceRegistry. It is equivalent to calling
+// app.RegisterService(name, svc) but avoids the interface{} cast at the
+// call-site and makes the service type explicit in the source code.
+//
+//	if err := flow.RegisterServiceTyped(app, "mailer", &SMTPMailer{...}); err != nil { ... }
+func RegisterServiceTyped[T any](a *App, name string, svc T) error {
+	if a == nil || a.services == nil {
+		return fmt.Errorf("app: services not initialized")
+	}
+	return a.services.Register(name, svc)
+}
+
+// GetServiceTyped is a package-level generic helper that looks up a service
+// registered on the App by name and returns it already cast to T. It returns
+// the zero value of T and false when the service is not found or cannot be
+// asserted to T. This eliminates the manual type-assertion boilerplate that
+// was required when using app.GetService(name).(T).
+//
+//	mailer, ok := flow.GetServiceTyped[*SMTPMailer](app, "mailer")
+//	if !ok { ... }
+func GetServiceTyped[T any](a *App, name string) (T, bool) {
+	var zero T
+	if a == nil || a.services == nil {
+		return zero, false
+	}
+	return GetAs[T](a.services, name)
+}
 
 // ListPlugins returns the registered plugin names for this App in
 // registration order.
