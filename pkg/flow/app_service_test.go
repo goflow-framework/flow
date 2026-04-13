@@ -24,7 +24,7 @@ func TestApp_RegisterAndGetService(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 type testMailer struct{ addr string }
-type testCache struct{ size int }
+type testCache struct{ addr string }
 
 func TestGetServiceTyped_HappyPath(t *testing.T) {
 	app := New("typed-svc-test")
@@ -92,7 +92,7 @@ func TestRegisterServiceTyped_NilApp(t *testing.T) {
 func TestGetServiceTyped_Interface(t *testing.T) {
 	// Register a concrete type as its interface — common real-world pattern.
 	app := New("typed-iface-test")
-	var svc error = errors.New("sentinel")
+	svc := errors.New("sentinel")
 	if err := RegisterServiceTyped[error](app, "err-svc", svc); err != nil {
 		t.Fatalf("RegisterServiceTyped: %v", err)
 	}
