@@ -4,6 +4,18 @@
 // render templates according to conventions. It is intentionally minimal
 // for the prototype: templates are looked up by name relative to a root
 // directory and parsed on first use.
+//
+// Performance note
+// ----------------
+// html/template.Clone() performs a deep copy of the entire template set. The
+// previous implementation called Clone() on every Render() call even when the
+// template was served from the in-memory cache, which meant O(n_templates)
+// allocation on every HTTP response.
+//
+// The fix: each cached template entry owns a sync.Pool whose New function
+// produces one clone (with the per-request T func wired up). Render() borrows
+// a clone from the pool, executes it, then returns it to the pool. Under load
+// most clones are recycled between requests, eliminating repeated allocations.
 package flow
 
 import (
@@ -15,6 +27,55 @@ import (
 
 	"github.com/undiegomejia/flow/pkg/i18n"
 )
+
+// templateEntry holds a parsed template together with a pool of ready-to-use
+// clones. Each clone has the T translation function pre-wired via a
+// *tCtxHolder that is updated before ExecuteTemplate and reset afterwards.
+type templateEntry struct {
+	tpl  *template.Template
+	pool sync.Pool // pool of *templateClone
+}
+
+// templateClone is a single clone of a cached template together with the
+// holder that lets the T func read the current request context.
+type templateClone struct {
+	clone  *template.Template
+	holder *tCtxHolder
+}
+
+// tCtxHolder is a small mutable box that holds the *Context for the duration
+// of a single template execution. The T function registered at clone-creation
+// time closes over it; Render swaps the value in and out around each Execute
+// call so that T always reads the right per-request context.
+type tCtxHolder struct {
+	mu  sync.Mutex
+	ctx *Context
+}
+
+func (h *tCtxHolder) set(c *Context) {
+	h.mu.Lock()
+	h.ctx = c
+	h.mu.Unlock()
+}
+
+func (h *tCtxHolder) clear() {
+	h.mu.Lock()
+	h.ctx = nil
+	h.mu.Unlock()
+}
+
+func (h *tCtxHolder) translate(key string, args ...interface{}) string {
+	h.mu.Lock()
+	c := h.ctx
+	h.mu.Unlock()
+	if c == nil {
+		if len(args) > 0 {
+			return fmt.Sprintf(key, args...)
+		}
+		return key
+	}
+	return i18n.TFromContext(c.r.Context(), key, args...)
+}
 
 // ViewManager holds template loading configuration and a simple cache.
 type ViewManager struct {
@@ -30,13 +91,13 @@ type ViewManager struct {
 	// DevMode disables caching and forces reparsing on each Render call when true.
 	DevMode bool
 	mu      sync.RWMutex
-	cache   map[string]*template.Template
+	cache   map[string]*templateEntry
 }
 
 // NewViewManager constructs a ViewManager which will look for templates in
 // templateDir (relative to the working directory).
 func NewViewManager(templateDir string) *ViewManager {
-	return &ViewManager{TemplateDir: templateDir, cache: make(map[string]*template.Template), FuncMap: template.FuncMap{}}
+	return &ViewManager{TemplateDir: templateDir, cache: make(map[string]*templateEntry), FuncMap: template.FuncMap{}}
 }
 
 // Render loads (or retrieves from cache) the named template and executes it
@@ -46,42 +107,42 @@ func (v *ViewManager) Render(name string, data interface{}, ctx *Context) error 
 	if v == nil {
 		return fmt.Errorf("view manager: nil")
 	}
-	tpl, err := v.loadTemplate(name)
+	entry, err := v.loadTemplate(name)
 	if err != nil {
 		return err
 	}
-	// Prefer executing a "content" template (common pattern where views
-	// define {{ define "content" }}...{{ end }} and layouts render that
-	// via {{ template "content" . }}). If no "content" template exists,
-	// fall back to executing the parsed file's base name (e.g. "show.html").
+
+	// Borrow a pre-cloned template from the pool. The clone already has T
+	// wired up via a tCtxHolder; we just need to set the current context on
+	// the holder before execution and clear it afterwards.
+	tc, _ := entry.pool.Get().(*templateClone)
+	if tc == nil {
+		return fmt.Errorf("view manager: failed to obtain template clone for %q", name)
+	}
+	tc.holder.set(ctx)
+
+	// Determine which template name to execute (same logic as before).
 	execName := "content"
-	if tpl.Lookup(execName) == nil {
+	if tc.clone.Lookup(execName) == nil {
 		execName = filepath.Base(name) + ".html"
 	}
-	// Clone template so we can safely register a per-request FuncMap without
-	// mutating the cached parsed templates. Provide a convenient template
-	// function T(key, ...) that resolves translations from the request
-	// context using pkg/i18n.
-	clone, err := tpl.Clone()
-	if err != nil {
-		return fmt.Errorf("clone template: %w", err)
-	}
-	clone = clone.Funcs(template.FuncMap{
-		"T": func(key string, args ...interface{}) string {
-			return i18n.TFromContext(ctx.r.Context(), key, args...)
-		},
-	})
-	return ctx.RenderTemplate(clone, execName, data)
+
+	execErr := ctx.RenderTemplate(tc.clone, execName, data)
+
+	tc.holder.clear()
+	entry.pool.Put(tc)
+
+	return execErr
 }
 
-func (v *ViewManager) loadTemplate(name string) (*template.Template, error) {
+func (v *ViewManager) loadTemplate(name string) (*templateEntry, error) {
 	// If not in dev mode, try cache first.
 	if !v.DevMode {
 		v.mu.RLock()
-		t, ok := v.cache[name]
+		e, ok := v.cache[name]
 		v.mu.RUnlock()
 		if ok {
-			return t, nil
+			return e, nil
 		}
 	}
 
@@ -124,8 +185,8 @@ func (v *ViewManager) loadTemplate(name string) (*template.Template, error) {
 	// parse template set and register FuncMap if provided
 	tpl := template.New(filepath.Base(viewPath))
 	// Ensure a baseline FuncMap exists and include a noop T function so templates
-	// that reference T can be parsed. The per-request Render() will clone and
-	// override T with a real implementation.
+	// that reference T can be parsed. The pool's New function will clone this
+	// template and override T with a real holder-based implementation.
 	baseFuncs := template.FuncMap{}
 	if v.FuncMap != nil {
 		for k, f := range v.FuncMap {
@@ -143,12 +204,33 @@ func (v *ViewManager) loadTemplate(name string) (*template.Template, error) {
 		return nil, fmt.Errorf("parse templates %v: %w", files, err)
 	}
 
+	// Build the entry with a pool whose New function creates a clone that has
+	// a real, holder-backed T function. Clones are recycled between requests
+	// so Clone() is called at most once per pool miss (typically once per
+	// goroutine under sustained load) rather than once per request.
+	entry := &templateEntry{tpl: parsed}
+	entry.pool = sync.Pool{
+		New: func() interface{} {
+			holder := &tCtxHolder{}
+			clone, cloneErr := parsed.Clone()
+			if cloneErr != nil {
+				// Allocation failure is fatal here; return nil and let
+				// Render handle the nil case gracefully.
+				return nil
+			}
+			clone = clone.Funcs(template.FuncMap{
+				"T": holder.translate,
+			})
+			return &templateClone{clone: clone, holder: holder}
+		},
+	}
+
 	if !v.DevMode {
 		v.mu.Lock()
-		v.cache[name] = parsed
+		v.cache[name] = entry
 		v.mu.Unlock()
 	}
-	return parsed, nil
+	return entry, nil
 }
 
 // SetDefaultLayout sets the default layout file (relative to TemplateDir).
@@ -159,7 +241,7 @@ func (v *ViewManager) SetDefaultLayout(layout string) {
 	v.mu.Lock()
 	v.DefaultLayout = layout
 	// clear cache to ensure layout change takes effect
-	v.cache = make(map[string]*template.Template)
+	v.cache = make(map[string]*templateEntry)
 	v.mu.Unlock()
 }
 
@@ -171,7 +253,7 @@ func (v *ViewManager) SetFuncMap(m template.FuncMap) {
 	}
 	v.mu.Lock()
 	v.FuncMap = m
-	v.cache = make(map[string]*template.Template)
+	v.cache = make(map[string]*templateEntry)
 	v.mu.Unlock()
 }
 
@@ -185,7 +267,7 @@ func (v *ViewManager) SetDevMode(dev bool) {
 	v.DevMode = dev
 	if dev {
 		// clear cache when entering dev mode
-		v.cache = make(map[string]*template.Template)
+		v.cache = make(map[string]*templateEntry)
 	}
 	v.mu.Unlock()
 }
