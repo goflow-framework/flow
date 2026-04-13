@@ -24,7 +24,7 @@ func TestApp_RegisterAndGetService(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 type testMailer struct{ addr string }
-type testCache struct{ addr string }
+type testCache struct{}
 
 func TestGetServiceTyped_HappyPath(t *testing.T) {
 	app := New("typed-svc-test")
