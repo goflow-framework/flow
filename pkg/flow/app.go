@@ -55,106 +55,139 @@ type Logger interface {
 // App encapsulates the running web application.
 // It contains no global state and is safe for concurrent use after
 // construction (except for calling Start multiple times).
+//
+// Fields are grouped into logical sections:
+//
+//  1. Transport       — network address and timeout configuration.
+//  2. Routing         — HTTP handler, middleware stack, logger, sessions, views.
+//  3. Database & ORM  — sql.DB and optional Bun adapter.
+//  4. Services        — application-scoped named service registry.
+//  5. Observability   — tracing, executor, context pool.
+//  6. Plugins         — plugin registry, lifecycle context, background workers.
+//  7. Error handling  — custom error handler, redaction, validator.
+//  8. Runtime state   — atomic state flags, lifecycle engine.
 type App struct {
-	Name            string
+	// -----------------------------------------------------------------------
+	// 1. Transport
+	// -----------------------------------------------------------------------
+
+	// Name is a human-readable identifier for this App instance (used in logs).
+	Name string
+	// Addr is the TCP listen address, e.g. ":3000".
 	Addr            string
 	ReadTimeout     time.Duration
 	WriteTimeout    time.Duration
 	IdleTimeout     time.Duration
 	ShutdownTimeout time.Duration
 
-	logger Logger
+	// -----------------------------------------------------------------------
+	// 2. Routing
+	// -----------------------------------------------------------------------
 
 	// router is the underlying http.Handler providing routing logic. If nil,
 	// a default http.ServeMux is used.
 	router http.Handler
-
+	// middleware is the ordered list of wrappers applied around the router.
+	// Registered via App.Use; applied outermost-first.
+	middleware []Middleware
+	// logger is the App's logger; defaults to a standard log.Logger.
+	logger Logger
 	// Sessions holds the session manager used by the App. If nil, sessions
 	// are disabled. Initialized with a default manager in New().
 	Sessions *SessionManager
-
 	// Views provides template rendering utilities for controllers and handlers.
 	Views *ViewManager
+	// ctxPool holds an optional per-App context pool. If non-nil NewContext
+	// will prefer this pool when creating request Contexts.
+	ctxPool *ContextPool
 
-	middleware []Middleware
+	// -----------------------------------------------------------------------
+	// 3. Database & ORM
+	// -----------------------------------------------------------------------
 
-	// lc is the HTTP server lifecycle engine. It is created lazily in Start
-	// and drives the start/run/shutdown state machine via internal/app.
-	lc *internalapp.Lifecycle
 	// db is the optional database connection attached to the App.
 	db *sql.DB
 	// bunAdapter holds an optional Bun adapter for ORM operations. If set,
 	// App.Bun() returns the underlying *bun.DB for convenience.
 	bunAdapter *orm.BunAdapter
 
-	// services is an application-scoped registry for sharing services between
-	// components and plugins. Use App.RegisterService/GetService to access it.
+	// -----------------------------------------------------------------------
+	// 4. Services
+	// -----------------------------------------------------------------------
+
+	// services is an application-scoped registry for sharing typed services
+	// between components and plugins. Use RegisterService / GetService or the
+	// generic RegisterServiceTyped / GetServiceTyped helpers.
 	services *ServiceRegistry
 
+	// -----------------------------------------------------------------------
+	// 5. Observability
+	// -----------------------------------------------------------------------
+
 	// tracerShutdown holds an optional shutdown function returned by a tracer
-	// initializer (eg. observability.SetupStdoutTracer). If non-nil it will be
-	// called during Shutdown to allow exporters to flush.
+	// initializer (e.g. observability.SetupStdoutTracer). Called during
+	// Shutdown to allow exporters to flush pending spans.
 	tracerShutdown func(context.Context) error
-
-	// state indicates whether the server is running: 0 = idle, 1 = running,
-	// 2 = shutting down/stopped.
-	state int32
-
 	// executor is an optional application-level executor for background work.
 	executor execpkg.Executor
 	// executorShutdown is called during App.Shutdown if non-nil.
 	executorShutdown func(context.Context) error
 
-	// ctxPool holds an optional per-App context pool. If non-nil NewContext
-	// will prefer this pool when creating request Contexts. Having a pool
-	// per-App allows isolation and tuning per application instance.
-	ctxPool *ContextPool
+	// -----------------------------------------------------------------------
+	// 6. Plugins & workers
+	// -----------------------------------------------------------------------
 
-	// workerHandles tracks started job workers so we can stop them during
-	// shutdown. Protected by workersMu.
-	workers   []workerHandle
-	workersMu sync.Mutex
-
-	// plugins holds per-App plugin instances, initialized by the framework
-	// or extensions. Access via App.Plugins()[name].
+	// plugins holds per-App plugin instances keyed by name.
+	// Access via App.ListPlugins() or App.Plugins()[name].
 	plugins     map[string]Plugin
 	pluginOrder []string
 	pluginsMu   sync.RWMutex
-
-	// plugin lifecycle control: a cancelable context used to run plugin Start
-	// implementations and a WaitGroup to wait for them during shutdown.
+	// Plugin lifecycle: a cancelable context drives plugin Start goroutines;
+	// pluginWg is used during Shutdown to wait for all of them to exit.
 	pluginCtx    context.Context
 	pluginCancel context.CancelFunc
 	pluginWg     sync.WaitGroup
+	// PluginStartTimeout overrides the per-plugin Start deadline.
+	// Zero means DefaultPluginStartTimeout (30 s); negative disables it.
+	PluginStartTimeout time.Duration
+	// workers tracks started job.Worker instances for graceful shutdown.
+	// Protected by workersMu.
+	workers   []workerHandle
+	workersMu sync.Mutex
 
-	// Error handling: custom handler and verbosity flag. If no custom handler
-	// is provided the framework will use DefaultErrorHandler (with verbose
-	// controlled by verboseErrors).
+	// -----------------------------------------------------------------------
+	// 7. Error handling & validation
+	// -----------------------------------------------------------------------
+
+	// errorHandler is the custom error renderer. When nil, DefaultErrorHandler
+	// is used, with verbosity controlled by verboseErrors.
 	errorHandler  func(http.ResponseWriter, *http.Request, error)
 	verboseErrors bool
-	// redactionEnabled controls whether built-in logging middleware will
-	// redact sensitive fields (see RedactMap/RedactedValue). Default is
-	// true to preserve secure-by-default behavior; call WithRedaction(false)
-	// when you want to manage redaction externally.
+	// redactionEnabled controls whether built-in logging middleware redacts
+	// sensitive fields. Defaults to true (secure-by-default).
 	redactionEnabled bool
-	// redactionCfg holds per-App redaction configuration when set via
-	// WithRedactionConfig. If zero-value the package defaults are used.
+	// redactionCfg holds per-App redaction configuration (set via
+	// WithRedactionConfig). Zero value means package defaults apply.
 	redactionCfg RedactionConfig
-
-	// validatorMu protects validator so WithValidator / SetValidator can be
-	// called concurrently with in-flight requests.
+	// validatorMu guards validator for concurrent WithValidator / SetValidator
+	// calls alongside in-flight requests.
 	validatorMu sync.RWMutex
-	// validator is the per-App instance of go-playground/validator. When nil
+	// validator is the per-App go-playground/validator instance. When nil,
 	// Context.Validate falls back to the package-level pkgValidator.
 	validator *gvalidator.Validate
 
-	// healthzRegistered is set to 1 (via atomic CAS) once the /healthz route
-	// has been mounted so it is only registered once per App instance.
-	healthzRegistered int32
+	// -----------------------------------------------------------------------
+	// 8. Runtime state
+	// -----------------------------------------------------------------------
 
-	// PluginStartTimeout overrides the default timeout for plugin Start calls.
-	// A zero value means DefaultPluginStartTimeout (30s) is used.
-	PluginStartTimeout time.Duration
+	// state is the server run-state: 0 = idle, 1 = running, 2 = shut down.
+	// Updated exclusively via atomic CAS to avoid data races.
+	state int32
+	// healthzRegistered is set to 1 (via atomic CAS) once the /healthz route
+	// has been mounted, ensuring it is only registered once per App instance.
+	healthzRegistered int32
+	// lc is the HTTP server lifecycle engine, created lazily in Start.
+	lc *internalapp.Lifecycle
 }
 
 type workerHandle struct {
