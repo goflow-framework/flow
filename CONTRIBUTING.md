@@ -11,6 +11,55 @@ Thanks for your interest in contributing to Flow. This document summarizes the c
 - Conservative versioning: The framework enforces major-version compatibility for plugins. Plugins must expose a semantic Version() and the major version must match the framework API major (see docs/architecture.md).
 - Testability: Favor deterministic, small, and isolated tests. Avoid relying on global state or external services in unit tests; use integration tests sparingly and keep them stable with clear golden data.
 
+## Developer Certificate of Origin (DCO)
+
+By making a contribution to this project you certify that you agree to the
+[Developer Certificate of Origin v1.1](https://developercertificate.org/):
+
+> By making a contribution to this project, I certify that:
+>
+> (a) The contribution was created in whole or in part by me and I have the right to submit it under the
+> open source license indicated in the file; or
+>
+> (b) The contribution is based upon previous work that, to the best of my knowledge, is covered under
+> an appropriate open source license and I have the right under that license to submit that work with
+> modifications, whether created in whole or in part by me, under the same open source license (unless
+> I am permitted to submit under a different license), as indicated in the file; or
+>
+> (c) The contribution was provided directly to me by some other person who certified (a), (b) or (c)
+> and I have not modified it.
+>
+> (d) I understand and agree that this project and the contribution are public and that a record of the
+> contribution (including all personal information I submit with it, including my sign-off) is maintained
+> indefinitely and may be redistributed consistent with this project or the open source license(s)
+> involved.
+
+### How to sign off
+
+Add a `Signed-off-by` trailer to every commit using the `-s` / `--signoff` flag:
+
+```sh
+git commit -s -m "feat: add awesome feature"
+```
+
+This produces a commit message like:
+
+```
+feat: add awesome feature
+
+Signed-off-by: Your Name <you@example.com>
+```
+
+The name and e-mail must match your Git identity (`git config user.name` /
+`git config user.email`). Pull requests without a `Signed-off-by` line on
+every commit will not be merged.
+
+**Tip — sign off retroactively** (before pushing a new branch):
+
+```sh
+git rebase HEAD~<number-of-commits> --signoff
+```
+
 ## How to contribute
 
 1. Fork the repository and create a branch with a clear name, e.g. `feat/your-feature` or `fix/some-bug`.
@@ -25,6 +74,7 @@ Thanks for your interest in contributing to Flow. This document summarizes the c
 - Are public APIs documented in `docs/`?
 - Are tests present for new/changed behavior?
 - Does the code compile and do the tests pass on `go test ./...`?
+- Does every commit carry a `Signed-off-by` line (`git commit -s`)?
 
 Maintainers will review and ask for changes if necessary. For larger design changes, open an issue first to discuss the approach.
 
