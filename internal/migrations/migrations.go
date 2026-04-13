@@ -2,6 +2,7 @@ package migrations
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -64,7 +65,7 @@ func (m *MigrationRunner) RollbackLast(dir string, db *sql.DB) error {
 	var base string
 	err := db.QueryRow("SELECT name FROM flow_migrations ORDER BY applied_at DESC LIMIT 1").Scan(&base)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return fmt.Errorf("no applied migrations found in %s", dir)
 		}
 		return err

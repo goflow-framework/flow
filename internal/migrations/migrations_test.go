@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	_ "modernc.org/sqlite"
@@ -87,5 +88,118 @@ func TestApplyAndRollbackSQLite(t *testing.T) {
 	}
 	if mcnt != 0 {
 		t.Fatalf("expected 0 applied migrations after rollback, got %d", mcnt)
+	}
+}
+
+func TestRollbackLast_NoMigrations(t *testing.T) {
+	td := t.TempDir()
+	migDir := filepath.Join(td, "db", "migrate")
+	if err := os.MkdirAll(migDir, 0o750); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	dbPath := filepath.Join(td, "test.db")
+	db, err := sql.Open("sqlite", fmt.Sprintf("file:%s", dbPath))
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	defer db.Close()
+
+	runner := &MigrationRunner{}
+	err = runner.RollbackLast(migDir, db)
+	if err == nil {
+		t.Fatal("expected error when no migrations applied, got nil")
+	}
+	// error must contain helpful context
+	if !strings.Contains(err.Error(), "no applied migrations") {
+		t.Fatalf("unexpected error message: %v", err)
+	}
+}
+
+func TestApplyAll_IdempotentMultiple(t *testing.T) {
+	td := t.TempDir()
+	migDir := filepath.Join(td, "db", "migrate")
+	if err := os.MkdirAll(migDir, 0o750); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	// two independent migrations
+	files := map[string]string{
+		"20260101000000_create_a.up.sql": "CREATE TABLE a (id INTEGER PRIMARY KEY);",
+		"20260102000000_create_b.up.sql": "CREATE TABLE b (id INTEGER PRIMARY KEY);",
+	}
+	for name, content := range files {
+		if err := os.WriteFile(filepath.Join(migDir, name), []byte(content), 0o644); err != nil {
+			t.Fatalf("write %s: %v", name, err)
+		}
+	}
+	dbPath := filepath.Join(td, "test.db")
+	db, err := sql.Open("sqlite", fmt.Sprintf("file:%s", dbPath))
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	defer db.Close()
+
+	runner := &MigrationRunner{}
+	// first run applies both
+	if err := runner.ApplyAll(migDir, db); err != nil {
+		t.Fatalf("first ApplyAll: %v", err)
+	}
+	var cnt int
+	if err := db.QueryRow("SELECT count(1) FROM flow_migrations").Scan(&cnt); err != nil {
+		t.Fatalf("count: %v", err)
+	}
+	if cnt != 2 {
+		t.Fatalf("expected 2 applied migrations, got %d", cnt)
+	}
+	// second run is idempotent
+	if err := runner.ApplyAll(migDir, db); err != nil {
+		t.Fatalf("second ApplyAll: %v", err)
+	}
+	if err := db.QueryRow("SELECT count(1) FROM flow_migrations").Scan(&cnt); err != nil {
+		t.Fatalf("count after reapply: %v", err)
+	}
+	if cnt != 2 {
+		t.Fatalf("expected still 2 after reapply, got %d", cnt)
+	}
+}
+
+func TestPendingMigrations(t *testing.T) {
+	td := t.TempDir()
+	migDir := filepath.Join(td, "db", "migrate")
+	if err := os.MkdirAll(migDir, 0o750); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	names := []string{
+		"20260101000000_alpha.up.sql",
+		"20260102000000_beta.up.sql",
+		"20260103000000_gamma.up.sql",
+	}
+	for _, n := range names {
+		if err := os.WriteFile(filepath.Join(migDir, n), []byte("SELECT 1;"), 0o644); err != nil {
+			t.Fatalf("write %s: %v", n, err)
+		}
+	}
+	dbPath := filepath.Join(td, "test.db")
+	db, err := sql.Open("sqlite", fmt.Sprintf("file:%s", dbPath))
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	defer db.Close()
+
+	runner := &MigrationRunner{}
+	// apply first migration only
+	if err := runner.ApplyAll(migDir, db); err != nil {
+		// SELECT 1 is valid; if we get an error apply each individually
+		t.Fatalf("ApplyAll: %v", err)
+	}
+	// all three applied now; manually remove two from tracking to simulate pending
+	if _, err := db.Exec("DELETE FROM flow_migrations WHERE name != '20260101000000_alpha'"); err != nil {
+		t.Fatalf("delete: %v", err)
+	}
+	pending, err := runner.PendingMigrations(migDir, db)
+	if err != nil {
+		t.Fatalf("PendingMigrations: %v", err)
+	}
+	if len(pending) != 2 {
+		t.Fatalf("expected 2 pending, got %d: %v", len(pending), pending)
 	}
 }
