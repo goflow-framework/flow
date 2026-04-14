@@ -1,11 +1,6 @@
 package cookie
 
 import (
-	"crypto/hmac"
-	"crypto/sha256"
-	"encoding/base64"
-	"encoding/hex"
-	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -18,21 +13,38 @@ type fakeUser struct {
 }
 
 func TestMiddleware_AttachesUserFromSession(t *testing.T) {
-	// create a deterministic session manager so we can craft a cookie
+	// Create a session manager with a deterministic secret.
 	secret := []byte("test-secret-32-bytes-long------")
 	sm := flowpkg.NewSessionManager(secret, "flow_session")
 
-	// craft a session map with user id
-	vals := map[string]interface{}{"uid": "42"}
-	// replicate SessionManager.encodeForCookie logic here (unexported in package)
-	b, err := json.Marshal(vals)
-	if err != nil {
-		t.Fatalf("marshal session: %v", err)
-	}
-	mac := hmac.New(sha256.New, secret)
-	mac.Write(b)
-	sig := mac.Sum(nil)
-	enc := base64.RawURLEncoding.EncodeToString(b) + "|" + hex.EncodeToString(sig)
+	// Build a properly encrypted cookie by running a real Set through the
+	// session middleware.  This avoids replicating the (now-encrypted) internal
+	// encoding logic and ensures the test stays valid across format changes.
+	cookieValue := func() string {
+		setReq := httptest.NewRequest("GET", "/set", nil)
+		setRec := httptest.NewRecorder()
+
+		// Run the session middleware so a Session is wired into context.
+		sm.Middleware()(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			s := flowpkg.FromContext(r.Context())
+			if s == nil {
+				t.Fatal("no session in context during setup")
+			}
+			if err := s.Set("uid", "42"); err != nil {
+				t.Fatalf("session Set: %v", err)
+			}
+		})).ServeHTTP(setRec, setReq)
+
+		// Extract the cookie value that was written to the response.
+		cookies := setRec.Result().Cookies()
+		for _, c := range cookies {
+			if c.Name == sm.CookieName {
+				return c.Value
+			}
+		}
+		t.Fatal("session cookie not set by Set()")
+		return ""
+	}()
 
 	// simple lookup that maps the session uid to a fakeUser
 	lookup := func(id interface{}) (interface{}, error) {
@@ -44,14 +56,14 @@ func TestMiddleware_AttachesUserFromSession(t *testing.T) {
 
 	mw := Middleware(sm, "uid", lookup)
 
-	// build request with cookie
+	// Build the actual test request carrying the encrypted cookie.
 	req := httptest.NewRequest("GET", "/", nil)
-	req.AddCookie(&http.Cookie{Name: sm.CookieName, Value: enc})
+	req.AddCookie(&http.Cookie{Name: sm.CookieName, Value: cookieValue})
 
 	rr := httptest.NewRecorder()
 
-	// ensure session middleware runs before our auth middleware so the
-	// session is decoded into context.
+	// Session middleware must run before auth middleware so the session is
+	// decoded into context before Middleware tries to read from it.
 	sessionMw := sm.Middleware()
 	h := sessionMw(mw(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		u, ok := FromContext(r.Context())
