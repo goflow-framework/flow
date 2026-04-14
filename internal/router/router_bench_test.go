@@ -35,8 +35,8 @@ func BenchmarkMatchRoute_NoParams(b *testing.B) {
 	}
 	for _, tt := range types {
 		b.Run(tt.name, func(b *testing.B) {
-			UseParamsPool = tt.usePool
 			r := New()
+			r.useParamsPool = tt.usePool
 			r.Get("/ping", benchHandler)
 			req := httptest.NewRequest("GET", "/ping", nil)
 			runServeBM(b, r, req)
@@ -54,8 +54,8 @@ func BenchmarkMatchRoute_WithParams(b *testing.B) {
 	}
 	for _, tt := range types {
 		b.Run(tt.name, func(b *testing.B) {
-			UseParamsPool = tt.usePool
 			r := New()
+			r.useParamsPool = tt.usePool
 			r.Get("/users/:id/profile", benchHandler)
 			req := httptest.NewRequest("GET", "/users/123/profile", nil)
 			runServeBM(b, r, req)
@@ -74,8 +74,8 @@ func BenchmarkMatchRoute_ManyRoutes(b *testing.B) {
 	}
 	for _, tt := range types {
 		b.Run(tt.name, func(b *testing.B) {
-			UseParamsPool = tt.usePool
 			r := New()
+			r.useParamsPool = tt.usePool
 			// register many routes
 			for i := 0; i < 50; i++ {
 				p := "/static/route/" + strconv.Itoa(i)
@@ -101,8 +101,8 @@ func BenchmarkIntegration_MiddlewareAndHandlerReadingParams(b *testing.B) {
 	}
 	for _, tt := range types {
 		b.Run(tt.name, func(b *testing.B) {
-			UseParamsPool = tt.usePool
 			r := New()
+			r.useParamsPool = tt.usePool
 
 			// middleware that reads the "id" param from context
 			mwRead := func(next http.Handler) http.Handler {
@@ -133,8 +133,8 @@ func BenchmarkIntegration_DefaultMiddlewareStack(b *testing.B) {
 	}{{"pool", true}, {"nopool", false}}
 	for _, tt := range types {
 		b.Run(tt.name, func(b *testing.B) {
-			UseParamsPool = tt.usePool
 			r := New()
+			r.useParamsPool = tt.usePool
 
 			// RequestID middleware: ensure X-Request-ID exists and is returned in response
 			reqIDMW := func(next http.Handler) http.Handler {
