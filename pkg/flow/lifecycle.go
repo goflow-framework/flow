@@ -168,7 +168,16 @@ func (a *App) Run(ctx context.Context) error {
 	return a.Shutdown(ctxShutdown)
 }
 
-// Shutdown gracefully stops the HTTP server. It is safe to call multiple times.
+// Shutdown gracefully stops the server. It is safe to call multiple times.
+//
+// Shutdown sequence (order matters):
+//  1. Cancel plugin Start() contexts and wait for those goroutines to exit.
+//  2. Drain the HTTP server (stop accepting new requests, finish in-flight ones).
+//  3. Stop background job workers.
+//  4. Call Stop() on each plugin in reverse registration order.
+//     Plugins may enqueue executor tasks or emit trace spans during Stop().
+//  5. Shut down the executor so all enqueued tasks complete.
+//  6. Shut down the tracer/exporter last, flushing any remaining spans.
 func (a *App) Shutdown(ctx context.Context) error {
 	if a.lc == nil {
 		return nil
@@ -221,13 +230,24 @@ func (a *App) Shutdown(ctx context.Context) error {
 		}
 	}
 
+	// Stop plugins before shutting down the executor and tracer.
+	// Plugin Stop() implementations may submit cleanup tasks to the executor
+	// or record final trace spans; they must run while both are still alive.
+	if err := a.shutdownPlugins(ctx); err != nil {
+		a.logger.Printf("plugin shutdown error: %v", err)
+	}
+
+	// Drain the executor only after all plugin Stop() calls have returned so
+	// any work they enqueued is guaranteed to be accepted and completed.
 	if a.executorShutdown != nil {
 		_ = a.executorShutdown(ctx)
 	}
+
+	// Flush the tracer last so spans emitted during plugin stop and executor
+	// drain are exported before the tracer closes its connection.
 	if a.tracerShutdown != nil {
 		_ = a.tracerShutdown(ctx)
 	}
-	_ = a.shutdownPlugins(ctx)
 
 	return nil
 }
