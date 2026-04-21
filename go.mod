@@ -17,7 +17,7 @@ require (
 	github.com/uptrace/bun/dialect/sqlitedialect v1.2.18
 	go.opentelemetry.io/otel v1.43.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.43.0
-	go.opentelemetry.io/otel/exporters/stdout/stdouttrace v1.42.0
+	go.opentelemetry.io/otel/exporters/stdout/stdouttrace v1.43.0
 	go.opentelemetry.io/otel/sdk v1.43.0
 	go.uber.org/zap v1.27.1
 	golang.org/x/text v0.35.0
