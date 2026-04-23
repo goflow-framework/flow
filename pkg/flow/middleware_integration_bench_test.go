@@ -8,15 +8,6 @@ import (
 	"testing"
 )
 
-func runAppServeBM(b *testing.B, a *App, req *http.Request) {
-	w := httptest.NewRecorder()
-	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		a.ServeHTTP(w, req)
-	}
-}
-
 // Benchmark using the real App middleware stack (Recovery, RequestID, Logging, Metrics)
 // and the public Router adapter.  The internal params pool is always enabled
 // (production default); pool-vs-nopool comparisons live in
