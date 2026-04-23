@@ -11,6 +11,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ### Added
 - Secure default middleware (`SecureHeaders`, `SessionCookieHardening`) and helper `WithSecureDefaults(*App)` to register conservative security headers and session cookie defaults. Added unit tests, an example (`examples/security_demo`) and docs (`docs/security.md`).
 - Middleware integration assertion tests covering Recovery, RequestID, Metrics, Timeout, stack ordering, and concurrency safety (`pkg/flow/middleware_integration_test.go`).
+- `docs/body-limit.md` — full API reference for `BodyLimitMiddleware`, `WithBodyLimit`, `IsBodyTooLarge`, `DefaultBodyLimitBytes`; includes lazy-enforcement explanation, limit sizing guide, per-route override recipes, and middleware stack order diagram.
 - `docs/rate-limiting.md` — full API reference and security guide for `RateLimitMiddleware`, `RateLimitMiddlewareWithOptions`, `WithRateLimit`, `WithRateLimitOptions`, `MustParseCIDRs`, `ParseCIDRs`, and the trusted-proxy `X-Forwarded-For` security model.
 
 ### Notes

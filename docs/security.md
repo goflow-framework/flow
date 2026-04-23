@@ -109,3 +109,5 @@ Notes
 
 - [`rate-limiting.md`](rate-limiting.md) — per-IP rate limiting, trusted proxy
   configuration, and `X-Forwarded-For` security model
+- [`body-limit.md`](body-limit.md) — `BodyLimitMiddleware`, `IsBodyTooLarge`,
+  per-route overrides, and choosing a limit for your use case
