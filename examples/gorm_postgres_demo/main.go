@@ -7,7 +7,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/undiegomejia/flow/contrib/orm/gorm"
+	"github.com/goflow-framework/flow/contrib/orm/gorm"
 )
 
 func main() {

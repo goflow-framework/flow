@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/goflow-framework/flow/pkg/flow"
 	"github.com/rs/zerolog"
-	"github.com/undiegomejia/flow/pkg/flow"
 )
 
 func TestZerologAdapterImplementsStructuredLoggerAndHelpers(t *testing.T) {

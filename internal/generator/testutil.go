@@ -265,7 +265,7 @@ func WriteTempGoMod(projDir, moduleName string, replaceSelf bool) error {
 // root. Use t.TempDir() to create the directory and pass it as `dir`.
 func WriteTempModule(t *testing.T, dir string, root string) {
 	// keep the module name generic; TempModule uses unique module names
-	content := fmt.Sprintf("module tempgen\n\ngo 1.24\n\nrequire github.com/undiegomejia/flow v0.0.0\n\nreplace github.com/undiegomejia/flow => %s\n", root)
+	content := fmt.Sprintf("module tempgen\n\ngo 1.24\n\nrequire github.com/goflow-framework/flow v0.0.0\n\nreplace github.com/goflow-framework/flow => %s\n", root)
 	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte(content), 0o644); err != nil {
 		t.Fatalf("WriteTempModule: %v", err)
 	}

@@ -6,8 +6,8 @@ package orm_test
 import (
 	"testing"
 
-	"github.com/undiegomejia/flow/internal/orm"
-	"github.com/undiegomejia/flow/pkg/flow/api"
+	"github.com/goflow-framework/flow/internal/orm"
+	"github.com/goflow-framework/flow/pkg/flow/api"
 
 	_ "modernc.org/sqlite"
 )

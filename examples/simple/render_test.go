@@ -6,8 +6,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	controllers "github.com/undiegomejia/flow/examples/simple/app/controllers"
-	flow "github.com/undiegomejia/flow/pkg/flow"
+	controllers "github.com/goflow-framework/flow/examples/simple/app/controllers"
+	flow "github.com/goflow-framework/flow/pkg/flow"
 )
 
 func TestExampleRenderShow(t *testing.T) {

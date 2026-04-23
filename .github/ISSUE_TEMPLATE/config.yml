@@ -2,11 +2,11 @@ name: config
 blank_issues_enabled: false
 contact_links:
   - name: 💬 Ask a question / start a discussion
-    url: https://github.com/undiegomejia/flow/discussions
+    url: https://github.com/goflow-framework/flow/discussions
     about: Use GitHub Discussions for questions, ideas, and general conversation about Flow.
   - name: 📖 Documentation
-    url: https://github.com/undiegomejia/flow/tree/main/docs
+    url: https://github.com/goflow-framework/flow/tree/main/docs
     about: Check the docs first — your question may already be answered.
   - name: 🔒 Security vulnerability
-    url: https://github.com/undiegomejia/flow/security/advisories/new
+    url: https://github.com/goflow-framework/flow/security/advisories/new
     about: Please report security issues privately via GitHub Security Advisories.

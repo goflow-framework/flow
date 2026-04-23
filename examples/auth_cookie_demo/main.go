@@ -6,8 +6,8 @@ import (
 	"net/http"
 	"time"
 
-	cookie "github.com/undiegomejia/flow/contrib/auth/cookie"
-	"github.com/undiegomejia/flow/pkg/flow"
+	cookie "github.com/goflow-framework/flow/contrib/auth/cookie"
+	"github.com/goflow-framework/flow/pkg/flow"
 )
 
 func main() {

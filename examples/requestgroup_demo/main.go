@@ -10,7 +10,7 @@ import (
 	"syscall"
 	"time"
 
-	flow "github.com/undiegomejia/flow/pkg/flow"
+	flow "github.com/goflow-framework/flow/pkg/flow"
 )
 
 func main() {

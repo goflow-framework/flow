@@ -9,10 +9,10 @@ import (
 	"github.com/spf13/cobra"
 
 	// ensure sample plugin is registered
-	_ "github.com/undiegomejia/flow/pkg/plugins/sample"
+	_ "github.com/goflow-framework/flow/pkg/plugins/sample"
 
-	gen "github.com/undiegomejia/flow/internal/generator"
-	"github.com/undiegomejia/flow/pkg/plugins"
+	gen "github.com/goflow-framework/flow/internal/generator"
+	"github.com/goflow-framework/flow/pkg/plugins"
 )
 
 func TestGenList_Formatted(t *testing.T) {

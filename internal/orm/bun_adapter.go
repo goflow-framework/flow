@@ -172,7 +172,7 @@ func (b *BunAdapter) Ping(ctx context.Context) error {
 // api.ORM implementation
 // ---------------------------------------------------------------------------
 //
-// These four methods satisfy the github.com/undiegomejia/flow/pkg/flow/api.ORM
+// These four methods satisfy the github.com/goflow-framework/flow/pkg/flow/api.ORM
 // interface, letting application code stay decoupled from *bun.DB details.
 // Each method delegates to bun's query builder so bun's dialect handling,
 // column mapping, and hook system are fully preserved.

@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/undiegomejia/flow/pkg/flow"
+	"github.com/goflow-framework/flow/pkg/flow"
 )
 
 // incompatiblePlugin reports a different major version than the framework's

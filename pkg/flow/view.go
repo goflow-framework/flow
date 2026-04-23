@@ -25,7 +25,7 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/undiegomejia/flow/pkg/i18n"
+	"github.com/goflow-framework/flow/pkg/i18n"
 )
 
 // templateEntry holds a parsed template together with a pool of ready-to-use

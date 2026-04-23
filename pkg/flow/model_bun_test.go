@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	orm "github.com/undiegomejia/flow/internal/orm"
+	orm "github.com/goflow-framework/flow/internal/orm"
 	"github.com/uptrace/bun"
 	_ "modernc.org/sqlite"
 )

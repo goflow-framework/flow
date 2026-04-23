@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	execpkg "github.com/undiegomejia/flow/pkg/exec"
+	execpkg "github.com/goflow-framework/flow/pkg/exec"
 )
 
 // TestSubmitAndDrain verifies that all submitted tasks run to completion before

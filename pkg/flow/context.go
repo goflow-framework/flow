@@ -28,7 +28,7 @@ import (
 	"sync"
 
 	"github.com/go-playground/validator/v10"
-	routerpkg "github.com/undiegomejia/flow/internal/router"
+	routerpkg "github.com/goflow-framework/flow/internal/router"
 )
 
 // pkgValidator is the package-level fallback validator used when Context.App

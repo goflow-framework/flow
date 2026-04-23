@@ -7,9 +7,9 @@ import (
 	"os/signal"
 	"syscall"
 
-	controllers "github.com/undiegomejia/flow/examples/simple/app/controllers"
-	flow "github.com/undiegomejia/flow/pkg/flow"
-	"github.com/undiegomejia/flow/pkg/plugins"
+	controllers "github.com/goflow-framework/flow/examples/simple/app/controllers"
+	flow "github.com/goflow-framework/flow/pkg/flow"
+	"github.com/goflow-framework/flow/pkg/plugins"
 )
 
 func main() {

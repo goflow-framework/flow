@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/undiegomejia/flow/pkg/flow"
+	"github.com/goflow-framework/flow/pkg/flow"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest/observer"
 )

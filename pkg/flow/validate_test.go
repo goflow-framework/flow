@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/go-playground/validator/v10"
-	"github.com/undiegomejia/flow/pkg/flow"
+	"github.com/goflow-framework/flow/pkg/flow"
 )
 
 // ---------------------------------------------------------------------------

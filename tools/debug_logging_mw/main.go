@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 
-	"github.com/undiegomejia/flow/pkg/flow"
+	"github.com/goflow-framework/flow/pkg/flow"
 )
 
 func main() {

@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	execpkg "github.com/undiegomejia/flow/pkg/exec"
+	execpkg "github.com/goflow-framework/flow/pkg/exec"
 )
 
 // TestBoundedExecutor_BlocksWhenFull verifies Submit blocks when the worker

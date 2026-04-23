@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/undiegomejia/flow/pkg/flow"
-	"github.com/undiegomejia/flow/pkg/plugins"
+	"github.com/goflow-framework/flow/pkg/flow"
+	"github.com/goflow-framework/flow/pkg/plugins"
 )
 
 // runtimePlugin demonstrates registering a plugin at runtime from main.

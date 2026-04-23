@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/undiegomejia/flow/pkg/i18n"
+	"github.com/goflow-framework/flow/pkg/i18n"
 )
 
 func TestTemplateFuncT_RendersTranslation(t *testing.T) {

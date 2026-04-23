@@ -8,8 +8,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 
-	"github.com/undiegomejia/flow/pkg/flow"
-	"github.com/undiegomejia/flow/pkg/plugins"
+	"github.com/goflow-framework/flow/pkg/flow"
+	"github.com/goflow-framework/flow/pkg/plugins"
 )
 
 // middlewarePlugin demonstrates returning middleware from a plugin.

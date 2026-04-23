@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/undiegomejia/flow/pkg/flow"
+	"github.com/goflow-framework/flow/pkg/flow"
 )
 
 // shutdownPlugin is a plugin that records whether its OnShutdown hook was called.

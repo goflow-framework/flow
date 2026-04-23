@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/undiegomejia/flow/internal/orm"
+	"github.com/goflow-framework/flow/internal/orm"
 
 	_ "modernc.org/sqlite" // register the "sqlite" driver
 )

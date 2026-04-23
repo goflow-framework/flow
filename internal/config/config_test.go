@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/undiegomejia/flow/internal/config"
+	"github.com/goflow-framework/flow/internal/config"
 )
 
 // setenv sets environment variables for the duration of the test and restores

@@ -7,7 +7,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/undiegomejia/flow/pkg/flow"
+	"github.com/goflow-framework/flow/pkg/flow"
 )
 
 // Plugin is an alias to the canonical flow.Plugin interface. This package

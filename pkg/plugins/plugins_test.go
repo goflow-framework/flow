@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/undiegomejia/flow/pkg/flow"
+	"github.com/goflow-framework/flow/pkg/flow"
 )
 
 type dummyPlugin struct {

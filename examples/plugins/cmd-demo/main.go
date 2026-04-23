@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/undiegomejia/flow/pkg/flow"
-	"github.com/undiegomejia/flow/pkg/plugins"
+	"github.com/goflow-framework/flow/pkg/flow"
+	"github.com/goflow-framework/flow/pkg/plugins"
 
 	// import the sample plugin so it registers during init()
-	_ "github.com/undiegomejia/flow/pkg/plugins/sample"
+	_ "github.com/goflow-framework/flow/pkg/plugins/sample"
 )
 
 func main() {

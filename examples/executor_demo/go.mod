@@ -1,4 +1,4 @@
-module github.com/undiegomejia/flow/examples/executor_demo
+module github.com/goflow-framework/flow/examples/executor_demo
 
 go 1.24.0
 
@@ -7,7 +7,7 @@ toolchain go1.24.11
 require (
 	github.com/alicebob/miniredis/v2 v2.22.0
 	github.com/redis/go-redis/v9 v9.17.2
-	github.com/undiegomejia/flow v0.0.0
+	github.com/goflow-framework/flow v0.0.0
 )
 
 require (
@@ -52,4 +52,4 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-replace github.com/undiegomejia/flow => ../../
+replace github.com/goflow-framework/flow => ../../

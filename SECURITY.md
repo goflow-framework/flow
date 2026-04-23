@@ -16,7 +16,7 @@ Older versions do not receive backported security patches.
 
 Use GitHub's private vulnerability reporting feature instead:
 
-1. Go to **[Security → Report a vulnerability](https://github.com/undiegomejia/flow/security/advisories/new)**.
+1. Go to **[Security → Report a vulnerability](https://github.com/goflow-framework/flow/security/advisories/new)**.
 2. Fill in a clear description of the issue, steps to reproduce, and the potential impact.
 3. Submit the report — it will only be visible to the repository maintainers.
 
