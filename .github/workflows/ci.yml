@@ -206,8 +206,8 @@ jobs:
           pushd "$TMPDIR"
           go mod init tmpgen || true
           # Add a dummy requirement and replace it with the checked-out workspace
-          go mod edit -require=github.com/undiegomejia/flow@v0.0.0 || true
-          go mod edit -replace=github.com/undiegomejia/flow=${GITHUB_WORKSPACE} || true
+          go mod edit -require=github.com/goflow-framework/flow@v0.0.0 || true
+          go mod edit -replace=github.com/goflow-framework/flow=${GITHUB_WORKSPACE} || true
           # Run the generator tests by targeting the package path explicitly so
           # the temporary module is used for the test invocation.
           go test ${GITHUB_WORKSPACE}/internal/generator -v 2>&1 | tee ${GITHUB_WORKSPACE}/.ci/integration/generator_tests_${{ matrix.go-version }}.txt
@@ -375,8 +375,8 @@ jobs:
           TMPDIR=$(mktemp -d)
           pushd "$TMPDIR"
           go mod init tmpgen || true
-          go mod edit -require=github.com/undiegomejia/flow@v0.0.0 || true
-          go mod edit -replace=github.com/undiegomejia/flow=${GITHUB_WORKSPACE} || true
+          go mod edit -require=github.com/goflow-framework/flow@v0.0.0 || true
+          go mod edit -replace=github.com/goflow-framework/flow=${GITHUB_WORKSPACE} || true
           go test ${GITHUB_WORKSPACE}/internal/generator -v 2>&1 | tee "${GITHUB_WORKSPACE}/$file"
           popd
 

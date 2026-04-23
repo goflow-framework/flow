@@ -1,6 +1,6 @@
 package simple
 
-import "github.com/undiegomejia/flow/pkg/flow"
+import "github.com/goflow-framework/flow/pkg/flow"
 
 // Register registers a simple service into the provided App. This
 // demonstrates the recommended runtime registration pattern.

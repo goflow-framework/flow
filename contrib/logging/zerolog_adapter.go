@@ -3,8 +3,8 @@ package logging
 import (
 	"context"
 
+	"github.com/goflow-framework/flow/pkg/flow"
 	"github.com/rs/zerolog"
-	"github.com/undiegomejia/flow/pkg/flow"
 )
 
 // ZerologAdapter adapts zerolog.Logger to flow.StructuredLogger.

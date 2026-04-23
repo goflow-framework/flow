@@ -23,8 +23,8 @@ import (
   "context"
   "time"
 
-  "github.com/undiegomejia/flow/pkg/flow"
-  "github.com/undiegomejia/flow/pkg/job"
+  "github.com/goflow-framework/flow/pkg/flow"
+  "github.com/goflow-framework/flow/pkg/job"
   "github.com/redis/go-redis/v9"
 )
 

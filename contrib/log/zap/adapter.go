@@ -5,7 +5,7 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/undiegomejia/flow/pkg/flow"
+	"github.com/goflow-framework/flow/pkg/flow"
 )
 
 // ZapAdapter adapts an *zap.Logger to the framework's StructuredLogger

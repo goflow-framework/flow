@@ -5,8 +5,8 @@ import (
 	"os"
 	"path/filepath"
 
+	rg "github.com/goflow-framework/flow/internal/generator/routegen"
 	"github.com/spf13/cobra"
-	rg "github.com/undiegomejia/flow/internal/generator/routegen"
 )
 
 var genRoutesCmd = &cobra.Command{

@@ -8,8 +8,8 @@ import (
 	"os"
 	"time"
 
-	zapadapter "github.com/undiegomejia/flow/contrib/log/zap"
-	"github.com/undiegomejia/flow/pkg/flow"
+	zapadapter "github.com/goflow-framework/flow/contrib/log/zap"
+	"github.com/goflow-framework/flow/pkg/flow"
 	"go.uber.org/zap"
 )
 

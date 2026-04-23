@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/undiegomejia/flow/pkg/flow"
+	"github.com/goflow-framework/flow/pkg/flow"
 )
 
 // mockGenerator is a simple GeneratorPlugin used for tests.

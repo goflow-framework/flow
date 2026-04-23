@@ -1,7 +1,7 @@
 package flow
 
 import (
-	flowexec "github.com/undiegomejia/flow/pkg/flow/exec"
+	flowexec "github.com/goflow-framework/flow/pkg/flow/exec"
 )
 
 // NewBoundedExecutor is a compatibility shim that delegates to the

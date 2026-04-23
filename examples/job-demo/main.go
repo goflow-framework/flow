@@ -9,7 +9,7 @@ import (
 
 	"github.com/redis/go-redis/v9"
 
-	"github.com/undiegomejia/flow/pkg/job"
+	"github.com/goflow-framework/flow/pkg/job"
 )
 
 func main() {

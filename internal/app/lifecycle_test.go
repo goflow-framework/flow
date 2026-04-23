@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	internalapp "github.com/undiegomejia/flow/internal/app"
+	internalapp "github.com/goflow-framework/flow/internal/app"
 )
 
 // newLC is a helper that builds a Lifecycle on a random free port.

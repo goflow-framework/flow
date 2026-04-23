@@ -7,8 +7,8 @@ import (
 	"net/smtp"
 	"os"
 
-	mailer "github.com/undiegomejia/flow/contrib/plugin/mailer"
-	"github.com/undiegomejia/flow/pkg/flow"
+	mailer "github.com/goflow-framework/flow/contrib/plugin/mailer"
+	"github.com/goflow-framework/flow/pkg/flow"
 )
 
 func main() {

@@ -4,7 +4,7 @@ import (
 	"context"
 	"net/http"
 
-	flow "github.com/undiegomejia/flow/pkg/flow"
+	flow "github.com/goflow-framework/flow/pkg/flow"
 )
 
 // ctxKey is an unexported type for storing the current user in request context.

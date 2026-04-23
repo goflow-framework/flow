@@ -7,9 +7,9 @@ import (
 	"time"
 
 	miniredis "github.com/alicebob/miniredis/v2"
+	flow "github.com/goflow-framework/flow/pkg/flow"
+	"github.com/goflow-framework/flow/pkg/job"
 	"github.com/redis/go-redis/v9"
-	flow "github.com/undiegomejia/flow/pkg/flow"
-	"github.com/undiegomejia/flow/pkg/job"
 )
 
 // This example demonstrates creating an App with a bounded executor and

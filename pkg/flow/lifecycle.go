@@ -13,7 +13,7 @@ import (
 	"syscall"
 	"time"
 
-	internalapp "github.com/undiegomejia/flow/internal/app"
+	internalapp "github.com/goflow-framework/flow/internal/app"
 )
 
 // DefaultPluginStartTimeout is the maximum time a plugin Start goroutine

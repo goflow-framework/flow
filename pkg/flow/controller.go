@@ -14,7 +14,7 @@ import (
 	"fmt"
 	"net/http"
 
-	routerpkg "github.com/undiegomejia/flow/internal/router"
+	routerpkg "github.com/goflow-framework/flow/internal/router"
 )
 
 // Controller is a minimal base that application controllers can embed or

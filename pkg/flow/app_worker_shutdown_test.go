@@ -6,8 +6,8 @@ import (
 	"time"
 
 	miniredis "github.com/alicebob/miniredis/v2"
+	"github.com/goflow-framework/flow/pkg/job"
 	"github.com/redis/go-redis/v9"
-	"github.com/undiegomejia/flow/pkg/job"
 )
 
 // Test that App.Shutdown waits for in-flight job handlers to complete when

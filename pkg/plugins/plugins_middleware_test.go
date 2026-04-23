@@ -6,7 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/undiegomejia/flow/pkg/flow"
+	"github.com/goflow-framework/flow/pkg/flow"
 )
 
 // middlewarePlugin returns a middleware that injects a header to responses.

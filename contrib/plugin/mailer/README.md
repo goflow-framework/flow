@@ -9,7 +9,7 @@ Usage
 
 ```go
 import (
-  "github.com/undiegomejia/flow/contrib/plugin/mailer"
+  "github.com/goflow-framework/flow/contrib/plugin/mailer"
 )
 
 m := mailer.NewSMTPAdapter("smtp.example.com:587", "user", "pass")

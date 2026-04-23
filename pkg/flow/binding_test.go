@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/undiegomejia/flow/pkg/flow"
+	"github.com/goflow-framework/flow/pkg/flow"
 )
 
 // makeCtx is a helper that builds a *flow.Context from a raw *http.Request.

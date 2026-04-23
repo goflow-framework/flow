@@ -19,20 +19,20 @@ import (
 	"text/tabwriter"
 	"time"
 
+	gen "github.com/goflow-framework/flow/internal/generator"
+	migrations "github.com/goflow-framework/flow/internal/migrations"
+	routerpkg "github.com/goflow-framework/flow/internal/router"
+	flowpkg "github.com/goflow-framework/flow/pkg/flow"
+	"github.com/goflow-framework/flow/pkg/observability"
+	"github.com/goflow-framework/flow/pkg/plugins"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/cobra"
-	gen "github.com/undiegomejia/flow/internal/generator"
-	migrations "github.com/undiegomejia/flow/internal/migrations"
-	routerpkg "github.com/undiegomejia/flow/internal/router"
-	flowpkg "github.com/undiegomejia/flow/pkg/flow"
-	"github.com/undiegomejia/flow/pkg/observability"
-	"github.com/undiegomejia/flow/pkg/plugins"
 
 	// register the pure-Go SQLite driver used by db migrate in development
 	_ "modernc.org/sqlite"
 	// include the sample plugin so the CLI binary built during tests
 	// includes an example generator registered via init().
-	_ "github.com/undiegomejia/flow/pkg/plugins/sample"
+	_ "github.com/goflow-framework/flow/pkg/plugins/sample"
 )
 
 var (
@@ -129,14 +129,14 @@ func runNew(cmd *cobra.Command, args []string) error {
 	}
 
 	files := map[string]string{
-		filepath.Join(root, "go.mod"): fmt.Sprintf("module %s\n\ngo 1.24\n\nrequire github.com/undiegomejia/flow v0.0.0\n", name),
+		filepath.Join(root, "go.mod"): fmt.Sprintf("module %s\n\ngo 1.24\n\nrequire github.com/goflow-framework/flow v0.0.0\n", name),
 
 		filepath.Join(root, "cmd", name, "main.go"): fmt.Sprintf(`package main
 
 import (
 	"log"
 
-	"github.com/undiegomejia/flow/pkg/flow"
+	"github.com/goflow-framework/flow/pkg/flow"
 )
 
 func main() {

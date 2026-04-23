@@ -4,7 +4,7 @@ import (
 	"context"
 	"sync"
 
-	execpkg "github.com/undiegomejia/flow/pkg/exec"
+	execpkg "github.com/goflow-framework/flow/pkg/exec"
 )
 
 // BoundedExecutor is a simple bounded worker pool with a buffered task queue.

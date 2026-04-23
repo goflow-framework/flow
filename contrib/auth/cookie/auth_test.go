@@ -5,7 +5,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	flowpkg "github.com/undiegomejia/flow/pkg/flow"
+	flowpkg "github.com/goflow-framework/flow/pkg/flow"
 )
 
 type fakeUser struct {

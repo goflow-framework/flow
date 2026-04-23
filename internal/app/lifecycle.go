@@ -24,7 +24,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/undiegomejia/flow/internal/server"
+	"github.com/goflow-framework/flow/internal/server"
 )
 
 // ErrAlreadyRunning is returned when Start is called on a Lifecycle that is

@@ -1,7 +1,7 @@
 package generator
 
 import (
-	"github.com/undiegomejia/flow/pkg/plugins"
+	"github.com/goflow-framework/flow/pkg/plugins"
 )
 
 // ListRegisteredGenerators returns the names of registered generator plugins.

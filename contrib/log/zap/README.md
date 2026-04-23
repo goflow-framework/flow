@@ -9,8 +9,8 @@ Usage
 ```go
 import (
     "go.uber.org/zap"
-    zapadapter "github.com/undiegomejia/flow/contrib/log/zap"
-    "github.com/undiegomejia/flow/pkg/flow"
+    zapadapter "github.com/goflow-framework/flow/contrib/log/zap"
+    "github.com/goflow-framework/flow/pkg/flow"
 )
 
 func main() {

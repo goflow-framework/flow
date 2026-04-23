@@ -3,8 +3,8 @@ package sample
 import (
 	"context"
 
-	"github.com/undiegomejia/flow/pkg/flow"
-	"github.com/undiegomejia/flow/pkg/plugins"
+	"github.com/goflow-framework/flow/pkg/flow"
+	"github.com/goflow-framework/flow/pkg/plugins"
 )
 
 type samplePlugin struct{}

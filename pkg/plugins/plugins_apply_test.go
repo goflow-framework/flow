@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/undiegomejia/flow/pkg/flow"
+	"github.com/goflow-framework/flow/pkg/flow"
 )
 
 // testPlugin is a small plugin used by the tests. Declared at package level so

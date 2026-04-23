@@ -1,7 +1,7 @@
 # Flow — A Minimal MVC Framework for Go
 
-[![CI](https://github.com/undiegomejia/flow/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/undiegomejia/flow/actions/workflows/ci.yml)
-[![Go Report Card](https://goreportcard.com/badge/github.com/undiegomejia/flow)](https://goreportcard.com/report/github.com/undiegomejia/flow)
+[![CI](https://github.com/goflow-framework/flow/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/goflow-framework/flow/actions/workflows/ci.yml)
+[![Go Report Card](https://goreportcard.com/badge/github.com/goflow-framework/flow)](https://goreportcard.com/report/github.com/goflow-framework/flow)
 
 > Flow is an opinionated, small, and developer-friendly MVC framework for Go. It provides a tiny routing DSL, controller/context helpers, a simple view manager with layouts/partials, cookie sessions, a migrations runner, and generators to scaffold controllers, models, views and migrations. Flow's design favors explicitness, testability and a pleasant developer loop — similar in spirit to Rails, but idiomatic Go.
 
@@ -94,7 +94,7 @@ Example — enable the default middleware stack:
 ```go
 import (
 	"time"
-	"github.com/undiegomejia/flow/pkg/flow"
+	"github.com/goflow-framework/flow/pkg/flow"
 )
 
 app := flow.New("my-app",
@@ -278,7 +278,7 @@ allocations. Pooling is enabled by default to improve throughput and reduce GC p
 If you need to disable pooling globally (for debugging or to measure baseline allocations) set:
 
 ```go
-import "github.com/undiegomejia/flow/pkg/flow"
+import "github.com/goflow-framework/flow/pkg/flow"
 
 func init() {
 		flow.UseContextPool = false
@@ -327,7 +327,7 @@ Example usage inside a handler (replace the middleware import path with your mod
 ```go
 import (
     middleware "github.com/your/module/path/app/middleware" // replace with your module
-    flow "github.com/undiegomejia/flow/pkg/flow"
+    flow "github.com/goflow-framework/flow/pkg/flow"
 )
 
 func (c *SomeController) Show(ctx *flow.Context) {

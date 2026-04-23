@@ -61,7 +61,7 @@ Registration patterns
 1. Runtime registration (recommended)
 
 ```go
-import "github.com/undiegomejia/flow/pkg/flow"
+import "github.com/goflow-framework/flow/pkg/flow"
 
 app := flow.New("myapp")
 
@@ -131,7 +131,7 @@ import (
     "fmt"
     "log"
 
-    "github.com/undiegomejia/flow/pkg/flow"
+    "github.com/goflow-framework/flow/pkg/flow"
 )
 
 type myPlugin struct{}

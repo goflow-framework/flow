@@ -126,7 +126,7 @@ import (
     "os"
     "path/filepath"
 
-    "github.com/undiegomejia/flow/pkg/plugins"
+    "github.com/goflow-framework/flow/pkg/plugins"
 )
 
 type MyGen struct{}

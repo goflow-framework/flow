@@ -8,8 +8,8 @@ package api_test
 // pkg/flow/api and pkg/flow without creating an import cycle.
 
 import (
-	"github.com/undiegomejia/flow/pkg/flow"
-	"github.com/undiegomejia/flow/pkg/flow/api"
+	"github.com/goflow-framework/flow/pkg/flow"
+	"github.com/goflow-framework/flow/pkg/flow/api"
 )
 
 // *flow.Context must satisfy api.Context.

@@ -1,4 +1,4 @@
-module github.com/undiegomejia/flow
+module github.com/goflow-framework/flow
 
 go 1.25.9
 

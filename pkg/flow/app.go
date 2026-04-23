@@ -31,14 +31,14 @@ import (
 
 	gvalidator "github.com/go-playground/validator/v10"
 
-	internalapp "github.com/undiegomejia/flow/internal/app"
-	"github.com/undiegomejia/flow/internal/config"
-	orm "github.com/undiegomejia/flow/internal/orm"
-	"github.com/undiegomejia/flow/pkg/assets"
-	execpkg "github.com/undiegomejia/flow/pkg/exec"
-	flowexec "github.com/undiegomejia/flow/pkg/flow/exec"
-	"github.com/undiegomejia/flow/pkg/job"
-	"github.com/undiegomejia/flow/pkg/observability"
+	internalapp "github.com/goflow-framework/flow/internal/app"
+	"github.com/goflow-framework/flow/internal/config"
+	orm "github.com/goflow-framework/flow/internal/orm"
+	"github.com/goflow-framework/flow/pkg/assets"
+	execpkg "github.com/goflow-framework/flow/pkg/exec"
+	flowexec "github.com/goflow-framework/flow/pkg/flow/exec"
+	"github.com/goflow-framework/flow/pkg/job"
+	"github.com/goflow-framework/flow/pkg/observability"
 	"github.com/uptrace/bun"
 )
 

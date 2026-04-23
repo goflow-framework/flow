@@ -13,8 +13,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/undiegomejia/flow/pkg/flow"
-	"github.com/undiegomejia/flow/pkg/plugins"
+	"github.com/goflow-framework/flow/pkg/flow"
+	"github.com/goflow-framework/flow/pkg/plugins"
 )
 
 func main() {

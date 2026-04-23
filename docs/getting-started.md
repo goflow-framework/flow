@@ -9,7 +9,7 @@ This guide walks you through creating a new Flow application from scratch — sc
 ## 1. Install the CLI
 
 ```bash
-go install github.com/undiegomejia/flow/cmd/flow@latest
+go install github.com/goflow-framework/flow/cmd/flow@latest
 ```
 
 Verify the install:
@@ -46,7 +46,7 @@ package main
 
 import (
     "log"
-    "github.com/undiegomejia/flow/pkg/flow"
+    "github.com/goflow-framework/flow/pkg/flow"
 )
 
 func main() {
@@ -153,7 +153,7 @@ package controllers
 import (
     "net/http"
 
-    "github.com/undiegomejia/flow/pkg/flow"
+    "github.com/goflow-framework/flow/pkg/flow"
 )
 
 type UsersController struct{}
@@ -198,9 +198,9 @@ Wire the controller into `main.go`:
 
 ```go
 import (
-    "github.com/undiegomejia/flow/internal/controllers"
-    "github.com/undiegomejia/flow/internal/router"
-    flowrouter "github.com/undiegomejia/flow/internal/router"
+    "github.com/goflow-framework/flow/internal/controllers"
+    "github.com/goflow-framework/flow/internal/router"
+    flowrouter "github.com/goflow-framework/flow/internal/router"
 )
 
 func main() {

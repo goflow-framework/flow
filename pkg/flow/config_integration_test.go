@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/undiegomejia/flow/internal/config"
-	flowpkg "github.com/undiegomejia/flow/pkg/flow"
+	"github.com/goflow-framework/flow/internal/config"
+	flowpkg "github.com/goflow-framework/flow/pkg/flow"
 
 	_ "modernc.org/sqlite" // register sqlite driver for WithConfig DB auto-open tests
 )

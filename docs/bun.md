@@ -28,8 +28,8 @@ import (
     "log"
     "time"
 
-    flow "github.com/undiegomejia/flow/pkg/flow"
-    orm "github.com/undiegomejia/flow/internal/orm"
+    flow "github.com/goflow-framework/flow/pkg/flow"
+    orm "github.com/goflow-framework/flow/internal/orm"
     _ "modernc.org/sqlite"
 )
 
@@ -97,7 +97,7 @@ or via a small CLI wrapper. Example usage:
 
 ```go
 import (
-    migrations "github.com/undiegomejia/flow/internal/migrations"
+    migrations "github.com/goflow-framework/flow/internal/migrations"
 )
 
 runner := migrations.MigrationRunner{}

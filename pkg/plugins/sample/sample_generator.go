@@ -6,8 +6,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/undiegomejia/flow/pkg/flow"
-	"github.com/undiegomejia/flow/pkg/plugins"
+	"github.com/goflow-framework/flow/pkg/flow"
+	"github.com/goflow-framework/flow/pkg/plugins"
 )
 
 // sampleGenerator is a tiny example GeneratorPlugin demonstrating how a
