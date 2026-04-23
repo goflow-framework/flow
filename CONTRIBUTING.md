@@ -137,6 +137,63 @@ If you prefer other tools, the important thing is to keep the output consistent 
 
 ---
 
+## Versioning & release policy
+
+Flow follows **[Semantic Versioning 2.0.0](https://semver.org/)** (`MAJOR.MINOR.PATCH`).
+
+| Version component | When to bump |
+|-------------------|--------------|
+| `MAJOR` | Breaking public API changes (removing/renaming exported symbols, changing middleware signatures, incompatible plugin interface changes). |
+| `MINOR` | New backwards-compatible features (new middleware, new `App` options, new helpers). |
+| `PATCH` | Backwards-compatible bug fixes, documentation, CI, dependency bumps that don't change the public API. |
+
+### Pre-1.0 policy
+
+While the module is on `v0.x.y`, minor bumps (`v0.N+1.0`) may contain breaking changes.
+Every breaking change **must** be documented in `CHANGELOG.md` under a `### Breaking` heading with a
+migration path.
+
+### How a release is made
+
+1. All intended changes are merged into `main`.
+2. `CHANGELOG.md` is updated: move items from `## [Unreleased]` into a new `## [vX.Y.Z] — YYYY-MM-DD` section.
+3. A PR titled `chore: release vX.Y.Z` is opened, reviewed, and merged.
+4. A maintainer creates a signed annotated tag on `main`:
+   ```sh
+   git tag -a vX.Y.Z -m "Release vX.Y.Z"
+   git push origin vX.Y.Z
+   ```
+5. The CI release job builds cross-platform binaries and publishes the GitHub Release automatically.
+
+### Commit message conventions
+
+We follow the **Conventional Commits** spec. The prefix determines the changelog section:
+
+| Prefix | Changelog section | SemVer impact |
+|--------|-------------------|---------------|
+| `feat:` | Added | MINOR |
+| `fix:` | Fixed | PATCH |
+| `perf:` | Performance | PATCH |
+| `refactor:` | Refactored | PATCH |
+| `docs:` | Documentation | — |
+| `chore:` | — | — |
+| `test:` | — | — |
+| `BREAKING CHANGE:` footer | Breaking | MAJOR (or MINOR pre-1.0) |
+
+### Branch naming
+
+| Pattern | Purpose |
+|---------|---------|
+| `feat/<description>` | New feature |
+| `fix/<description>` | Bug fix |
+| `perf/<description>` | Performance improvement |
+| `refactor/<description>` | Code cleanup |
+| `test/<description>` | Tests only |
+| `docs/<description>` | Documentation only |
+| `chore/<description>` | Tooling, CI, deps |
+
+---
+
 ## Further notes
 
 - For changes that affect the public plugin API, please document the compatibility constraints and add a migration note in `CHANGELOG.md`.
