@@ -11,6 +11,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ### Added
 - Secure default middleware (`SecureHeaders`, `SessionCookieHardening`) and helper `WithSecureDefaults(*App)` to register conservative security headers and session cookie defaults. Added unit tests, an example (`examples/security_demo`) and docs (`docs/security.md`).
 - Middleware integration assertion tests covering Recovery, RequestID, Metrics, Timeout, stack ordering, and concurrency safety (`pkg/flow/middleware_integration_test.go`).
+- `docs/rate-limiting.md` — full API reference and security guide for `RateLimitMiddleware`, `RateLimitMiddlewareWithOptions`, `WithRateLimit`, `WithRateLimitOptions`, `MustParseCIDRs`, `ParseCIDRs`, and the trusted-proxy `X-Forwarded-For` security model.
 
 ### Notes
 - Migration: enabling `WithSecureDefaults(app)` is opt-in. To avoid breaking existing setups, `SessionCookieHardening` can be enabled first to append conservative attributes on outgoing `Set-Cookie` headers; migrate session manager settings (call `ApplySecureCookieDefaults()`) once you confirm traffic and clients are compatible.

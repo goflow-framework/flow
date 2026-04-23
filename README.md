@@ -135,6 +135,7 @@ Practical recipes, security checklist, plugin guidance and generator usage live 
     - Ensure TLS termination is configured and that HSTS is only enabled when your service is reachable via HTTPS (the `SecureHeaders` middleware handles this by default).
     - Run CI gates: `gofmt`, `go vet`, `staticcheck` and (optional) `gosec` to catch formatting, correctness, and common security issues early.
     - Keep secrets out of logs: use structured logging adapters that support redaction (see `pkg/flow/logger.go`) and prefer the `RedactMap` helper for structured data.
+    - If deployed behind a reverse proxy or load balancer, configure `TrustedProxies` on the rate limiter so `X-Forwarded-For` is validated correctly. See [`docs/rate-limiting.md`](docs/rate-limiting.md) for the full security model and examples.
 +
 +  To control the framework's built-in redaction behavior use the `WithRedaction` App option when constructing your App. For example: `flow.New("app", flow.WithRedaction(false))` to opt out of automatic redaction and manage it externally.
 
