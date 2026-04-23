@@ -161,7 +161,22 @@ If you want to add a new recipe to the Cookbook, please add a short markdown doc
 
 Make sure you have Go 1.20+ (project uses module mode). These commands assume a Linux environment — on Windows, run them inside WSL.
 
-From the repository root:
+### Adding Flow to your project
+
+```bash
+go get github.com/goflow-framework/flow@v0.10.0
+```
+
+Then import the package in your Go code:
+
+```go
+import "github.com/goflow-framework/flow/pkg/flow"
+```
+
+The module is published at
+[pkg.go.dev/github.com/goflow-framework/flow](https://pkg.go.dev/github.com/goflow-framework/flow).
+
+### Running tests from the repository root
 
 ```bash
 # run all tests (replace <repo_root> with your repository path)

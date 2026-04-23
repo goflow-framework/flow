@@ -13,6 +13,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Middleware integration assertion tests covering Recovery, RequestID, Metrics, Timeout, stack ordering, and concurrency safety (`pkg/flow/middleware_integration_test.go`).
 - `docs/body-limit.md` — full API reference for `BodyLimitMiddleware`, `WithBodyLimit`, `IsBodyTooLarge`, `DefaultBodyLimitBytes`; includes lazy-enforcement explanation, limit sizing guide, per-route override recipes, and middleware stack order diagram.
 - `docs/rate-limiting.md` — full API reference and security guide for `RateLimitMiddleware`, `RateLimitMiddlewareWithOptions`, `WithRateLimit`, `WithRateLimitOptions`, `MustParseCIDRs`, `ParseCIDRs`, and the trusted-proxy `X-Forwarded-For` security model.
+- Cross-links between `docs/rate-limiting.md` ↔ `docs/body-limit.md` in their respective See Also sections.
+- `README.md` install section: added `go get github.com/goflow-framework/flow@v0.10.0` snippet and `pkg.go.dev` link for the new module path.
 
 ### Notes
 - Migration: enabling `WithSecureDefaults(app)` is opt-in. To avoid breaking existing setups, `SessionCookieHardening` can be enabled first to append conservative attributes on outgoing `Set-Cookie` headers; migrate session manager settings (call `ApplySecureCookieDefaults()`) once you confirm traffic and clients are compatible.

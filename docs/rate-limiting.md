@@ -254,6 +254,8 @@ avoiding surprising throttling during development. Override them with
 
 ## See also
 
+- [`body-limit.md`](body-limit.md) — `BodyLimitMiddleware` for request-size
+  enforcement; combine with rate limiting for full DoS protection
 - [`security.md`](security.md) — secure headers, session hardening, CSRF
 - [`getting-started.md`](getting-started.md) — full App setup walkthrough
 - [`architecture.md`](architecture.md) — middleware stack ordering
