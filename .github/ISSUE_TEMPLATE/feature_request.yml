@@ -1,0 +1,75 @@
+name: Feature Request
+description: Propose a new feature or enhancement for Flow
+title: "feat: <short description>"
+labels: ["enhancement", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for suggesting a feature! Please provide as much context as possible.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / motivation
+      description: >
+        What problem does this solve? Is it related to a frustration you have with the current API?
+      placeholder: "I always have to work around X because Flow doesn't support Y."
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: Describe what you'd like to see. Include API sketches or pseudocode if helpful.
+      placeholder: |
+        ```go
+        // example of the desired API
+        ```
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: What other approaches did you consider? Why did you rule them out?
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      description: Which part of Flow does this affect?
+      options:
+        - Router / middleware
+        - Context / request handling
+        - Session / auth
+        - ORM / migrations
+        - CLI generators
+        - Plugins / lifecycle
+        - Views / templates
+        - Configuration
+        - Observability / logging
+        - CI / tooling
+        - Documentation
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: breaking
+    attributes:
+      label: Would this be a breaking change?
+      options:
+        - "No"
+        - "Yes"
+        - "Unsure"
+    validations:
+      required: true
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional context
+      description: Links to prior art, related issues, benchmarks, etc.
