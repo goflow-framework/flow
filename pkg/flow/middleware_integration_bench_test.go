@@ -3,7 +3,6 @@ package flow
 import (
 	"io"
 	"log"
-	"net/http"
 	"net/http/httptest"
 	"testing"
 )
