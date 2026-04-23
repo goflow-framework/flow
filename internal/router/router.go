@@ -81,11 +81,18 @@ type Router struct {
 	NotFound http.Handler
 	// MethodNotAllowed handler called when a path matches but method doesn't.
 	MethodNotAllowed http.Handler
+
+	// paramsPool is a per-Router pool of reusable param maps.  Keeping it on
+	// the Router struct (rather than as a package-level global) means that
+	// multiple Router instances — e.g. in parallel tests or multi-tenant
+	// setups — never share allocations and cannot leak params across boundaries.
+	paramsPool    sync.Pool
+	useParamsPool bool
 }
 
-// New creates an empty Router.
+// New creates an empty Router with per-instance params pooling enabled.
 func New() *Router {
-	return &Router{}
+	return &Router{useParamsPool: true}
 }
 
 // Group represents a set of routes sharing a common prefix and optional
@@ -322,19 +329,14 @@ func (r *Router) Resources(base string, c ResourceController) error {
 	return nil
 }
 
-// UseParamsPool controls whether parameter maps are reused from a pool.
-// Tests/benchmarks can toggle this to compare behavior.
-var UseParamsPool = true
-
-var paramsPool sync.Pool
-
-func getParams() map[string]string {
-	if !UseParamsPool {
+// getParams returns a cleared param map from the per-Router pool, or
+// allocates a fresh one when the pool is empty or pooling is disabled.
+func (r *Router) getParams() map[string]string {
+	if !r.useParamsPool {
 		return make(map[string]string)
 	}
-	if v := paramsPool.Get(); v != nil {
+	if v := r.paramsPool.Get(); v != nil {
 		m := v.(map[string]string)
-		// clear
 		for k := range m {
 			delete(m, k)
 		}
@@ -343,15 +345,14 @@ func getParams() map[string]string {
 	return make(map[string]string)
 }
 
-func putParams(m map[string]string) {
-	if !UseParamsPool {
+func (r *Router) putParams(m map[string]string) {
+	if !r.useParamsPool {
 		return
 	}
-	// clear before putting back
 	for k := range m {
 		delete(m, k)
 	}
-	paramsPool.Put(m)
+	r.paramsPool.Put(m)
 }
 
 // ServeHTTP implements http.Handler. It finds the first matching route
@@ -363,7 +364,7 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	var methodMismatch bool
 
 	for _, rt := range r.routes {
-		ok, params := matchRoute(rt.segments, path)
+		ok, params := r.matchRoute(rt.segments, path)
 		if !ok {
 			continue
 		}
@@ -381,9 +382,10 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		// avoid extra allocations on routes without params.
 		if len(params) > 0 {
 			orig := final
-			final = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				orig.ServeHTTP(w, r)
-				putParams(params)
+			rtr := r // capture Router, not http.Request
+			final = http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+				orig.ServeHTTP(w, req)
+				rtr.putParams(params)
 			})
 		}
 		final.ServeHTTP(w, req.WithContext(ctx))
@@ -486,7 +488,7 @@ func normalizePath(p string) string {
 
 // matchRoute attempts to match the candidate path to the route segments.
 // Returns ok and a map of parameters when matched.
-func matchRoute(segs []string, path string) (bool, map[string]string) {
+func (r *Router) matchRoute(segs []string, path string) (bool, map[string]string) {
 	// handle root
 	if len(segs) == 0 {
 		return path == "/", map[string]string{}
@@ -533,7 +535,7 @@ func matchRoute(segs []string, path string) (bool, map[string]string) {
 				return false, nil
 			}
 			if params == nil {
-				params = getParams()
+				params = r.getParams()
 			}
 			params[name] = part
 			// continue
@@ -552,7 +554,7 @@ func matchRoute(segs []string, path string) (bool, map[string]string) {
 				return false, nil
 			}
 			if params == nil {
-				params = getParams()
+				params = r.getParams()
 			}
 			// capture remainder of path from current pstart up to end
 			params[name] = path[pstart:end]
