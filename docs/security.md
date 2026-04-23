@@ -102,3 +102,10 @@ Notes
   breaking applications when enabled.
 - Review Content-Security-Policy choices carefully; restrictive CSPs may
   require application changes.
+
+---
+
+## See also
+
+- [`rate-limiting.md`](rate-limiting.md) — per-IP rate limiting, trusted proxy
+  configuration, and `X-Forwarded-For` security model
