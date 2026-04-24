@@ -203,3 +203,73 @@ func TestPendingMigrations(t *testing.T) {
 		t.Fatalf("expected 2 pending, got %d: %v", len(pending), pending)
 	}
 }
+
+// ---------------------------------------------------------------------------
+// Dialect / placeholder tests
+// ---------------------------------------------------------------------------
+
+func TestPlaceholder_DefaultIsQuestionMark(t *testing.T) {
+	cases := []struct {
+		name    string
+		dialect string
+	}{
+		{"zero-value", ""},
+		{"explicit sqlite", DialectSQLite},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			r := &MigrationRunner{Dialect: tc.dialect}
+			if got := r.placeholder(); got != "?" {
+				t.Fatalf("expected ?, got %q", got)
+			}
+		})
+	}
+}
+
+func TestPlaceholder_PostgresReturnsDollarOne(t *testing.T) {
+	r := &MigrationRunner{Dialect: DialectPostgres}
+	if got := r.placeholder(); got != "$1" {
+		t.Fatalf("expected $1, got %q", got)
+	}
+}
+
+func TestApplyAndRollback_ExplicitSQLiteDialect(t *testing.T) {
+	// Regression: explicit Dialect: DialectSQLite must behave identically to
+	// zero-value dialect when using a SQLite database.
+	td := t.TempDir()
+	migDir := filepath.Join(td, "db", "migrate")
+	if err := os.MkdirAll(migDir, 0o750); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	up := filepath.Join(migDir, "20260101000000_create_x.up.sql")
+	down := filepath.Join(migDir, "20260101000000_create_x.down.sql")
+	_ = os.WriteFile(up, []byte("CREATE TABLE x (id INTEGER PRIMARY KEY);"), 0o644)
+	_ = os.WriteFile(down, []byte("DROP TABLE IF EXISTS x;"), 0o644)
+
+	db, err := sql.Open("sqlite", fmt.Sprintf("file:%s", filepath.Join(td, "test.db")))
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	defer db.Close()
+
+	runner := &MigrationRunner{Dialect: DialectSQLite}
+	if err := runner.ApplyAll(migDir, db); err != nil {
+		t.Fatalf("ApplyAll: %v", err)
+	}
+	var cnt int
+	if err := db.QueryRow("SELECT count(1) FROM flow_migrations").Scan(&cnt); err != nil {
+		t.Fatalf("count: %v", err)
+	}
+	if cnt != 1 {
+		t.Fatalf("expected 1 applied migration, got %d", cnt)
+	}
+	if err := runner.RollbackLast(migDir, db); err != nil {
+		t.Fatalf("RollbackLast: %v", err)
+	}
+	if err := db.QueryRow("SELECT count(1) FROM flow_migrations").Scan(&cnt); err != nil {
+		t.Fatalf("count after rollback: %v", err)
+	}
+	if cnt != 0 {
+		t.Fatalf("expected 0 after rollback, got %d", cnt)
+	}
+}

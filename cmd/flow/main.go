@@ -258,6 +258,21 @@ func openDB(dsn string) (*sql.DB, error) {
 	return sql.Open(driver, rawDSN)
 }
 
+// dialectFromDSN infers the migrations.MigrationRunner Dialect value from the
+// DSN string, matching the same logic used by openDB to pick the SQL driver.
+func dialectFromDSN(dsn string) string {
+	if dsn == "" {
+		dsn = os.Getenv("DATABASE_URL")
+	}
+	if len(dsn) >= 13 && dsn[:13] == "postgresql://" {
+		return migrations.DialectPostgres
+	}
+	if len(dsn) >= 11 && dsn[:11] == "postgres://" {
+		return migrations.DialectPostgres
+	}
+	return migrations.DialectSQLite
+}
+
 var dbCmd = &cobra.Command{
 	Use:   "db",
 	Short: "Database management commands",
@@ -280,7 +295,7 @@ variable.`,
 		}
 		defer db.Close()
 
-		runner := &migrations.MigrationRunner{}
+		runner := &migrations.MigrationRunner{Dialect: dialectFromDSN(dbDSN)}
 		pending, err := runner.PendingMigrations(dbMigrationsDir, db)
 		if err != nil {
 			return fmt.Errorf("db migrate: %w", err)
@@ -313,7 +328,7 @@ remove it from the tracking table.`,
 		}
 		defer db.Close()
 
-		runner := &migrations.MigrationRunner{}
+		runner := &migrations.MigrationRunner{Dialect: dialectFromDSN(dbDSN)}
 		if err := runner.RollbackLast(dbMigrationsDir, db); err != nil {
 			return fmt.Errorf("db rollback: %w", err)
 		}
@@ -332,7 +347,7 @@ var dbStatusCmd = &cobra.Command{
 		}
 		defer db.Close()
 
-		runner := &migrations.MigrationRunner{}
+		runner := &migrations.MigrationRunner{Dialect: dialectFromDSN(dbDSN)}
 
 		applied, err := runner.AppliedMigrations(db)
 		if err != nil {
