@@ -10,6 +10,10 @@ import (
 // unsafe HTTP methods by requiring the X-CSRF-Token header to be present and
 // equal to the session's CSRF token. This is a lightweight helper suitable
 // for single-page apps or API clients that transmit the token via a header.
+//
+// Like CSRFMiddleware, this variant requires SessionManager.Middleware() to be
+// registered earlier in the stack. If no session is present in the request
+// context the middleware responds with 500 and a diagnostic message.
 func CSRFMiddlewareJSON() Middleware {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -25,6 +29,15 @@ func CSRFMiddlewareJSON() Middleware {
 					return
 				}
 
+				// Guard: session middleware must be registered before CSRFMiddlewareJSON.
+				if FromContext(r.Context()) == nil {
+					http.Error(w,
+						"csrf: session middleware is not configured — "+
+							"register SessionManager.Middleware() before CSRFMiddlewareJSON() in your middleware stack",
+						http.StatusInternalServerError)
+					return
+				}
+
 				// Check token header
 				header := r.Header.Get("X-CSRF-Token")
 				if !secureCompare(header, CSRFToken(r)) {
@@ -35,9 +48,7 @@ func CSRFMiddlewareJSON() Middleware {
 			next.ServeHTTP(w, r)
 		})
 	}
-}
-
-// hasJSONContentType reports whether the Content-Type header value represents
+} // hasJSONContentType reports whether the Content-Type header value represents
 // a JSON media type. It uses mime.ParseMediaType to correctly strip parameters
 // (e.g. charset) before comparison, and accepts:
 //   - application/json          (RFC 4627 / RFC 8259)
