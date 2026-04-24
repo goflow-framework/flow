@@ -15,6 +15,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - `docs/rate-limiting.md` — full API reference and security guide for `RateLimitMiddleware`, `RateLimitMiddlewareWithOptions`, `WithRateLimit`, `WithRateLimitOptions`, `MustParseCIDRs`, `ParseCIDRs`, and the trusted-proxy `X-Forwarded-For` security model.
 - Cross-links between `docs/rate-limiting.md` ↔ `docs/body-limit.md` in their respective See Also sections.
 - `README.md` install section: added `go get github.com/goflow-framework/flow@v0.10.0` snippet and `pkg.go.dev` link for the new module path.
+- CI: removed `|| true` safety-net from the race-detector test step in `ci-improved.yml`; race failures now block the merge. Added `-race` flag to both test steps in `ci.yml` (`lint-and-test` coverage run and `test` matrix job) so the race detector runs on every push and PR.
 
 ### Notes
 - Migration: enabling `WithSecureDefaults(app)` is opt-in. To avoid breaking existing setups, `SessionCookieHardening` can be enabled first to append conservative attributes on outgoing `Set-Cookie` headers; migrate session manager settings (call `ApplySecureCookieDefaults()`) once you confirm traffic and clients are compatible.
