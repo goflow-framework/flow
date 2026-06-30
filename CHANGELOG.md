@@ -17,6 +17,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - `README.md` install section: added `go get github.com/goflow-framework/flow@v0.10.0` snippet and `pkg.go.dev` link for the new module path.
 - CI: removed `|| true` safety-net from the race-detector test step in `ci-improved.yml`; race failures now block the merge. Added `-race` flag to both test steps in `ci.yml` (`lint-and-test` coverage run and `test` matrix job) so the race detector runs on every push and PR.
 
+### Fixed
+- **`MigrationRunner` PostgreSQL placeholder bug**: the internal `flow_migrations` tracking queries used SQLite/MySQL `?` placeholders, causing silent failures against PostgreSQL. `MigrationRunner` now has a `Dialect` field (`DialectSQLite` / `DialectPostgres`); the `placeholder()` method returns `?` or `$1` accordingly. Zero-value `Dialect` preserves existing SQLite behaviour, so no existing code is broken. The CLI (`db migrate`, `db rollback`, `db status`) auto-detects the dialect from the DSN prefix. Three new unit tests cover the `placeholder()` logic and explicit-dialect apply/rollback round-trip.
+
 ### Notes
 - Migration: enabling `WithSecureDefaults(app)` is opt-in. To avoid breaking existing setups, `SessionCookieHardening` can be enabled first to append conservative attributes on outgoing `Set-Cookie` headers; migrate session manager settings (call `ApplySecureCookieDefaults()`) once you confirm traffic and clients are compatible.
 
@@ -30,7 +33,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - **Trusted-proxy validation for rate limiter** — `X-Forwarded-For` is no longer blindly trusted; per-IP maps use TTL eviction to prevent unbounded memory growth (#138).
 - **Session cookies default to `Secure=true, SameSite=Lax`** (#142).
 - **CSRF middleware** now returns HTTP 500 (not a silent empty token) on `crypto/rand` failure (#143).
-- **Go toolchain bumped to 1.25.9** to resolve stdlib CVEs (#137).
+- **Go toolchain bumped to 1.25.11** to resolve stdlib CVEs (#137).
 
 ### Added
 - `/healthz` and `/livez` health-check endpoints registered automatically on `App` (#152).
