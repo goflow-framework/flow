@@ -30,7 +30,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - **Trusted-proxy validation for rate limiter** — `X-Forwarded-For` is no longer blindly trusted; per-IP maps use TTL eviction to prevent unbounded memory growth (#138).
 - **Session cookies default to `Secure=true, SameSite=Lax`** (#142).
 - **CSRF middleware** now returns HTTP 500 (not a silent empty token) on `crypto/rand` failure (#143).
-- **Go toolchain bumped to 1.25.9** to resolve stdlib CVEs (#137).
+- **Go toolchain bumped to 1.25.11** to resolve stdlib CVEs (#137).
 
 ### Added
 - `/healthz` and `/livez` health-check endpoints registered automatically on `App` (#152).
