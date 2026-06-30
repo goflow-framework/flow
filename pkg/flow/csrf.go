@@ -17,20 +17,36 @@ const csrfSessionKey = "_csrf_token"
 var csrfRandReader io.Reader = rand.Reader
 
 // CSRFMiddleware ensures a per-session CSRF token exists and validates unsafe
-// requests. If the OS entropy pool is unavailable while generating a new token
-// the middleware responds with 500 Internal Server Error rather than issuing a
-// predictable (all-zero) token that would silently degrade CSRF protection.
+// requests. It requires SessionManager.Middleware() to be registered earlier
+// in the stack: if no session is found in the request context the middleware
+// responds with 500 Internal Server Error and a diagnostic message rather than
+// silently issuing a per-request token that can never be validated (which
+// would cause every state-changing request to return 403 with no explanation).
+//
+// If the OS entropy pool is unavailable while generating a new token the
+// middleware also responds with 500 Internal Server Error rather than issuing
+// a predictable (all-zero) token that would silently degrade CSRF protection.
 func CSRFMiddleware() Middleware {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// ensure token exists
+			// Guard: session middleware must be registered before CSRFMiddleware.
+			// Without a session the token cannot be persisted between requests,
+			// so every unsafe request would silently return 403. Fail loudly
+			// instead so the misconfiguration surfaces on the very first request.
 			sess := FromContext(r.Context())
+			if sess == nil {
+				http.Error(w,
+					"csrf: session middleware is not configured — "+
+						"register SessionManager.Middleware() before CSRFMiddleware() in your middleware stack",
+					http.StatusInternalServerError)
+				return
+			}
+
+			// ensure token exists in the session
 			var token string
-			if sess != nil {
-				if v, ok := sess.Get(csrfSessionKey); ok {
-					if s, ok := v.(string); ok {
-						token = s
-					}
+			if v, ok := sess.Get(csrfSessionKey); ok {
+				if s, ok := v.(string); ok {
+					token = s
 				}
 			}
 			if token == "" {
@@ -42,10 +58,8 @@ func CSRFMiddleware() Middleware {
 					http.Error(w, "internal server error", http.StatusInternalServerError)
 					return
 				}
-				if sess != nil {
-					// use Set which also persists via Save
-					_ = sess.Set(csrfSessionKey, token)
-				}
+				// use Set which also persists via Save
+				_ = sess.Set(csrfSessionKey, token)
 			}
 
 			// Validate unsafe methods
@@ -67,9 +81,7 @@ func CSRFMiddleware() Middleware {
 			next.ServeHTTP(w, r)
 		})
 	}
-}
-
-// CSRFToken returns the CSRF token for the request's session, or empty string.
+} // CSRFToken returns the CSRF token for the request's session, or empty string.
 func CSRFToken(r *http.Request) string {
 	if s := FromContext(r.Context()); s != nil {
 		if v, ok := s.Get(csrfSessionKey); ok {

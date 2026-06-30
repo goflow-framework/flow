@@ -63,9 +63,10 @@ jobs:
           # -coverprofile to main-only packages (tools/, examples/, cmd/*
           # without tests) which trigger "go: no such tool covdata" on Go 1.24+.
           # internal/generator runs in its own isolated job with a pinned toolchain.
+          # -race is required: race failures must block the merge.
           go list -f '{{if or .TestGoFiles .XTestGoFiles}}{{.ImportPath}}{{end}}' ./... \
             | grep -v "internal/generator" \
-            | xargs go test -coverprofile=.ci/coverage.out -covermode=atomic
+            | xargs go test -race -coverprofile=.ci/coverage.out -covermode=atomic
 
       - name: Enforce coverage threshold (≥ 50%)
         run: |
@@ -277,7 +278,7 @@ jobs:
         run: go vet ./...
 
       - name: Run tests (verbose, no cache)
-        run: go test ./... -v -count=1
+        run: go test -race ./... -v -count=1
 
   generator-nightly:
     name: Generator nightly matrix

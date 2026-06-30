@@ -147,7 +147,7 @@ jobs:
       - name: Run tests (race + coverage)
         run: |
           mkdir -p .ci
-          go test ./... -race -coverprofile=.ci/coverage.out -covermode=atomic || true
+          go test ./... -race -coverprofile=.ci/coverage.out -covermode=atomic
 
       - name: Upload coverage artifact
         uses: actions/upload-artifact@v7
