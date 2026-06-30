@@ -180,3 +180,94 @@ func TestGenerateCSRFToken_SuccessReturnsNonEmpty(t *testing.T) {
 		t.Fatalf("expected token length 43, got %d", len(tok))
 	}
 }
+
+// --- nil-session guard tests -----------------------------------------------
+
+// TestCSRFMiddleware_NoSession_GET_Returns500 verifies that CSRFMiddleware
+// returns 500 with a diagnostic message on a safe method when no session
+// middleware has been registered.
+func TestCSRFMiddleware_NoSession_GET_Returns500(t *testing.T) {
+	h := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Error("inner handler must not be called when session is absent")
+	})
+	// CSRFMiddleware registered WITHOUT wrapping in SessionManager.Middleware()
+	handler := CSRFMiddleware()(h)
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500 when session middleware absent, got %d", rr.Code)
+	}
+	if !strings.Contains(rr.Body.String(), "session middleware is not configured") {
+		t.Fatalf("expected diagnostic message in body, got: %q", rr.Body.String())
+	}
+}
+
+// TestCSRFMiddleware_NoSession_POST_Returns500 verifies the same guard fires on
+// an unsafe method so the developer gets 500 (not a mysterious 403).
+func TestCSRFMiddleware_NoSession_POST_Returns500(t *testing.T) {
+	h := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Error("inner handler must not be called when session is absent")
+	})
+	handler := CSRFMiddleware()(h)
+
+	req := httptest.NewRequest(http.MethodPost, "/", nil)
+	req.Header.Set("X-CSRF-Token", "any-token")
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500 when session middleware absent, got %d", rr.Code)
+	}
+	if !strings.Contains(rr.Body.String(), "session middleware is not configured") {
+		t.Fatalf("expected diagnostic message in body, got: %q", rr.Body.String())
+	}
+}
+
+// TestCSRFMiddlewareJSON_NoSession_POST_Returns500 verifies that
+// CSRFMiddlewareJSON returns 500 with a diagnostic message when the session
+// middleware is absent on an unsafe JSON request.
+func TestCSRFMiddlewareJSON_NoSession_POST_Returns500(t *testing.T) {
+	h := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Error("inner handler must not be called when session is absent")
+	})
+	handler := CSRFMiddlewareJSON()(h)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/resource", strings.NewReader(`{}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-CSRF-Token", "any-token")
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500 when session middleware absent, got %d", rr.Code)
+	}
+	if !strings.Contains(rr.Body.String(), "session middleware is not configured") {
+		t.Fatalf("expected diagnostic message in body, got: %q", rr.Body.String())
+	}
+}
+
+// TestCSRFMiddlewareJSON_NoSession_GET_PassesThrough verifies that safe methods
+// are not affected by the nil-session guard in CSRFMiddlewareJSON (no
+// validation needed on GET).
+func TestCSRFMiddlewareJSON_NoSession_GET_PassesThrough(t *testing.T) {
+	reached := false
+	h := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		reached = true
+		w.WriteHeader(http.StatusOK)
+	})
+	handler := CSRFMiddlewareJSON()(h)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/resource", nil)
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if !reached {
+		t.Fatal("expected inner handler to be reached for GET with CSRFMiddlewareJSON")
+	}
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rr.Code)
+	}
+}

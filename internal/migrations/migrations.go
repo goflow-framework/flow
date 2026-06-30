@@ -11,6 +11,14 @@ import (
 	"strings"
 )
 
+// Dialect constants for MigrationRunner.
+const (
+	// DialectSQLite selects ? placeholders (default, also used for MySQL).
+	DialectSQLite = "sqlite"
+	// DialectPostgres selects $1 placeholders required by PostgreSQL.
+	DialectPostgres = "postgres"
+)
+
 // MigrationRunner runs timestamped SQL migrations stored in a directory.
 // Migration files follow the naming convention:
 //
@@ -18,7 +26,25 @@ import (
 //	20260108120000_create_users.down.sql
 //
 // ApplyAll executes all .up.sql files in ascending timestamp order.
-type MigrationRunner struct{}
+//
+// Set Dialect to DialectPostgres when connecting to PostgreSQL so that the
+// internal flow_migrations tracking queries use $1 parameter placeholders.
+// Leave Dialect empty (or set to DialectSQLite) for SQLite / MySQL.
+type MigrationRunner struct {
+	// Dialect controls the SQL placeholder style used for the internal
+	// flow_migrations tracking queries. Valid values are DialectPostgres ("postgres")
+	// and DialectSQLite / "" ("sqlite", the default).
+	Dialect string
+}
+
+// placeholder returns the positional parameter placeholder appropriate for the
+// runner's configured SQL dialect.  PostgreSQL requires $1; SQLite/MySQL use ?.
+func (m *MigrationRunner) placeholder() string {
+	if m.Dialect == DialectPostgres {
+		return "$1"
+	}
+	return "?"
+}
 
 // ApplyAll applies all up migrations found in dir using the provided db.
 // This version tracks applied migrations in a `flow_migrations` table so
@@ -188,7 +214,7 @@ func (m *MigrationRunner) ensureTable(db *sql.DB) error {
 // isApplied checks if a migration (by base name) is already applied.
 func (m *MigrationRunner) isApplied(db *sql.DB, base string) (bool, error) {
 	var cnt int
-	err := db.QueryRow("SELECT count(1) FROM flow_migrations WHERE name = ?", base).Scan(&cnt)
+	err := db.QueryRow("SELECT count(1) FROM flow_migrations WHERE name = "+m.placeholder(), base).Scan(&cnt)
 	if err != nil {
 		return false, err
 	}
@@ -197,13 +223,13 @@ func (m *MigrationRunner) isApplied(db *sql.DB, base string) (bool, error) {
 
 // markApplied records a migration as applied.
 func (m *MigrationRunner) markApplied(db *sql.DB, base string) error {
-	_, err := db.Exec("INSERT INTO flow_migrations(name) VALUES (?)", base)
+	_, err := db.Exec("INSERT INTO flow_migrations(name) VALUES ("+m.placeholder()+")", base)
 	return err
 }
 
 // unmarkApplied removes a migration record (used on rollback).
 func (m *MigrationRunner) unmarkApplied(db *sql.DB, base string) error {
-	_, err := db.Exec("DELETE FROM flow_migrations WHERE name = ?", base)
+	_, err := db.Exec("DELETE FROM flow_migrations WHERE name = "+m.placeholder(), base)
 	return err
 }
 
