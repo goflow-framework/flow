@@ -58,7 +58,22 @@ jobs:
 
       - name: Run tests with coverage (exclude generator integration)
         run: |
+          set -euo pipefail
           mkdir -p .ci
+          # Re-apply permissions on any cached Go toolchain modules so go
+          # can fork/exec the required tools (compile/link/vet/cover).
+          GOMODCACHE="$(go env GOMODCACHE)"
+          if [ -d "${GOMODCACHE}/golang.org" ]; then
+            for t in "${GOMODCACHE}/golang.org/toolchain@"*; do
+              if [ -d "$t" ]; then
+                echo "Fixing toolchain perms in: $t"
+                find "$t" -type d -exec chmod a+rx {} + || true
+                find "$t" -type f -path '*/bin/*' -exec chmod a+x {} + || true
+                find "$t" -type f -path '*/pkg/tool/*' -exec chmod a+x {} + || true
+              fi
+            done
+            chmod -R a+rX "${GOMODCACHE}/golang.org" || true
+          fi
           # Select only packages that have test files. This avoids passing
           # -coverprofile to main-only packages (tools/, examples/, cmd/*
           # without tests) which trigger "go: no such tool covdata" on Go 1.24+.

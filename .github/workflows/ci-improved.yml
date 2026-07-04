@@ -116,7 +116,42 @@ jobs:
           restore-keys: |
             ${{ runner.OS }}-go-
 
+      # After a cache restore, tar may not preserve the execute bit on Go toolchain
+      # binaries stored inside the module cache (golang.org/toolchain@v...).
+      # Fix them here so that subsequent go commands can fork/exec the tools.
+      - name: Fix Go toolchain permissions
+        run: |
+          # Use GOMODCACHE (safe to query without toolchain-switching).
+          # When the actions/cache restore strips executable bits we need to
+          # ensure the Go toolchain modules under the module cache are
+          # readable and executable where appropriate so go can fork/exec
+          # the compiler/linker/vet/cover tools. Try a targeted approach
+          # first, then fall back to a recursive readable+executable fix.
+          set -euo pipefail
+          GOMODCACHE="$(go env GOMODCACHE)"
+          echo "GOMODCACHE=${GOMODCACHE}"
+          # Target specific toolchain module directories if present
+          for t in "${GOMODCACHE}/golang.org/toolchain@"*; do
+            if [ -d "$t" ]; then
+              echo "Fixing toolchain perms in: $t"
+              # Ensure directories are searchable/executable
+              find "$t" -type d -exec chmod a+rx {} + || true
+              # Ensure known executable paths are executable
+              find "$t" -type f -path '*/bin/*' -exec chmod a+x {} + || true
+              find "$t" -type f -path '*/pkg/tool/*' -exec chmod a+x {} + || true
+            fi
+          done
+          # If no toolchain directories matched, apply a safe fallback so
+          # the Go commands can still run. This makes all files under
+          # golang.org readable and directories executable.
+          if [ -d "${GOMODCACHE}/golang.org" ]; then
+            echo "Applying fallback perms to ${GOMODCACHE}/golang.org"
+            chmod -R a+rX "${GOMODCACHE}/golang.org" || true
+          fi
+
       - name: Install dependencies
+        env:
+          GOFLAGS: -modcacherw
         run: go mod download
 
       - name: Check gofmt
@@ -145,11 +180,21 @@ jobs:
       # staticcheck is now executed via golangci-lint (enabled in .golangci.yml).
 
       - name: Run tests (race + coverage)
+        env:
+          GOFLAGS: -modcacherw
         run: |
           mkdir -p .ci
+          # Re-apply permissions using GOMODCACHE (safe without toolchain-switching).
+          # go mod download, go vet, and golangci-lint can re-extract toolchain
+          # modules without execute bit; fixing here is the definitive guard.
+          GOMODCACHE="$(go env GOMODCACHE)"
+          if [ -d "${GOMODCACHE}/golang.org" ]; then
+            find "${GOMODCACHE}/golang.org" -type f -exec chmod a+x {} + || true
+          fi
           go test ./... -race -coverprofile=.ci/coverage.out -covermode=atomic
 
       - name: Upload coverage artifact
+        continue-on-error: true   # act artifact-server protocol mismatch; works fine on GitHub Actions
         uses: actions/upload-artifact@v7
         with:
           # Make artifact name unique per matrix job and per workflow run to avoid 409 Conflict
